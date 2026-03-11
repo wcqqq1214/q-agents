@@ -11,7 +11,7 @@ dependencies = [
     "pandas",
     "yfinance",
     "tavily-python",
-    "duckduckgo-search",
+    "ddgs",
     "python-dotenv",
 ]
 

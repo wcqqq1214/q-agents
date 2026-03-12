@@ -10,7 +10,7 @@ A monolithic financial analysis agent built with Python 3.13, LangChain, and Lan
 
 - **Language**: Python 3.13
 - **Frameworks**: `langchain`, `langgraph`, `langchain-openai`
-- **Data**: `pandas`, `yfinance`
+- **Data**: `pandas`, `yfinance` (via MCP server)
 - **Search**: `ddgs` (DuckDuckGo)
 - **Config**: `python-dotenv`
 
@@ -78,6 +78,28 @@ MINIMAX_API_KEY=your_minimax_api_key
 
 Get your API key from [MiniMax Open Platform](https://platform.minimaxi.com/).
 
+### 5. MCP yfinance server (required for stock quotes)
+
+The stock quote tool fetches data via an MCP server instead of calling yfinance directly. You must start the MCP server before running the agent.
+
+**Terminal 1 — start the MCP server:**
+
+```bash
+uv run python mcp_servers/yfinance_server/main.py
+```
+
+By default it listens at `http://127.0.0.1:8000/mcp`. To override:
+
+```bash
+MCP_YFINANCE_HOST=0.0.0.0 MCP_YFINANCE_PORT=9000 uv run python mcp_servers/yfinance_server/main.py
+```
+
+**Terminal 2 — if the server runs elsewhere, set the client URL in `.env`:**
+
+```bash
+MCP_YFINANCE_URL=http://127.0.0.1:8000/mcp
+```
+
 ## Run the agent
 
 Interactive CLI (recommended for quick testing):
@@ -98,7 +120,7 @@ messages = run_once("What is the latest price of AAPL?")
 
 ## Verify tools (optional)
 
-Stock quote:
+Stock quote (requires MCP server running):
 
 ```bash
 uv run python -c "from app.tools.finance_tools import get_us_stock_quote; from pprint import pprint; pprint(get_us_stock_quote.invoke({'ticker': 'AAPL'}))"
@@ -113,7 +135,9 @@ uv run python -c "from app.tools.finance_tools import search_news_with_duckduckg
 ## Project layout
 
 - `app/graph.py` — LangGraph ReAct graph (agent + tools nodes, MiniMax LLM).
-- `app/tools/finance_tools.py` — Tools: `get_us_stock_quote`, `search_news_with_duckduckgo`.
+- `app/tools/finance_tools.py` — LangChain tools: `get_us_stock_quote` (via MCP), `search_news_with_duckduckgo`.
+- `app/mcp_client/finance_client.py` — MCP client that calls the yfinance MCP server.
+- `mcp_servers/yfinance_server/main.py` — MCP server exposing `get_us_stock_quote` (uses yfinance).
 - `tests/manual_run.py` — Interactive CLI for the agent.
 
 ## License

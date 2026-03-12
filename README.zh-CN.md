@@ -10,7 +10,7 @@
 
 - **语言**: Python 3.13
 - **框架**: `langchain`, `langgraph`, `langchain-openai`
-- **数据**: `pandas`, `yfinance`
+- **数据**: `pandas`, `yfinance`（经 MCP 服务器）
 - **搜索**: `ddgs`（DuckDuckGo）
 - **配置**: `python-dotenv`
 
@@ -78,6 +78,28 @@ MINIMAX_API_KEY=你的_minimax_api_key
 
 API Key 可在 [MiniMax 开放平台](https://platform.minimaxi.com/) 获取。
 
+### 5. MCP yfinance 服务器（行情工具必需）
+
+行情工具通过 MCP 协议从独立服务器获取数据，不再直接调用 yfinance。运行 Agent 前需先启动 MCP 服务器。
+
+**终端 1 — 启动 MCP 服务器：**
+
+```bash
+uv run python mcp_servers/yfinance_server/main.py
+```
+
+默认监听 `http://127.0.0.1:8000/mcp`。如需修改：
+
+```bash
+MCP_YFINANCE_HOST=0.0.0.0 MCP_YFINANCE_PORT=9000 uv run python mcp_servers/yfinance_server/main.py
+```
+
+**终端 2 — 若 MCP 服务器地址不同，在 `.env` 中配置：**
+
+```bash
+MCP_YFINANCE_URL=http://127.0.0.1:8000/mcp
+```
+
 ## 运行 Agent
 
 交互式命令行（推荐快速测试）：
@@ -98,7 +120,7 @@ messages = run_once("What is the latest price of AAPL?")
 
 ## 验证工具（可选）
 
-行情工具：
+行情工具（需先启动 MCP 服务器）：
 
 ```bash
 uv run python -c "from app.tools.finance_tools import get_us_stock_quote; from pprint import pprint; pprint(get_us_stock_quote.invoke({'ticker': 'AAPL'}))"
@@ -113,7 +135,9 @@ uv run python -c "from app.tools.finance_tools import search_news_with_duckduckg
 ## 项目结构
 
 - `app/graph.py` — LangGraph ReAct 图（agent 节点 + 工具节点，MiniMax LLM）
-- `app/tools/finance_tools.py` — 工具：`get_us_stock_quote`、`search_news_with_duckduckgo`
+- `app/tools/finance_tools.py` — LangChain 工具：`get_us_stock_quote`（经 MCP 调用）、`search_news_with_duckduckgo`
+- `app/mcp_client/finance_client.py` — MCP 客户端，调用 yfinance MCP 服务器
+- `mcp_servers/yfinance_server/main.py` — MCP 服务器，暴露 `get_us_stock_quote`（内部使用 yfinance）
 - `tests/manual_run.py` — Agent 交互式 CLI
 
 ## License

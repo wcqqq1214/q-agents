@@ -2,6 +2,13 @@ from __future__ import annotations
 
 from typing import NoReturn
 
+try:
+    # Enable line-editing features (Backspace, history) for input() where available.
+    import readline  # type: ignore[unused-import]  # noqa: F401
+except Exception:
+    # In environments without readline support, fall back silently.
+    pass
+
 from app.graph import run_once
 
 

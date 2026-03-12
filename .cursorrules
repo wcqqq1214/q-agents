@@ -8,10 +8,11 @@
 - 搜索工具：tavily-python 或 duckduckgo-search
 
 # 代码风格与规范
-1. 必须使用最新的 LangGraph 语法（使用 `StateGraph`, `MessagesState` 等，不要使用已被弃用的旧版 LangChain AgentExecutor）。
-2. 工具定义：使用 `@tool` 装饰器定义 Python 函数，并必须为每个工具提供极其详细的 Google-style Docstring（因为 LLM 依赖 docstring 来理解何时调用工具）。
-3. 类型提示 (Type Hinting)：所有的函数和 State 定义必须包含严格的类型提示。
-4. 环境变量：所有 API Key 必须从 `.env` 文件中读取，使用 `python-dotenv`。
+1. **Git 提交信息**：所有 `git commit` 的 message 必须使用英语书写（例如 conventional commits：`feat(scope): description`）。
+2. 必须使用最新的 LangGraph 语法（使用 `StateGraph`, `MessagesState` 等，不要使用已被弃用的旧版 LangChain AgentExecutor）。
+3. 工具定义：使用 `@tool` 装饰器定义 Python 函数，并必须为每个工具提供极其详细的 Google-style Docstring（因为 LLM 依赖 docstring 来理解何时调用工具）。
+4. 类型提示 (Type Hinting)：所有的函数和 State 定义必须包含严格的类型提示。
+5. 环境变量：所有 API Key 必须从 `.env` 文件中读取，使用 `python-dotenv`。
 
 # Agent 架构设计 (ReAct 模式)
 我们的单 Agent 必须遵循以下 LangGraph 节点（Nodes）和边（Edges）的设计：

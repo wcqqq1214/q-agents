@@ -3,10 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, TypedDict
 
-from ddgs import DDGS
 from langchain_core.tools import tool
 
-from app.mcp_client.finance_client import call_get_us_stock_quote
+from app.mcp_client.finance_client import call_get_us_stock_quote, call_search_news
 
 
 def _now_iso_utc8() -> str:
@@ -211,58 +210,20 @@ def search_news_with_duckduckgo(query: str, limit: int = 5) -> List[NewsItem]:
     if not query_normalized:
         return []
 
-    items: List[NewsItem] = []
-
     try:
-        with DDGS() as ddgs:
-            # ddgs.news expects the query as the first positional argument.
-            results = ddgs.news(
-                query_normalized,
-                max_results=limit,
+        results = call_search_news(query_normalized, limit)
+        return [
+            NewsItem(
+                title=r.get("title"),
+                url=r.get("url"),
+                source=r.get("source"),
+                published_time=r.get("published_time"),
+                snippet=r.get("snippet"),
             )
-
-            for entry in results:
-                if not isinstance(entry, dict):
-                    continue
-
-                title = entry.get("title")
-                url = entry.get("url") or entry.get("link")
-                source = entry.get("source")
-                published_time = entry.get("date") or entry.get("published")
-                snippet = entry.get("excerpt") or entry.get("body")
-
-                # Normalize published_time to UTC+8 when it looks like ISO8601.
-                if isinstance(published_time, str):
-                    try:
-                        iso_candidate = (
-                            published_time.replace("Z", "+00:00")
-                            if published_time.endswith("Z")
-                            else published_time
-                        )
-                        dt = datetime.fromisoformat(iso_candidate)
-                        dt_utc8 = (
-                            dt.astimezone(timezone(timedelta(hours=8)))
-                            .replace(microsecond=0)
-                        )
-                        published_time = dt_utc8.isoformat()
-                    except ValueError:
-                        # If the format is not ISO8601-compatible, keep original.
-                        pass
-
-                items.append(
-                    NewsItem(
-                        title=title,
-                        url=url,
-                        source=source,
-                        published_time=published_time,
-                        snippet=snippet,
-                    )
-                )
+            for r in results
+            if isinstance(r, dict)
+        ]
     except Exception:
-        # For a tool used by an LLM, returning an empty list is safer than
-        # propagating low-level network or parsing errors.
         return []
-
-    return items
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from typing import Any
+from typing import Any, List
 
 from dotenv import load_dotenv
 from mcp import ClientSession
@@ -59,3 +59,52 @@ def call_get_us_stock_quote(ticker: str) -> dict[str, Any]:
     """
     url = os.environ.get("MCP_YFINANCE_URL", DEFAULT_MCP_URL)
     return asyncio.run(_call_get_us_stock_quote_async(ticker, url))
+
+
+async def _call_search_news_async(
+    query: str, limit: int, url: str
+) -> List[dict[str, Any]]:
+    """Call the search_news_with_duckduckgo tool on the MCP server."""
+    async with streamable_http_client(url) as (read, write, _):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool(
+                "search_news_with_duckduckgo",
+                arguments={"query": query, "limit": limit},
+            )
+            if result.isError:
+                error_msg = "Unknown MCP error"
+                if result.content:
+                    for part in result.content:
+                        if hasattr(part, "text"):
+                            error_msg = part.text
+                            break
+                raise RuntimeError(f"MCP tool error: {error_msg}")
+            if not result.content:
+                return []
+            text = ""
+            for part in result.content:
+                if hasattr(part, "text"):
+                    text = part.text
+                    break
+            if not text:
+                return []
+            data = json.loads(text)
+            return data if isinstance(data, list) else []
+
+
+def call_search_news(query: str, limit: int = 5) -> List[dict[str, Any]]:
+    """Call the MCP server's search_news_with_duckduckgo tool.
+
+    Args:
+        query: Free-form search query (e.g. AAPL, Apple Inc).
+        limit: Maximum number of news results to return.
+
+    Returns:
+        A list of dicts with title, url, source, published_time, snippet.
+
+    Raises:
+        RuntimeError: If the MCP server is unreachable or returns an error.
+    """
+    url = os.environ.get("MCP_YFINANCE_URL", DEFAULT_MCP_URL)
+    return asyncio.run(_call_search_news_async(query, limit, url))

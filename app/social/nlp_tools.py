@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
-from pydantic import SecretStr
 
 load_dotenv()
 
@@ -44,12 +43,18 @@ def _make_minimax_llm() -> ChatOpenAI:
     api_key = _require_env("MINIMAX_API_KEY")
     base_url = os.environ.get("MINIMAX_BASE_URL", "https://api.minimaxi.com/v1")
     model = os.environ.get("MINIMAX_MODEL", "MiniMax-M2.5")
-    return ChatOpenAI(
-        model=model,
-        api_key=SecretStr(api_key),
-        base_url=base_url,
-        temperature=0.0,
-    )
+    common: Dict[str, Any] = {"temperature": 0.0}
+    try:
+        return ChatOpenAI(**{"model": model, "api_key": api_key, "base_url": base_url, **common})
+    except TypeError:
+        return ChatOpenAI(
+            **{
+                "model_name": model,
+                "openai_api_key": api_key,
+                "openai_api_base": base_url,
+                **common,
+            }
+        )
 
 
 def _extract_json_object(text: str) -> Dict[str, Any]:

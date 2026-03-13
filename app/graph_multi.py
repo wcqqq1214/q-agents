@@ -6,6 +6,8 @@ import json
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, cast
 
 from dotenv import load_dotenv
@@ -15,11 +17,14 @@ from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
-from pydantic import SecretStr
 
 from app.state import AgentState
 from app.tools import NEWS_TOOLS, QUANT_TOOLS
-from app.social.entrypoint import invoke_social_agent
+from app.news.generate_report import generate_report as generate_news_report
+from app.quant.generate_report import generate_report as generate_quant_report
+from app.reporting.run_context import make_run_dir
+from app.reporting.writer import write_json
+from app.social.generate_report import generate_report as generate_social_report
 
 load_dotenv()
 
@@ -38,6 +43,9 @@ CIOSYSTEM = (
     "report], a [Macro news sentiment report], and a [Social retail sentiment report]. "
     "These reports are for your internal reasoning only and must not be copied verbatim for the user.\n"
     "Your task is to synthesize them into a single, user-facing, trading-oriented recommendation.\n"
+    "Language rule:\n"
+    "- Always answer in the SAME language as the user's question. If the question is in Chinese, your full answer must be in Chinese. "
+    "If the question is in English, answer fully in English.\n"
     "Reconciliation rules:\n"
     "1. When technicals and news align, strengthen conviction in that direction.\n"
     "2. When they conflict, explicitly flag \"technicals vs. fundamentals divergence\" and usually "
@@ -60,12 +68,18 @@ def _make_minimax_llm() -> ChatOpenAI:
         )
     base_url = os.environ.get("MINIMAX_BASE_URL", "https://api.minimaxi.com/v1")
     model = os.environ.get("MINIMAX_MODEL", "MiniMax-M2.5")
-    return ChatOpenAI(
-        model=model,
-        api_key=SecretStr(api_key),
-        base_url=base_url,
-        temperature=0.0,
-    )
+    common: Dict[str, Any] = {"temperature": 0.0}
+    try:
+        return ChatOpenAI(**{"model": model, "api_key": api_key, "base_url": base_url, **common})
+    except TypeError:
+        return ChatOpenAI(
+            **{
+                "model_name": model,
+                "openai_api_key": api_key,
+                "openai_api_base": base_url,
+                **common,
+            }
+        )
 
 
 def _should_continue(state: MessagesState) -> str:
@@ -134,47 +148,79 @@ def _extract_asset_from_query(query: str) -> str:
     m = re.search(r"\b[A-Z]{2,10}-USD\b", q)
     if m:
         return m.group(0)
-    # Otherwise take a likely ticker token.
-    m2 = re.search(r"\b[A-Z]{2,10}\b", q)
-    if m2:
-        return m2.group(0)
-    return (query or "").strip().upper()
+
+    tokens = re.findall(r"\b[A-Z]{2,10}\b", q)
+    if not tokens:
+        return (query or "").strip().upper()
+
+    stop = {
+        "PLEASE",
+        "ANALYZE",
+        "ANALYSIS",
+        "WITH",
+        "AND",
+        "GIVE",
+        "A",
+        "TRADING",
+        "RECOMMENDATION",
+        "NEWS",
+        "SOCIAL",
+        "QUANT",
+    }
+    crypto = {"BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK"}
+
+    for t in tokens:
+        if t in crypto:
+            return t
+
+    candidates = [t for t in tokens if t not in stop]
+    if candidates:
+        # Prefer the last candidate (often "analyze X" style queries).
+        return candidates[-1]
+    return tokens[-1]
 
 
-def _parallel_runner(state: AgentState) -> Dict[str, str]:
+def _parallel_runner(state: AgentState) -> Dict[str, Any]:
     """Run Quant, News, and Social agents in parallel; fill reports in state."""
 
     query = state.get("query") or ""
     asset = _extract_asset_from_query(query)
+    ctx = make_run_dir(asset)
 
     with ThreadPoolExecutor(max_workers=3) as executor:
         fut_quant = executor.submit(
-            _run_react_until_final_text,
-            QUANT_SYSTEM,
-            QUANT_TOOLS,
-            query,
+            generate_quant_report,
+            ctx.asset,
+            str(ctx.run_dir),
         )
         fut_news = executor.submit(
-            _run_react_until_final_text,
-            NEWS_SYSTEM,
-            NEWS_TOOLS,
-            query,
+            generate_news_report,
+            ctx.asset,
+            str(ctx.run_dir),
         )
-        fut_social = executor.submit(invoke_social_agent, asset)
-        quant_report = fut_quant.result()
-        news_report = fut_news.result()
-        social_obj = fut_social.result()
-        social_report = (
-            json.dumps(social_obj, ensure_ascii=False)
-            if isinstance(social_obj, dict)
-            else str(social_obj)
-        )
+        fut_social = executor.submit(generate_social_report, ctx.asset, str(ctx.run_dir))
+        quant_obj = cast(Dict[str, Any], fut_quant.result())
+        news_obj = cast(Dict[str, Any], fut_news.result())
+        social_obj = cast(Dict[str, Any], fut_social.result())
 
-    return {
+        quant_report = json.dumps(quant_obj, ensure_ascii=False)
+        news_report = json.dumps(news_obj, ensure_ascii=False)
+        social_report = json.dumps(social_obj, ensure_ascii=False)
+
+    out: Dict[str, Any] = {
+        "run_id": ctx.run_id,
+        "run_dir": str(ctx.run_dir),
         "quant_report": quant_report,
         "news_report": news_report,
         "social_report": social_report,
+        "quant_report_obj": quant_obj,
+        "news_report_obj": news_obj,
+        "social_report_obj": social_obj,
+        "quant_report_path": str(Path(ctx.run_dir) / "quant.json"),
+        "news_report_path": str(Path(ctx.run_dir) / "news.json"),
+        "social_report_path": str(Path(ctx.run_dir) / "social.json"),
     }
+    return out
 
 
 def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> Dict[str, str]:
@@ -183,6 +229,9 @@ def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> 
     quant_report = state.get("quant_report") or "(No quantitative report)"
     news_report = state.get("news_report") or "(No news report)"
     social_report = state.get("social_report") or "(No social retail sentiment report)"
+    asset = _extract_asset_from_query(query)
+    run_id = state.get("run_id")
+    run_dir = state.get("run_dir")
 
     user_block = (
         f"User question:\n{query}\n\n"
@@ -197,7 +246,29 @@ def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> 
     ]
     response = llm.invoke(messages, config=config)
     content = getattr(response, "content", None) or ""
-    return {"final_decision": str(content)}
+
+    cio_obj: Dict[str, Any] = {
+        "asset": (asset or "").strip().upper(),
+        "module": "cio",
+        "meta": {
+            "generated_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            "run_id": run_id,
+        },
+        "report_paths": {
+            "quant": state.get("quant_report_path"),
+            "news": state.get("news_report_path"),
+            "social": state.get("social_report_path"),
+        },
+        "final_decision": str(content),
+    }
+
+    cio_path = None
+    if run_dir:
+        cio_path = str(Path(run_dir) / "cio.json")
+        write_json(Path(cio_path), cio_obj)
+        cio_obj["report_path"] = cio_path
+
+    return {"final_decision": str(content), "cio_report_path": cio_path or ""}
 
 
 def build_multi_agent_graph():

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import NotRequired, TypedDict
+from typing import Any, Dict, NotRequired, TypedDict
 
 
 class AgentState(TypedDict):
@@ -13,6 +13,10 @@ class AgentState(TypedDict):
         quant_report: Technical/quantitative report produced by Quant_Agent only.
         news_report: News-sentiment report produced by News_Agent only.
         social_report: Retail/social sentiment report produced by Social_Agent only.
+        run_id: Per-run identifier (YYYYMMDD_HHMMSS).
+        run_dir: Per-run output directory path (reports/{run_id}_{asset}/).
+        quant_report_obj/news_report_obj/social_report_obj: Structured dicts for CIO bundling.
+        quant_report_path/news_report_path/social_report_path/cio_report_path: Report file paths.
         final_decision: Synthesized report from CIO_Agent (no tools).
     """
 
@@ -20,4 +24,13 @@ class AgentState(TypedDict):
     quant_report: NotRequired[str]
     news_report: NotRequired[str]
     social_report: NotRequired[str]
+    run_id: NotRequired[str]
+    run_dir: NotRequired[str]
+    quant_report_obj: NotRequired[Dict[str, Any]]
+    news_report_obj: NotRequired[Dict[str, Any]]
+    social_report_obj: NotRequired[Dict[str, Any]]
+    quant_report_path: NotRequired[str]
+    news_report_path: NotRequired[str]
+    social_report_path: NotRequired[str]
+    cio_report_path: NotRequired[str]
     final_decision: NotRequired[str]

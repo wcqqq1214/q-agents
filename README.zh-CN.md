@@ -4,7 +4,7 @@
 
 ---
 
-基于 Python 3.13、LangChain 与 LangGraph 的多智能体金融分析系统，采用 Fan-out / Fan-in 拓扑（Quant 与 News 并行，最后由 CIO 汇总），通过 MiniMax（OpenAI 兼容接口）与 MCP 服务器获取行情/指标与新闻并生成报告。
+基于 Python 3.13、LangChain 与 LangGraph 的多智能体金融分析系统，采用 Fan-out / Fan-in 拓扑（Quant 与 News 并行，最后由 CIO 汇总），通过 MiniMax（OpenAI 兼容接口）与 MCP 服务器获取行情/指标与新闻并生成报告。同时，独立的 Social Agent 会抓取 Reddit 讨论并生成结构化的散户情绪报告。
 
 ## 技术栈
 
@@ -145,6 +145,13 @@ uv run python -c "from app.tools.finance_tools import get_stock_data; print(get_
 - `app/mcp_client/finance_client.py` — MCP 客户端，调用 yfinance MCP 服务器
 - `mcp_servers/market_server/main.py` — MCP 服务器，暴露 `get_us_stock_quote`、`get_stock_data`（历史+指标）与 `search_news_with_duckduckgo`（DuckDuckGo）
 - `tests/manual_run.py` — Agent 交互式 CLI
+- `app/social/graph_social.py` — Social Agent 的 LangGraph：Reddit 抓取 → NLP 分析 → 报告导出（仅供 CIO/上游编排调用，不与终端用户对话）
+- `app/social/entrypoint.py` — 对外入口 `invoke_social_agent(asset)`，返回给 CIO/编排层使用的结构化散户情绪报告
+- `app/social/nlp_tools.py` — 基于 LLM 的 NLP 工具，将 Reddit 文本转为结构化的情绪/关键词/摘要
+- `app/social/reddit/tools.py` — Reddit 抓取与清洗工具，用于获取讨论语料
+- `app/social/export_tools.py` — 构建与持久化 JSON 形式 Social 报告的工具（输出到 `reports/` 目录）
+- `reports/` — Social Agent 生成的 JSON 报告（例如 Reddit 情绪快照）
+- `tests/test_social_reddit_ingest.py` — Reddit 抓取/清洗链路的测试
 
 ## License
 

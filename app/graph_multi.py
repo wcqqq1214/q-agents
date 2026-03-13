@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Sequence, cast
 
@@ -17,6 +19,7 @@ from pydantic import SecretStr
 
 from app.state import AgentState
 from app.tools import NEWS_TOOLS, QUANT_TOOLS
+from app.social.entrypoint import invoke_social_agent
 
 load_dotenv()
 
@@ -32,9 +35,9 @@ NEWS_SYSTEM = (
 
 CIOSYSTEM = (
     "You are a top Chief Investment Officer (CIO). You will receive a [Quantitative technical "
-    "report] and a [Macro news sentiment report]. These two reports are for your internal "
-    "reasoning only and must not be copied verbatim for the user.\n"
-    "Your task is to synthesize both into a single, user-facing, trading-oriented recommendation.\n"
+    "report], a [Macro news sentiment report], and a [Social retail sentiment report]. "
+    "These reports are for your internal reasoning only and must not be copied verbatim for the user.\n"
+    "Your task is to synthesize them into a single, user-facing, trading-oriented recommendation.\n"
     "Reconciliation rules:\n"
     "1. When technicals and news align, strengthen conviction in that direction.\n"
     "2. When they conflict, explicitly flag \"technicals vs. fundamentals divergence\" and usually "
@@ -118,12 +121,33 @@ def _run_react_until_final_text(
     return ""
 
 
+def _extract_asset_from_query(query: str) -> str:
+    """Best-effort extract an asset ticker from a free-form user question.
+
+    This is used to route Social Agent ingestion, which expects a single asset
+    symbol. The heuristic prefers common Yahoo/crypto formats (e.g. BTC-USD),
+    then falls back to a plain ticker (e.g. NVDA).
+    """
+
+    q = (query or "").upper()
+    # Prefer explicit crypto pairs.
+    m = re.search(r"\b[A-Z]{2,10}-USD\b", q)
+    if m:
+        return m.group(0)
+    # Otherwise take a likely ticker token.
+    m2 = re.search(r"\b[A-Z]{2,10}\b", q)
+    if m2:
+        return m2.group(0)
+    return (query or "").strip().upper()
+
+
 def _parallel_runner(state: AgentState) -> Dict[str, str]:
-    """Run Quant and News agents in parallel; fill quant_report and news_report."""
+    """Run Quant, News, and Social agents in parallel; fill reports in state."""
 
     query = state.get("query") or ""
+    asset = _extract_asset_from_query(query)
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    with ThreadPoolExecutor(max_workers=3) as executor:
         fut_quant = executor.submit(
             _run_react_until_final_text,
             QUANT_SYSTEM,
@@ -136,22 +160,35 @@ def _parallel_runner(state: AgentState) -> Dict[str, str]:
             NEWS_TOOLS,
             query,
         )
+        fut_social = executor.submit(invoke_social_agent, asset)
         quant_report = fut_quant.result()
         news_report = fut_news.result()
+        social_obj = fut_social.result()
+        social_report = (
+            json.dumps(social_obj, ensure_ascii=False)
+            if isinstance(social_obj, dict)
+            else str(social_obj)
+        )
 
-    return {"quant_report": quant_report, "news_report": news_report}
+    return {
+        "quant_report": quant_report,
+        "news_report": news_report,
+        "social_report": social_report,
+    }
 
 
 def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> Dict[str, str]:
-    """CIO synthesizes quant_report and news_report; no tools."""
+    """CIO synthesizes quant/news/social reports; no tools."""
     query = state.get("query", "")
     quant_report = state.get("quant_report") or "(No quantitative report)"
     news_report = state.get("news_report") or "(No news report)"
+    social_report = state.get("social_report") or "(No social retail sentiment report)"
 
     user_block = (
         f"User question:\n{query}\n\n"
         f"[Quantitative technical report]\n{quant_report}\n\n"
-        f"[Macro news sentiment report]\n{news_report}"
+        f"[Macro news sentiment report]\n{news_report}\n\n"
+        f"[Social retail sentiment report]\n{social_report}"
     )
     llm = _make_minimax_llm()
     messages = [

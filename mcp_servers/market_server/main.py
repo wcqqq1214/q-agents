@@ -48,6 +48,9 @@ def _fetch_quote_impl(ticker: str) -> dict[str, Any]:
             "day_high": None,
             "day_low": None,
             "volume": None,
+            "fifty_two_week_high": None,
+            "fifty_two_week_low": None,
+            "market_cap": None,
             "timestamp": _now_iso_utc8(),
             "error": (
                 "Ticker symbol is empty. Please provide a valid US stock "
@@ -66,6 +69,9 @@ def _fetch_quote_impl(ticker: str) -> dict[str, Any]:
         "day_high": None,
         "day_low": None,
         "volume": None,
+        "fifty_two_week_high": None,
+        "fifty_two_week_low": None,
+        "market_cap": None,
         "timestamp": None,
     }
 
@@ -122,11 +128,79 @@ def _fetch_quote_impl(ticker: str) -> dict[str, Any]:
         if volume is None:
             volume = _get_fast("lastVolume", "last_volume")
 
+        # 52-week range and market cap: prefer FastInfo (year_high/year_low ≈ 52w on Yahoo)
+        fifty_two_week_high: Optional[float] = None
+        fifty_two_week_low: Optional[float] = None
+        market_cap: Optional[int] = None
+
         if fast_info is not None:
             if hasattr(fast_info, "currency"):
                 quote["currency"] = getattr(fast_info, "currency")
             elif isinstance(fast_info, dict):
                 quote["currency"] = fast_info.get("currency")
+
+            # FastInfo exposes year_high/year_low/market_cap (see yfinance.scrapers.quote.FastInfo)
+            for attr_high, attr_low in (
+                ("year_high", "year_low"),
+                ("fifty_two_week_high", "fifty_two_week_low"),
+            ):
+                if fifty_two_week_high is None and hasattr(fast_info, attr_high):
+                    try:
+                        fifty_two_week_high = float(getattr(fast_info, attr_high))
+                    except (TypeError, ValueError):
+                        pass
+                if fifty_two_week_low is None and hasattr(fast_info, attr_low):
+                    try:
+                        fifty_two_week_low = float(getattr(fast_info, attr_low))
+                    except (TypeError, ValueError):
+                        pass
+            if isinstance(fast_info, dict):
+                fifty_two_week_high = fifty_two_week_high or _get_fast(
+                    "fiftyTwoWeekHigh", "fifty_two_week_high"
+                ) or _get_fast("yearHigh", "year_high")
+                fifty_two_week_low = fifty_two_week_low or _get_fast(
+                    "fiftyTwoWeekLow", "fifty_two_week_low"
+                ) or _get_fast("yearLow", "year_low")
+            if hasattr(fast_info, "market_cap"):
+                try:
+                    mc = getattr(fast_info, "market_cap")
+                    if mc is not None:
+                        market_cap = int(mc)
+                except (TypeError, ValueError):
+                    pass
+            elif isinstance(fast_info, dict) and fast_info.get("marketCap") is not None:
+                try:
+                    market_cap = int(fast_info["marketCap"])
+                except (TypeError, ValueError):
+                    pass
+
+        # Fallback: full info dict (slower) for 52w / market cap if still missing
+        if (
+            fifty_two_week_high is None
+            or fifty_two_week_low is None
+            or market_cap is None
+        ):
+            try:
+                info = getattr(yf_ticker, "info", None) or {}
+                if info:
+                    if fifty_two_week_high is None and info.get("fiftyTwoWeekHigh") is not None:
+                        fifty_two_week_high = _round_or_none(
+                            float(info["fiftyTwoWeekHigh"]), 3
+                        )
+                    if fifty_two_week_low is None and info.get("fiftyTwoWeekLow") is not None:
+                        fifty_two_week_low = _round_or_none(
+                            float(info["fiftyTwoWeekLow"]), 3
+                        )
+                    if market_cap is None and info.get("marketCap") is not None:
+                        try:
+                            market_cap = int(info["marketCap"])
+                        except (TypeError, ValueError):
+                            pass
+            except Exception:
+                pass
+
+        fifty_two_week_high = _round_or_none(fifty_two_week_high, 3)
+        fifty_two_week_low = _round_or_none(fifty_two_week_low, 3)
 
         change: Optional[float] = None
         change_percent: Optional[float] = None
@@ -159,6 +233,9 @@ def _fetch_quote_impl(ticker: str) -> dict[str, Any]:
             "volume": volume,
             "change": change,
             "change_percent": change_percent,
+            "fifty_two_week_high": fifty_two_week_high,
+            "fifty_two_week_low": fifty_two_week_low,
+            "market_cap": market_cap,
             "timestamp": _now_iso_utc8(),
         })
 
@@ -195,7 +272,8 @@ def get_us_stock_quote(ticker: str) -> dict[str, Any]:
 
     Returns:
         A dict with symbol, currency, price, change, change_percent,
-        previous_close, open, day_high, day_low, volume, timestamp.
+        previous_close, open, day_high, day_low, volume,
+        fifty_two_week_high, fifty_two_week_low, market_cap, timestamp.
         May include an error field if the quote could not be retrieved.
     """
     return _fetch_quote_impl(ticker)

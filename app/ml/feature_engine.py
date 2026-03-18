@@ -150,13 +150,16 @@ def load_ohlcv(ticker: str, period_years: int = 5) -> pd.DataFrame:
 
 def _download_single_ohlcv(symbol: str, period_str: str) -> pd.DataFrame:
     """Download OHLCV for a single symbol; return DataFrame with standard column names."""
-    raw = yf.download(
-        symbol,
-        period=period_str,
-        interval="1d",
-        auto_adjust=False,
-        progress=False,
-    )
+    try:
+        raw = yf.download(
+            symbol,
+            period=period_str,
+            interval="1d",
+            auto_adjust=False,
+            progress=False,
+        )
+    except Exception:
+        return pd.DataFrame()
     if raw.empty:
         return raw
     if isinstance(raw.columns, pd.MultiIndex):

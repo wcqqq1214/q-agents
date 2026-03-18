@@ -16,8 +16,8 @@ from typing import Any, Dict, Literal, TypedDict, cast
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 
+from app.llm_config import create_llm
 from app.reporting.writer import write_json
 from app.tools.finance_tools import get_stock_data
 from app.tools.quant_tool import run_ml_quant_analysis
@@ -87,26 +87,6 @@ def _extract_json_object(text: str) -> Dict[str, Any]:
     raise ValueError("No valid JSON object found in model output.")
 
 
-def _make_minimax_llm() -> ChatOpenAI:
-    api_key = os.environ.get("MINIMAX_API_KEY")
-    if not api_key:
-        raise RuntimeError("MINIMAX_API_KEY is not set. Add it to .env before running reports.")
-    base_url = os.environ.get("MINIMAX_BASE_URL", "https://api.minimaxi.com/v1")
-    model = os.environ.get("MINIMAX_MODEL", "MiniMax-M2.5")
-    common: Dict[str, Any] = {"temperature": 0.0}
-    try:
-        return ChatOpenAI(**{"model": model, "api_key": api_key, "base_url": base_url, **common})
-    except TypeError:
-        return ChatOpenAI(
-            **{
-                "model_name": model,
-                "openai_api_key": api_key,
-                "openai_api_base": base_url,
-                **common,
-            }
-        )
-
-
 def generate_report(asset: str, run_dir: str) -> QuantBundle:
     """Generate the Quant report and persist it as `quant.json` inside run_dir."""
 
@@ -133,7 +113,7 @@ def generate_report(asset: str, run_dir: str) -> QuantBundle:
     )
     prompt = f"Asset: {asset_norm}\nIndicators JSON:\n{json.dumps(indicators, ensure_ascii=False)}\n"
 
-    llm = _make_minimax_llm()
+    llm = create_llm()
     resp = llm.invoke([SystemMessage(content=system), HumanMessage(content=prompt)])
     content = cast(str, getattr(resp, "content", "") or "").strip()
     obj = _extract_json_object(content)

@@ -16,8 +16,9 @@ from typing import Any, Dict, List, Literal, TypedDict, cast
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 
+from app.llm_config import create_llm
+from app.polymarket.tools import search_polymarket_predictions
 from app.reporting.writer import write_json
 from app.tools.finance_tools import search_financial_news
 
@@ -34,7 +35,9 @@ class NewsBundle(TypedDict, total=False):
     meta: Dict[str, Any]
     bias: BiasLabel
     key_points: List[str]
+    prediction_insights: str
     sources: List[Dict[str, Any]]
+    polymarket_markets: List[Dict[str, Any]]
     report_path: str
 
 
@@ -85,27 +88,6 @@ def _extract_json_object(text: str) -> Dict[str, Any]:
     raise ValueError("No valid JSON object found in model output.")
 
 
-def _make_minimax_llm() -> ChatOpenAI:
-    api_key = os.environ.get("MINIMAX_API_KEY")
-    if not api_key:
-        raise RuntimeError("MINIMAX_API_KEY is not set. Add it to .env before running reports.")
-    base_url = os.environ.get("MINIMAX_BASE_URL", "https://api.minimaxi.com/v1")
-    model = os.environ.get("MINIMAX_MODEL", "MiniMax-M2.5")
-    common: Dict[str, Any] = {"temperature": 0.0}
-    # langchain-openai 参数名在不同版本间有差异；这里做运行时兼容初始化。
-    try:
-        return ChatOpenAI(**{"model": model, "api_key": api_key, "base_url": base_url, **common})
-    except TypeError:
-        return ChatOpenAI(
-            **{
-                "model_name": model,
-                "openai_api_key": api_key,
-                "openai_api_base": base_url,
-                **common,
-            }
-        )
-
-
 def generate_report(asset: str, run_dir: str) -> NewsBundle:
     """Generate the News report and persist it as `news.json` inside run_dir."""
 
@@ -130,20 +112,37 @@ def generate_report(asset: str, run_dir: str) -> NewsBundle:
         if isinstance(i, dict)
     ]
 
+    # Fetch Polymarket prediction data
+    polymarket_markets = None
+    try:
+        polymarket_data = search_polymarket_predictions.invoke({"query": asset_norm, "limit": 5})
+        polymarket_markets = json.loads(polymarket_data) if polymarket_data else None
+    except Exception as e:
+        from logging import getLogger
+        logger = getLogger(__name__)
+        logger.warning(f"Failed to fetch Polymarket data: {e}")
+        polymarket_markets = None
+
     system = (
-        "You are a macro news sentiment analyst. Given a list of headlines/snippets from the last 7 days about an asset, "
-        "produce a strict JSON object with keys: bias, key_points, sources_used_count.\n"
+        "You are a macro news sentiment analyst. Given news headlines/snippets and "
+        "prediction market data from Polymarket about an asset, produce a strict JSON object.\n"
         "Constraints:\n"
         "- bias must be one of: bullish, bearish, neutral\n"
         "- key_points must be a list of 3-6 short bullet-like strings\n"
+        "- prediction_insights: 1-2 sentences on what prediction markets suggest (or empty string if no data)\n"
         "- Output ONLY JSON."
     )
-    prompt = (
-        f"Asset: {asset_norm}\n\n"
-        f"News items (JSON):\n{json.dumps(sources, ensure_ascii=False)}\n"
-    )
 
-    llm = _make_minimax_llm()
+    prompt_parts = [f"Asset: {asset_norm}\n\n"]
+    prompt_parts.append(f"News items (JSON):\n{json.dumps(sources, ensure_ascii=False)}\n")
+
+    if polymarket_markets and polymarket_markets.get("markets_found", 0) > 0:
+        prompt_parts.append(f"\nPolymarket prediction markets (JSON):\n{json.dumps(polymarket_markets, ensure_ascii=False)}\n")
+        prompt_parts.append("\nConsider both news sentiment and prediction market probabilities in your analysis.")
+
+    prompt = "".join(prompt_parts)
+
+    llm = create_llm()
     resp = llm.invoke([SystemMessage(content=system), HumanMessage(content=prompt)])
     content = cast(str, getattr(resp, "content", "") or "").strip()
 
@@ -160,10 +159,13 @@ def generate_report(asset: str, run_dir: str) -> NewsBundle:
             "generated_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
             "source": "duckduckgo",
             "time_window_days": 7,
+            "polymarket_enabled": polymarket_markets is not None and polymarket_markets.get("markets_found", 0) > 0,
         },
         "bias": bias if bias in ("bullish", "bearish", "neutral") else "neutral",
         "key_points": [str(x).strip() for x in key_points if isinstance(x, str) and x.strip()][:6],
+        "prediction_insights": obj.get("prediction_insights", ""),
         "sources": sources,
+        "polymarket_markets": polymarket_markets.get("markets", []) if polymarket_markets else [],
     }
 
     path = out_dir / "news.json"

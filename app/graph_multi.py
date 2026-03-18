@@ -18,6 +18,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 
+from app.llm_config import create_llm
 from app.state import AgentState
 from app.tools import NEWS_TOOLS, QUANT_TOOLS
 from app.news.generate_report import generate_report as generate_news_report
@@ -59,27 +60,6 @@ CIOSYSTEM = (
 )
 
 
-def _make_minimax_llm() -> ChatOpenAI:
-    """Create ChatOpenAI pointed at MiniMax OpenAI-compatible API."""
-    api_key = os.environ.get("MINIMAX_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "MINIMAX_API_KEY is not set. Add it to .env before using the agent.",
-        )
-    base_url = os.environ.get("MINIMAX_BASE_URL", "https://api.minimaxi.com/v1")
-    model = os.environ.get("MINIMAX_MODEL", "MiniMax-M2.5")
-    common: Dict[str, Any] = {"temperature": 0.0}
-    try:
-        return ChatOpenAI(**{"model": model, "api_key": api_key, "base_url": base_url, **common})
-    except TypeError:
-        return ChatOpenAI(
-            **{
-                "model_name": model,
-                "openai_api_key": api_key,
-                "openai_api_base": base_url,
-                **common,
-            }
-        )
 
 
 def _should_continue(state: MessagesState) -> str:
@@ -101,7 +81,7 @@ def _run_react_until_final_text(
     config: Optional[RunnableConfig] = None,
 ) -> str:
     """Run a ReAct loop (agent <-> tools) until the model returns text without tool_calls."""
-    llm = _make_minimax_llm().bind_tools(list(tools))
+    llm = create_llm().bind_tools(list(tools))
     tool_node = ToolNode(list(tools))
 
     def agent_node(
@@ -239,7 +219,7 @@ def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> 
         f"[Macro news sentiment report]\n{news_report}\n\n"
         f"[Social retail sentiment report]\n{social_report}"
     )
-    llm = _make_minimax_llm()
+    llm = create_llm()
     messages = [
         SystemMessage(content=CIOSYSTEM),
         HumanMessage(content=user_block),

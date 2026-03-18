@@ -34,11 +34,11 @@ def _sanitize_asset(asset: str) -> str:
 
 
 def make_run_dir(asset: str) -> RunContext:
-    """Create `reports/{timestamp}_{asset}/` and return the run context."""
+    """Create `data/reports/{timestamp}_{asset}/` and return the run context."""
 
     asset_norm = _sanitize_asset(asset)
     run_id = _now_compact_utc8()
-    run_dir = Path("reports") / f"{run_id}_{asset_norm}"
+    run_dir = Path("data/reports") / f"{run_id}_{asset_norm}"
     run_dir.mkdir(parents=True, exist_ok=True)
     return RunContext(run_id=run_id, run_dir=run_dir, asset=asset_norm)
 

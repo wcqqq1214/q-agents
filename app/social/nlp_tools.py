@@ -10,7 +10,8 @@ from typing import Any, Dict, List, Literal, Optional, TypedDict, cast
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
-from langchain_openai import ChatOpenAI
+
+from app.llm_config import create_llm
 
 load_dotenv()
 
@@ -28,33 +29,6 @@ class SocialNlpResult(TypedDict):
 
 
 _JSON_BLOCK_RE = re.compile(r"\{[\s\S]*?\}", flags=re.MULTILINE)
-
-
-def _require_env(name: str) -> str:
-    v = os.environ.get(name)
-    if not v:
-        raise RuntimeError(f"{name} is not set. Add it to .env before using the social agent.")
-    return v
-
-
-def _make_minimax_llm() -> ChatOpenAI:
-    """Create ChatOpenAI pointed at MiniMax OpenAI-compatible API."""
-
-    api_key = _require_env("MINIMAX_API_KEY")
-    base_url = os.environ.get("MINIMAX_BASE_URL", "https://api.minimaxi.com/v1")
-    model = os.environ.get("MINIMAX_MODEL", "MiniMax-M2.5")
-    common: Dict[str, Any] = {"temperature": 0.0}
-    try:
-        return ChatOpenAI(**{"model": model, "api_key": api_key, "base_url": base_url, **common})
-    except TypeError:
-        return ChatOpenAI(
-            **{
-                "model_name": model,
-                "openai_api_key": api_key,
-                "openai_api_base": base_url,
-                **common,
-            }
-        )
 
 
 def _extract_json_object(text: str) -> Dict[str, Any]:
@@ -193,9 +167,25 @@ def analyze_reddit_text(asset: str, text: str) -> SocialNlpResult:
         f"{text_norm}\n"
     )
 
-    llm = _make_minimax_llm()
-    resp = llm.invoke([SystemMessage(content=system), HumanMessage(content=prompt)])
-    content = cast(str, getattr(resp, "content", "") or "")
+    llm = create_llm()
+
+    # Handle different LLM types
+    import anthropic
+    if isinstance(llm, anthropic.Anthropic):
+        # Native Anthropic API
+        model = os.environ.get("CLAUDE_MODEL", "claude-3-5-sonnet-20241022")
+        response = llm.messages.create(
+            model=model,
+            max_tokens=1024,
+            messages=[
+                {"role": "user", "content": f"{system}\n\n{prompt}"}
+            ]
+        )
+        content = response.content[0].text if response.content else ""
+    else:
+        # LangChain-compatible interface (ChatOpenAI)
+        resp = llm.invoke([SystemMessage(content=system), HumanMessage(content=prompt)])
+        content = cast(str, getattr(resp, "content", "") or "")
 
     obj = _extract_json_object(content)
     return _validate_result(obj)

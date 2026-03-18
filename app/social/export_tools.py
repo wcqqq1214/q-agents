@@ -19,14 +19,14 @@ def _now_compact_utc8() -> str:
 
 @tool("save_social_report")
 def save_social_report(asset: str, report: Dict[str, Any]) -> str:
-    """Persist Social Agent report as a JSON file under ./reports/ and return its path.
+    """Persist Social Agent report as a JSON file under ./data/reports/ and return its path.
 
     The CIO agent consumes social sentiment as structured data. To support
     auditability and later offline analysis, this tool stores the report on
     disk and returns the generated file path.
 
     Output file naming convention:
-        ``./reports/{asset_lower}_reddit_sentiment_{YYYYMMDD_HHMMSS}.json``
+        ``./data/reports/{asset_lower}_reddit_sentiment_{YYYYMMDD_HHMMSS}.json``
 
     Args:
         asset: Asset identifier such as ``\"BTC\"`` or ``\"NVDA\"``.
@@ -48,7 +48,7 @@ def save_social_report(asset: str, report: Dict[str, Any]) -> str:
     if not isinstance(report, dict):
         raise ValueError("report must be a dict.")
 
-    reports_dir = Path("reports")
+    reports_dir = Path("data/reports")
     reports_dir.mkdir(parents=True, exist_ok=True)
 
     ts = _now_compact_utc8()

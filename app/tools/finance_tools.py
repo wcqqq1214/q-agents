@@ -5,12 +5,14 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, TypedDict
 
+import yfinance as yf
 from langchain_core.tools import tool
 
 from app.mcp_client.finance_client import (
     call_get_stock_data,
     call_get_us_stock_quote,
     call_search_news,
+    call_search_news_tavily,
 )
 
 logger = logging.getLogger(__name__)
@@ -312,6 +314,98 @@ def search_news_with_duckduckgo(query: str, limit: int = 5) -> List[NewsItem]:
         return []
 
 
+@tool("search_stock_news_with_yfinance")
+def search_stock_news_with_yfinance(ticker: str, limit: int = 20) -> List[NewsItem]:
+    """Search recent stock-specific news using ``yfinance.Ticker.news``.
+
+    This tool queries Yahoo Finance news directly for a single stock ticker via
+    :class:`yfinance.Ticker`. It is intended for cases where the agent already
+    knows the exact symbol (for example, ``\"NVDA\"`` or ``\"AAPL\"``) and wants
+    a clean, ticker-scoped news feed rather than a generic web search result.
+
+    The function applies a **strict 7-day time window** based on the
+    ``providerPublishTime`` field returned by Yahoo Finance. Only articles whose
+    publication time can be parsed and falls within the last 7 days (in UTC)
+    are included in the output. This makes the results suitable for
+    short-horizon sentiment or event analysis.
+
+    Args:
+        ticker: Stock ticker symbol understood by Yahoo Finance (for example,
+            ``\"NVDA\"``, ``\"AAPL\"``, or ``\"MSFT\"``). The value is
+            normalized to upper case and passed to :class:`yfinance.Ticker`.
+        limit: Maximum number of news items to return after filtering by the
+            7-day window. The underlying Yahoo Finance API may return fewer
+            items. Defaults to 20 so the agent has a richer event set for
+            sentiment and macro analysis.
+
+    Returns:
+        A list of :class:`NewsItem` dictionaries, each representing a single
+        article. For each item, this tool attempts to populate:
+
+        - ``title``: Article headline from Yahoo Finance.
+        - ``url``: Canonical article URL.
+        - ``source``: Publisher name (for example, ``\"Reuters\"``).
+        - ``published_time``: ISO8601 UTC timestamp derived from
+          ``providerPublishTime``.
+        - ``snippet``: Short summary if provided by Yahoo Finance; otherwise
+          ``None``.
+
+        If the ticker is empty, invalid, or an error occurs while calling the
+        Yahoo backend, this function returns an empty list instead of raising.
+    """
+
+    normalized = (ticker or "").strip().upper()
+    if not normalized:
+        return []
+
+    now_utc = datetime.now(timezone.utc)
+    cutoff = now_utc - timedelta(days=7)
+
+    try:
+        ticker_obj = yf.Ticker(normalized)
+        raw_items = getattr(ticker_obj, "news", None) or []
+    except Exception as exc:  # pragma: no cover - defensive logging path
+        logger.warning(
+            "search_stock_news_with_yfinance: failed to fetch news for %r: %s",
+            normalized,
+            exc,
+            exc_info=True,
+        )
+        return []
+
+    out: List[NewsItem] = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+
+        ts = item.get("providerPublishTime")
+        try:
+            if isinstance(ts, (int, float)):
+                published_dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+            else:
+                published_dt = None
+        except Exception:
+            published_dt = None
+
+        if published_dt is None or published_dt < cutoff:
+            continue
+
+        out.append(
+            NewsItem(
+                title=item.get("title"),
+                url=item.get("link"),
+                source=item.get("publisher"),
+                published_time=published_dt.isoformat().replace(microsecond=0),
+                snippet=item.get("summary"),
+            )
+        )
+
+        if len(out) >= limit:
+            break
+
+    return out
+
+
 class StockDataSummary(TypedDict, total=False):
     """Structured summary returned by get_stock_data for LLM consumption.
 
@@ -432,6 +526,120 @@ def search_financial_news(query: str, limit: int = 5) -> List[NewsItem]:
     except Exception as exc:
         logger.warning(
             "search_financial_news failed for query=%r: %s",
+            query_normalized,
+            exc,
+            exc_info=True,
+        )
+        return []
+
+
+@tool("search_news_with_tavily")
+def search_news_with_tavily(query: str, limit: int = 5) -> List[NewsItem]:
+    """Search recent news articles using Tavily API for a given query string.
+
+    This tool queries Tavily's AI-optimized search API to retrieve high-quality
+    news articles relevant to a topic or security. Tavily provides better
+    content quality and relevance compared to generic search engines.
+
+    Typical usage patterns include questions such as:
+
+    - "What are the latest news about AAPL?"
+    - "Show recent headlines for Tesla stock."
+    - "Any regulatory news about US banks this week?"
+
+    Args:
+        query: Free-form search query describing the desired news. This can be
+            a stock ticker such as ``"AAPL"``, a company name such as
+            ``"Apple Inc"``, or a more detailed phrase like
+            ``"AAPL earnings"``.
+        limit: Maximum number of news results to return. The effective number
+            of results may be smaller depending on what Tavily provides.
+
+    Returns:
+        A list of ``NewsItem`` dictionaries, where each element represents a
+        single news article. For each item, the tool attempts to populate:
+
+        - ``title``: Headline text.
+        - ``url``: Article URL.
+        - ``source``: Publisher or website name, if available.
+        - ``published_time``: Publication date/time string from the source.
+        - ``snippet``: Short summary or description of the article.
+
+        If the search fails or no relevant results are found, this function
+        returns an empty list rather than raising an exception.
+    """
+    query_normalized = query.strip()
+    if not query_normalized:
+        return []
+
+    try:
+        results = call_search_news_tavily(query_normalized, limit)
+        return [
+            NewsItem(
+                title=r.get("title"),
+                url=r.get("url"),
+                source=r.get("source"),
+                published_time=r.get("published_time"),
+                snippet=r.get("snippet"),
+            )
+            for r in results
+            if isinstance(r, dict)
+        ]
+    except Exception:
+        return []
+
+
+@tool("search_financial_news_tavily")
+def search_financial_news_tavily(query: str, limit: int = 5) -> List[NewsItem]:
+    """Search financial news from roughly the last 7 days via Tavily API.
+
+    This tool uses Tavily's AI-optimized search API and applies an additional
+    time filter to only keep articles whose ``published_time`` can be parsed
+    and falls within the past 7 days.
+
+    Use for macro/sentiment research only. Pass ticker or company name or theme.
+
+    Args:
+        query: Search query (e.g. ticker, company name, or topic).
+        limit: Max number of articles to return.
+
+    Returns:
+        List of NewsItem dicts (title, url, source, published_time, snippet).
+    """
+    query_normalized = query.strip()
+    if not query_normalized:
+        return []
+    try:
+        results = call_search_news_tavily(query_normalized, limit)
+        now_utc = datetime.now(timezone.utc)
+        cutoff = now_utc - timedelta(days=7)
+        out: List[NewsItem] = []
+        for r in results:
+            if not isinstance(r, dict):
+                continue
+            published_raw = r.get("published_time")
+            published_dt = _parse_news_published_time(published_raw)
+            # Strict policy: only keep items we can confidently place within the last 7 days.
+            if published_dt is None or published_dt < cutoff:
+                continue
+            out.append(
+                NewsItem(
+                    title=r.get("title"),
+                    url=r.get("url"),
+                    source=r.get("source"),
+                    published_time=published_raw,
+                    snippet=r.get("snippet"),
+                )
+            )
+        if not out and results is not None and len(results) == 0:
+            logger.info(
+                "search_financial_news_tavily: MCP returned empty list for query=%r",
+                query_normalized,
+            )
+        return out
+    except Exception as exc:
+        logger.warning(
+            "search_financial_news_tavily failed for query=%r: %s",
             query_normalized,
             exc,
             exc_info=True,

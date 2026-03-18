@@ -62,41 +62,44 @@ Or install from `pyproject.toml` dependencies manually if not using `pip install
 
 ### 4. Configure environment variables
 
-In the project root, create a `.env` file (do not commit it):
+Copy the environment variable template and fill in your API keys:
 
 ```bash
-# Required: MiniMax API key (agent uses OpenAI-compatible endpoint)
-MINIMAX_API_KEY=your_minimax_api_key
-
-# Optional: override base URL (default: https://api.minimaxi.com/v1)
-# MINIMAX_BASE_URL=https://api.minimax.io/v1
-
-# Optional: model name (default: MiniMax-M2.5)
-# MINIMAX_MODEL=MiniMax-M2.5
+cp .env.example .env
 ```
 
-Get your API key from [MiniMax Open Platform](https://platform.minimaxi.com/).
+Then edit the `.env` file and add your API keys:
+
+**Required API Keys:**
+- **CLAUDE_API_KEY**: Get from [Anthropic Console](https://console.anthropic.com/)
+- **OPENAI_API_KEY**: Get from [OpenAI Platform](https://platform.openai.com/) (for embeddings)
+- **POLYGON_API_KEY**: Get from [Polygon.io](https://polygon.io/)
+- **TAVILY_API_KEY**: Get from [Tavily](https://tavily.com/)
+
+**Optional Configuration:**
+- MCP server addresses (use defaults if running locally)
+- MiniMax API (alternative LLM provider)
+
+The `.env.example` file contains all available configuration options with placeholder values.
 
 ### 5. MCP server (required for market data and news)
 
-Market data (quotes and historical+indicators) and news search fetch data via an MCP server instead of calling yfinance or DuckDuckGo directly. You must start the MCP server before running the agent.
+Market data (quotes and historical+indicators) and news search fetch data via MCP servers instead of calling yfinance or DuckDuckGo directly. You must start the MCP servers before running the agent.
 
-**Terminal 1 — start the MCP server:**
+**Terminal 1 — start the MCP servers:**
 
 ```bash
-uv run python mcp_servers/market_server/main.py
+# Start all MCP servers (market data + news search)
+bash scripts/start_mcp_servers.sh
 ```
 
-By default it listens at `http://127.0.0.1:8000/mcp`. To override:
+Market data server listens at `http://127.0.0.1:8000/mcp` by default, news search server at `http://127.0.0.1:8001/mcp`.
+
+**Terminal 2 — if the servers run elsewhere, set the client URLs in `.env`:**
 
 ```bash
-MCP_YFINANCE_HOST=0.0.0.0 MCP_YFINANCE_PORT=9000 uv run python mcp_servers/market_server/main.py
-```
-
-**Terminal 2 — if the server runs elsewhere, set the client URL in `.env`:**
-
-```bash
-MCP_YFINANCE_URL=http://127.0.0.1:8000/mcp
+MCP_MARKET_DATA_URL=http://127.0.0.1:8000/mcp
+MCP_NEWS_SEARCH_URL=http://127.0.0.1:8001/mcp
 ```
 
 ## Run the agent
@@ -137,13 +140,67 @@ Historical + indicators (SMA/MACD/Bollinger) via MCP:
 uv run python -c "from app.tools.finance_tools import get_stock_data; print(get_stock_data.invoke({'ticker': 'NVDA', 'period': '3mo'}))"
 ```
 
+## MCP Servers
+
+The system uses Model Context Protocol (MCP) servers to expose financial data and news search capabilities.
+
+### Architecture
+
+**Market Data Server** (`mcp_servers/market_data/`)
+- Port: 8000
+- Tools: `get_us_stock_quote`, `get_stock_data` (with SMA, MACD, Bollinger Bands)
+- Dependencies: yfinance, pandas
+
+**News Search Server** (`mcp_servers/news_search/`)
+- Port: 8001
+- Tools: `search_news_with_duckduckgo`, `search_news_with_tavily`
+- Dependencies: ddgs, tavily-python
+
+### Server Management
+
+Start all servers:
+```bash
+bash scripts/start_mcp_servers.sh
+```
+
+Stop all servers:
+```bash
+bash scripts/stop_mcp_servers.sh
+```
+
+Start individual servers:
+```bash
+# Market Data
+PYTHONPATH=/home/wcqqq21/finance-agent uv run python mcp_servers/market_data/main.py
+
+# News Search
+PYTHONPATH=/home/wcqqq21/finance-agent uv run python mcp_servers/news_search/main.py
+```
+
+### Troubleshooting
+
+**Port already in use:**
+```bash
+lsof -i :8000  # or :8001
+kill <PID>
+```
+
+**Server not responding:**
+```bash
+ps aux | grep mcp_servers
+```
+
+**Tavily API key missing:**
+Get an API key from https://tavily.com and add to `.env`: `TAVILY_API_KEY=your_key_here`
+
 ## Project layout
 
 - `app/graph_multi.py` — Multi-agent LangGraph (Quant + News parallel, then CIO synthesis).
 - `app/state.py` — `AgentState` for the multi-agent graph.
 - `app/tools/finance_tools.py` — LangChain tools (all via MCP): `get_us_stock_quote`, `get_stock_data`, `search_news_with_duckduckgo`.
-- `app/mcp_client/finance_client.py` — MCP client that calls the yfinance MCP server.
-- `mcp_servers/market_server/main.py` — MCP server exposing `get_us_stock_quote`, `get_stock_data` (history + indicators), and `search_news_with_duckduckgo`.
+- `app/mcp_client/finance_client.py` — MCP client that calls the MCP servers.
+- `mcp_servers/market_data/` — Market data MCP server exposing `get_us_stock_quote`, `get_stock_data` (history + indicators).
+- `mcp_servers/news_search/` — News search MCP server exposing `search_news_with_duckduckgo`, `search_news_with_tavily`.
 - `tests/manual_run.py` — Interactive CLI for the agent.
 - `app/social/graph_social.py` — Social Agent LangGraph: Reddit ingestion → NLP → report export (used by CIO, not end users directly).
 - `app/social/entrypoint.py` — `invoke_social_agent(asset)` entrypoint returning a structured social sentiment report for CIO/orchestrators.

@@ -62,20 +62,25 @@ pip install -e .
 
 ### 4. 配置环境变量
 
-在项目根目录创建 `.env` 文件（不要提交到 Git）：
+复制环境变量模板并填入你的 API 密钥：
 
 ```bash
-# 必填：MiniMax API Key（Agent 使用 OpenAI 兼容接口）
-MINIMAX_API_KEY=你的_minimax_api_key
-
-# 可选：覆盖接口地址（默认 https://api.minimaxi.com/v1）
-# MINIMAX_BASE_URL=https://api.minimax.io/v1
-
-# 可选：模型名称（默认 MiniMax-M2.5）
-# MINIMAX_MODEL=MiniMax-M2.5
+cp .env.example .env
 ```
 
-API Key 可在 [MiniMax 开放平台](https://platform.minimaxi.com/) 获取。
+然后编辑 `.env` 文件，填入你的 API 密钥：
+
+**必需的 API 密钥：**
+- **CLAUDE_API_KEY**: 从 [Anthropic Console](https://console.anthropic.com/) 获取
+- **OPENAI_API_KEY**: 从 [OpenAI Platform](https://platform.openai.com/) 获取（用于 embeddings）
+- **POLYGON_API_KEY**: 从 [Polygon.io](https://polygon.io/) 获取
+- **TAVILY_API_KEY**: 从 [Tavily](https://tavily.com/) 获取
+
+**可选配置：**
+- MCP 服务器地址（本地运行使用默认值即可）
+- MiniMax API（备用 LLM 提供商）
+
+`.env.example` 文件包含了所有可用的配置选项及占位符值。
 
 ### 5. MCP 服务器（行情/指标与新闻工具必需）
 
@@ -84,19 +89,17 @@ API Key 可在 [MiniMax 开放平台](https://platform.minimaxi.com/) 获取。
 **终端 1 — 启动 MCP 服务器：**
 
 ```bash
-uv run python mcp_servers/market_server/main.py
+# 启动所有 MCP 服务器（市场数据 + 新闻搜索）
+bash scripts/start_mcp_servers.sh
 ```
 
-默认监听 `http://127.0.0.1:8000/mcp`。如需修改：
-
-```bash
-MCP_YFINANCE_HOST=0.0.0.0 MCP_YFINANCE_PORT=9000 uv run python mcp_servers/market_server/main.py
-```
+市场数据服务器默认监听 `http://127.0.0.1:8000/mcp`，新闻搜索服务器监听 `http://127.0.0.1:8001/mcp`。
 
 **终端 2 — 若 MCP 服务器地址不同，在 `.env` 中配置：**
 
 ```bash
-MCP_YFINANCE_URL=http://127.0.0.1:8000/mcp
+MCP_MARKET_DATA_URL=http://127.0.0.1:8000/mcp
+MCP_NEWS_SEARCH_URL=http://127.0.0.1:8001/mcp
 ```
 
 ## 运行 Agent
@@ -137,13 +140,67 @@ uv run python -c "from app.tools.finance_tools import search_news_with_duckduckg
 uv run python -c "from app.tools.finance_tools import get_stock_data; print(get_stock_data.invoke({'ticker': 'NVDA', 'period': '3mo'}))"
 ```
 
+## MCP 服务器
+
+系统使用模型上下文协议（MCP）服务器来暴露金融数据和新闻搜索能力。
+
+### 架构
+
+**市场数据服务器** (`mcp_servers/market_data/`)
+- 端口：8000
+- 工具：`get_us_stock_quote`、`get_stock_data`（含 SMA、MACD、布林带）
+- 依赖：yfinance、pandas
+
+**新闻搜索服务器** (`mcp_servers/news_search/`)
+- 端口：8001
+- 工具：`search_news_with_duckduckgo`、`search_news_with_tavily`
+- 依赖：ddgs、tavily-python
+
+### 服务器管理
+
+启动所有服务器：
+```bash
+bash scripts/start_mcp_servers.sh
+```
+
+停止所有服务器：
+```bash
+bash scripts/stop_mcp_servers.sh
+```
+
+启动单个服务器：
+```bash
+# 市场数据
+PYTHONPATH=/home/wcqqq21/finance-agent uv run python mcp_servers/market_data/main.py
+
+# 新闻搜索
+PYTHONPATH=/home/wcqqq21/finance-agent uv run python mcp_servers/news_search/main.py
+```
+
+### 故障排查
+
+**端口已被占用：**
+```bash
+lsof -i :8000  # 或 :8001
+kill <PID>
+```
+
+**服务器无响应：**
+```bash
+ps aux | grep mcp_servers
+```
+
+**Tavily API 密钥缺失：**
+从 https://tavily.com 获取 API 密钥并添加到 `.env`：`TAVILY_API_KEY=your_key_here`
+
 ## 项目结构
 
 - `app/graph_multi.py` — 多智能体 LangGraph（Quant + News 并行，CIO 汇总）
 - `app/state.py` — 多智能体图使用的 `AgentState`
 - `app/tools/finance_tools.py` — LangChain 工具（均经 MCP）：`get_us_stock_quote`、`get_stock_data`、`search_news_with_duckduckgo`
-- `app/mcp_client/finance_client.py` — MCP 客户端，调用 yfinance MCP 服务器
-- `mcp_servers/market_server/main.py` — MCP 服务器，暴露 `get_us_stock_quote`、`get_stock_data`（历史+指标）与 `search_news_with_duckduckgo`（DuckDuckGo）
+- `app/mcp_client/finance_client.py` — MCP 客户端，调用 MCP 服务器
+- `mcp_servers/market_data/` — 市场数据 MCP 服务器，暴露 `get_us_stock_quote`、`get_stock_data`（历史+指标）
+- `mcp_servers/news_search/` — 新闻搜索 MCP 服务器，暴露 `search_news_with_duckduckgo`、`search_news_with_tavily`
 - `tests/manual_run.py` — Agent 交互式 CLI
 - `app/social/graph_social.py` — Social Agent 的 LangGraph：Reddit 抓取 → NLP 分析 → 报告导出（仅供 CIO/上游编排调用，不与终端用户对话）
 - `app/social/entrypoint.py` — 对外入口 `invoke_social_agent(asset)`，返回给 CIO/编排层使用的结构化散户情绪报告

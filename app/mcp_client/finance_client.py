@@ -14,7 +14,9 @@ from mcp.types import TextContent
 
 load_dotenv()
 
-DEFAULT_MCP_URL = "http://127.0.0.1:8000/mcp"
+# Default URLs for MCP servers
+DEFAULT_MARKET_DATA_URL = "http://127.0.0.1:8000/mcp"
+DEFAULT_NEWS_SEARCH_URL = "http://127.0.0.1:8001/mcp"
 
 
 async def _call_get_us_stock_quote_async(ticker: str, url: str) -> dict[str, Any]:
@@ -58,7 +60,7 @@ def call_get_us_stock_quote(ticker: str) -> dict[str, Any]:
     Raises:
         RuntimeError: If the MCP server is unreachable or returns an error.
     """
-    url = os.environ.get("MCP_YFINANCE_URL", DEFAULT_MCP_URL)
+    url = os.environ.get("MCP_MARKET_DATA_URL", DEFAULT_MARKET_DATA_URL)
     return asyncio.run(_call_get_us_stock_quote_async(ticker, url))
 
 
@@ -110,7 +112,7 @@ def call_get_stock_data(
     Raises:
         RuntimeError: If the MCP server is unreachable or returns an error.
     """
-    url = os.environ.get("MCP_YFINANCE_URL", DEFAULT_MCP_URL)
+    url = os.environ.get("MCP_MARKET_DATA_URL", DEFAULT_MARKET_DATA_URL)
     return asyncio.run(_call_get_stock_data_async(ticker, period, url))
 
 
@@ -161,5 +163,56 @@ def call_search_news(query: str, limit: int = 5) -> List[dict[str, Any]]:
     Raises:
         RuntimeError: If the MCP server is unreachable or returns an error.
     """
-    url = os.environ.get("MCP_YFINANCE_URL", DEFAULT_MCP_URL)
+    url = os.environ.get("MCP_NEWS_SEARCH_URL", DEFAULT_NEWS_SEARCH_URL)
     return asyncio.run(_call_search_news_async(query, limit, url))
+
+
+async def _call_search_news_tavily_async(
+    query: str, limit: int, url: str
+) -> List[dict[str, Any]]:
+    """Call the search_news_with_tavily tool on the MCP server."""
+    async with streamable_http_client(url) as (read, write, _):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool(
+                "search_news_with_tavily",
+                arguments={"query": query, "limit": limit},
+            )
+            if result.isError:
+                error_msg = "Unknown MCP error"
+                if result.content:
+                    for part in result.content:
+                        if isinstance(part, TextContent):
+                            error_msg = part.text
+                            break
+                raise RuntimeError(f"MCP tool error: {error_msg}")
+            if not result.content:
+                return []
+            # Server may return a list as multiple parts (one JSON object per part).
+            out: List[dict[str, Any]] = []
+            for part in result.content:
+                if not isinstance(part, TextContent) or not part.text:
+                    continue
+                data = json.loads(part.text)
+                if isinstance(data, list):
+                    out.extend(data)
+                elif isinstance(data, dict):
+                    out.append(data)
+            return out
+
+
+def call_search_news_tavily(query: str, limit: int = 5) -> List[dict[str, Any]]:
+    """Call the MCP server's search_news_with_tavily tool.
+
+    Args:
+        query: Free-form search query (e.g. AAPL, Apple Inc).
+        limit: Maximum number of news results to return.
+
+    Returns:
+        A list of dicts with title, url, source, published_time, snippet.
+
+    Raises:
+        RuntimeError: If the MCP server is unreachable or returns an error.
+    """
+    url = os.environ.get("MCP_NEWS_SEARCH_URL", DEFAULT_NEWS_SEARCH_URL)
+    return asyncio.run(_call_search_news_tavily_async(query, limit, url))

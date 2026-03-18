@@ -14,7 +14,7 @@ class AgentState(TypedDict):
         news_report: News-sentiment report produced by News_Agent only.
         social_report: Retail/social sentiment report produced by Social_Agent only.
         run_id: Per-run identifier (YYYYMMDD_HHMMSS).
-        run_dir: Per-run output directory path (reports/{run_id}_{asset}/).
+        run_dir: Per-run output directory path (data/reports/{run_id}_{asset}/).
         quant_report_obj/news_report_obj/social_report_obj: Structured dicts for CIO bundling.
         quant_report_path/news_report_path/social_report_path/cio_report_path: Report file paths.
         final_decision: Synthesized report from CIO_Agent (no tools).

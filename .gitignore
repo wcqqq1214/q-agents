@@ -49,6 +49,7 @@ data/reports/
 *.temp
 *.bak
 *.backup
+*.txt
 
 # Coverage reports
 .coverage

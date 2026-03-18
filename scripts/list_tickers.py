@@ -6,7 +6,7 @@ import sys
 from langchain_chroma import Chroma
 
 
-DEFAULT_PERSIST_DIR = "./chroma_event_db_nvda_test"
+DEFAULT_PERSIST_DIR = "./chroma_event_db_stocks"
 DEFAULT_COLLECTION_NAME = "event_memory"
 
 

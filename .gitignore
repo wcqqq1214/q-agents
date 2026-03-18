@@ -70,7 +70,7 @@ docs/_build/
 site/
 
 # ChromaDB / Vector databases
-chroma_event_db_stocks/
+chroma_event_db_*/
 *.chroma
 
 # Generated event files

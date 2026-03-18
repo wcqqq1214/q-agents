@@ -67,3 +67,10 @@ dmypy.json
 # Documentation build
 docs/_build/
 site/
+
+# ChromaDB / Vector databases
+chroma_event_db_stocks/
+*.chroma
+
+# Generated event files
+latest_events.txt

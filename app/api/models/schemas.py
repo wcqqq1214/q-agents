@@ -40,3 +40,32 @@ class HealthResponse(BaseModel):
 class ErrorResponse(BaseModel):
     error: str
     detail: Optional[str] = None
+
+
+class SettingsResponse(BaseModel):
+    claude_api_key: Optional[str] = None
+    openai_api_key: Optional[str] = None
+    polygon_api_key: Optional[str] = None
+    tavily_api_key: Optional[str] = None
+
+
+class SettingsRequest(BaseModel):
+    claude_api_key: Optional[str] = None
+    openai_api_key: Optional[str] = None
+    polygon_api_key: Optional[str] = None
+    tavily_api_key: Optional[str] = None
+
+
+class StockQuote(BaseModel):
+    symbol: str
+    name: str
+    price: Optional[float] = None
+    change: Optional[float] = None
+    change_percent: Optional[float] = None
+    logo: Optional[str] = None
+    timestamp: Optional[str] = None
+    error: Optional[str] = None
+
+
+class StockQuotesResponse(BaseModel):
+    quotes: List[StockQuote]

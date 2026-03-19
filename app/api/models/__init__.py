@@ -7,6 +7,8 @@ from .schemas import (
     MCPStatus,
     HealthResponse,
     ErrorResponse,
+    SettingsResponse,
+    SettingsRequest,
 )
 
 __all__ = [
@@ -17,4 +19,6 @@ __all__ = [
     "MCPStatus",
     "HealthResponse",
     "ErrorResponse",
+    "SettingsResponse",
+    "SettingsRequest",
 ]

@@ -21,7 +21,7 @@ async def run_analysis_stream(query: str) -> AsyncGenerator[str, None]:
     """
     try:
         # Send initial status
-        yield f"data: {json.dumps({'type': 'status', 'message': 'Starting analysis...'})}\n\n"
+        yield f"data: {json.dumps({'type': 'progress', 'message': 'Starting analysis...'})}\n\n"
         await asyncio.sleep(0.5)
 
         # Simulate progress updates
@@ -35,7 +35,7 @@ async def run_analysis_stream(query: str) -> AsyncGenerator[str, None]:
         ]
 
         for step in steps:
-            yield f"data: {json.dumps({'type': 'status', 'message': step})}\n\n"
+            yield f"data: {json.dumps({'type': 'progress', 'message': step})}\n\n"
             await asyncio.sleep(0.5)
 
         # TODO: Actually call the agent system here
@@ -73,8 +73,7 @@ async def analyze_stream(query: str):
     Stream analysis progress via Server-Sent Events (SSE).
 
     Events:
-    - type: 'status' - Progress updates
-    - type: 'progress' - Step completion
+    - type: 'progress' - Progress updates
     - type: 'result' - Final result
     - type: 'error' - Error occurred
     """

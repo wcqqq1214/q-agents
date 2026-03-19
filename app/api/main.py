@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 
 from .models import HealthResponse
-from .routes import analyze, reports, system, settings, stocks
+from .routes import analyze, reports, system, settings, stocks, ohlc
 
 app = FastAPI(
     title="Finance Agent API",
@@ -26,6 +26,7 @@ app.include_router(reports.router, prefix="/api", tags=["reports"])
 app.include_router(system.router, prefix="/api", tags=["system"])
 app.include_router(settings.router, prefix="/api", tags=["settings"])
 app.include_router(stocks.router, prefix="/api", tags=["stocks"])
+app.include_router(ohlc.router, prefix="/api/stocks", tags=["ohlc"])
 
 
 @app.get("/")

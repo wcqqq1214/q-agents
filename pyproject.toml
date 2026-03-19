@@ -31,6 +31,7 @@ dependencies = [
     "uvicorn[standard]>=0.32.0",
     "python-multipart>=0.0.12",
     "httpx>=0.28.1",
+    "apscheduler>=3.10.4",
 ]
 
 [tool.pyright]

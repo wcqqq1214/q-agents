@@ -95,17 +95,22 @@ HomePage
 │ │ (Compact Cards)  │ │ │                              │ │
 │ │ - 7 stocks       │ │ │   [Messages Area]            │ │
 │ │ - 2 columns      │ │ │                              │ │
+│ │ Height: 40%      │ │ │                              │ │
 │ └──────────────────┘ │ │                              │ │
 │                      │ │                              │ │
 │ ┌──────────────────┐ │ │   [Input Box - Bottom]       │ │
 │ │ K-Line Chart     │ │ └──────────────────────────────┘ │
 │ │ (Reserved)       │ │                                  │
-│ │                  │ │                                  │
+│ │ Height: 60%      │ │                                  │
 │ └──────────────────┘ │                                  │
 └──────────────────────┴──────────────────────────────────┘
 ```
 
 ## Data Models
+
+### Type Definitions Location
+
+All new TypeScript interfaces should be added to the existing `/home/wcqqq21/finance-agent/frontend/src/lib/types.ts` file to maintain consistency with the current codebase.
 
 ### Frontend Types
 
@@ -151,6 +156,14 @@ interface NewsSummary {
   sentimentScore: number;
 }
 
+interface NewsArticle {
+  title: string;
+  url: string;
+  source: string;
+  published_time: string;
+  snippet?: string;
+}
+
 interface SocialSentiment {
   platform: string;
   sentiment: string;
@@ -192,16 +205,22 @@ Response:
       "logo": "https://...",
       "timestamp": "2026-03-19T10:30:00Z"
     },
-    ...
+    {
+      "symbol": "INVALID",
+      "error": "Symbol not found"
+    }
   ]
 }
 ```
 
 **Implementation:**
-- Use existing MCP market data tools to batch fetch quotes
+- Use existing MCP market data tools with `asyncio.gather()` to fetch quotes in parallel
 - Fetch logos from Polygon.io API (`/v3/reference/tickers/{ticker}` returns `branding.logo_url`)
-- Cache responses for 5-10 seconds to reduce API calls
-- Return 200 with partial data if some symbols fail
+  - Add new `fetch_ticker_details()` function to `app/polygon/client.py`
+  - Cache logos for 24 hours (they rarely change)
+- Cache quote responses for 10 seconds to reduce API calls
+- Return 200 with partial data if some symbols fail (include `error` field for failed symbols)
+- Handle Polygon.io rate limits (5 req/min) by prioritizing Clearbit Logo API for logos
 
 ### Existing Endpoint: Analysis (Adjusted)
 
@@ -214,9 +233,19 @@ GET /api/analyze/stream?query=分析+AAPL
 ```
 
 **Adjustments:**
-- Ensure CIO agent returns structured JSON with fields: `technical`, `news`, `social`, `recommendation`
-- If currently returning plain text, modify agent output format
-- Maintain backward compatibility with existing clients
+- Align with existing `Report` schema in `app/api/models/schemas.py`:
+  - Use existing field names: `quant_analysis`, `news_sentiment`, `social_sentiment`
+  - Frontend `AnalysisResult` maps to backend `Report`:
+    - `technical` ← `quant_analysis`
+    - `news` ← `news_sentiment`
+    - `social` ← `social_sentiment`
+    - `recommendation` ← `final_decision` (from CIO agent output)
+- Update CIO system prompt to output structured JSON instead of plain text
+- SSE event types (standardized):
+  - `progress`: Progress updates during analysis
+  - `result`: Final structured result
+  - `error`: Error messages
+  - Remove `status` type for consistency
 
 ### Data Flow
 
@@ -262,8 +291,23 @@ const [error, setError] = useState<string | null>(null);
 **Behavior:**
 - On mount: fetch initial quotes
 - Set interval: refresh every 60 seconds
-- Pause refresh when `document.hidden === true`
+- Pause refresh when `document.visibilityState === 'hidden'`
 - Clear interval on unmount
+
+**Example visibility check:**
+```typescript
+useEffect(() => {
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') {
+      // Resume refresh
+    } else {
+      // Pause refresh
+    }
+  };
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+}, []);
+```
 
 ### StockCard Component
 
@@ -313,7 +357,9 @@ const [result, setResult] = useState<AnalysisResult | null>(null);
 ```
 
 **Behavior:**
-- Input placeholder changes based on `selectedStock`
+- Input placeholder changes based on `selectedStock`:
+  - No stock selected: `"Select a stock to start analysis"`
+  - Stock selected: `"Ask about {symbol}... (e.g., technical analysis, recent news)"`
 - Submit disabled when `!selectedStock || isAnalyzing`
 - On submit: clear previous results, start SSE connection
 - SSE events:
@@ -408,6 +454,21 @@ interface ResultCardProps {
 - Timeout after 10 seconds with friendly error message
 - Retry mechanism available
 
+### Market Hours and Stale Data
+
+**Scenario:** Market is closed (after-hours, weekends, holidays)
+
+**Handling:**
+- Display last available price with timestamp
+- Add badge: "Market Closed" or "After Hours"
+- Show when market opens next (optional enhancement)
+- Price changes still show last session's change
+
+**Currency Display:**
+- Format prices with currency symbol: `$178.50`
+- Use locale-aware formatting: `new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })`
+
+
 ## Performance Optimization
 
 ### Stock Quote Refresh
@@ -430,6 +491,20 @@ interface ResultCardProps {
 - Close EventSource on component unmount
 - Prevent memory leaks with proper cleanup
 - Reuse connection for multiple progress events
+
+## Configuration Constants
+
+```typescript
+// Frontend
+const STOCK_REFRESH_INTERVAL = 60000;  // 60 seconds
+const NETWORK_TIMEOUT = 10000;          // 10 seconds
+const ANALYSIS_TIMEOUT = 30000;         // 30 seconds
+
+// Backend
+const QUOTE_CACHE_TTL = 10;             // 10 seconds
+const LOGO_CACHE_TTL = 86400;           // 24 hours
+const POLYGON_RATE_LIMIT = 5;           // 5 requests per minute
+```
 
 ## Logo Acquisition Strategy
 
@@ -455,10 +530,11 @@ interface ResultCardProps {
 ### Phase 1: Backend API (Priority)
 
 1. Create `/api/stocks/quotes` endpoint
-2. Integrate with MCP market data tools
-3. Implement Polygon.io logo fetching
-4. Add response caching (5-10s TTL)
-5. Adjust `/api/analyze` to return structured JSON
+2. Implement parallel batch quote fetching using `asyncio.gather()`
+3. Create `fetch_ticker_details()` function in `app/polygon/client.py` for logo fetching
+4. Add response caching (10 seconds TTL for quotes, 24 hours for logos)
+5. Adjust `/api/analyze` SSE to use standardized event types (`progress`, `result`, `error`)
+6. Update CIO agent system prompt to output structured JSON
 
 ### Phase 2: Frontend Components
 
@@ -480,7 +556,11 @@ interface ResultCardProps {
 1. Add loading skeletons
 2. Improve animations and transitions
 3. Accessibility audit
-4. Mobile responsiveness check
+4. Mobile responsiveness:
+   - Breakpoint < 768px: Stack layout (stock selector on top, chat below)
+   - Stock cards: Single column on mobile
+   - Hide K-line chart on mobile (show only on desktop)
+   - Full-width chat panel on mobile
 
 ## Testing Strategy
 

@@ -43,6 +43,10 @@ Thumbs.db
 
 # Data directory (databases, reports, ChromaDB)
 data/
+!app/data/
+app/data/*.db
+app/data/*.db-shm
+app/data/*.db-wal
 
 # Temporary files
 *.tmp

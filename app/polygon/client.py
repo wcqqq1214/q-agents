@@ -295,3 +295,36 @@ def fetch_news(
 
     logger.info(f"Fetched {len(all_articles)} news articles for {ticker} across {pages} pages")
     return all_articles
+
+
+# Logo cache (symbol -> logo_url), TTL not enforced — logos rarely change
+_LOGO_CACHE: Dict[str, Optional[str]] = {}
+
+
+def fetch_ticker_details(ticker: str) -> Optional[str]:
+    """Fetch logo URL for a ticker from Polygon.io /v3/reference/tickers.
+
+    Returns the logo URL string, or None if unavailable.
+    Results are cached in-process for the lifetime of the server.
+    """
+    if ticker in _LOGO_CACHE:
+        return _LOGO_CACHE[ticker]
+
+    try:
+        rate_limit()
+        url = f"{BASE_URL}/v3/reference/tickers/{ticker}"
+        resp = _http_get(url)
+        data = resp.json()
+        branding = data.get("results", {}).get("branding", {})
+        logo_url = branding.get("logo_url")
+        # Polygon returns SVG URLs; append API key for authenticated access
+        if logo_url:
+            api_key = _get_api_key()
+            logo_url = f"{logo_url}?apiKey={api_key}"
+        _LOGO_CACHE[ticker] = logo_url
+        logger.info(f"Fetched logo for {ticker}: {logo_url}")
+        return logo_url
+    except Exception as exc:
+        logger.warning(f"Failed to fetch logo for {ticker}: {exc}")
+        _LOGO_CACHE[ticker] = None
+        return None

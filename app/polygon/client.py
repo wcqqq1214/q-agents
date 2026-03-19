@@ -218,6 +218,7 @@ def fetch_news(
         - title: Article title
         - description: Article description/summary
         - article_url: URL to full article
+        - image_url: URL to article image (if available)
         - publisher: Publisher name
 
     Raises:
@@ -270,6 +271,7 @@ def fetch_news(
                 "title": r.get("title"),
                 "description": r.get("description"),
                 "article_url": r.get("article_url"),
+                "image_url": r.get("image_url"),
                 "publisher": publisher_obj.get("name"),
             }
 

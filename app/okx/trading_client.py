@@ -53,18 +53,45 @@ class OKXTradingClient:
         logger.info(f"[OKX-{'DEMO' if is_demo else 'LIVE'}] Client initialized")
 
     def _init_sdk_clients(self):
-        """初始化OKX SDK客户端
+        """初始化OKX SDK客户端"""
+        from okx.Account import AccountAPI
+        from okx.Trade import TradeAPI
+        from okx.MarketData import MarketAPI
 
-        注意：此方法需要根据实际SDK API调整
-        参考sdk_poc.py中验证的初始化方式
-        """
-        # TODO: 根据SDK POC结果实现
-        # 示例：
-        # import okx
-        # self.account_api = okx.Account(...)
-        # self.trade_api = okx.Trade(...)
-        # self.market_api = okx.MarketData(...)
-        pass
+        # flag: "1" = demo, "0" = live
+        flag = "1" if self.is_demo else "0"
+
+        # 初始化账户API
+        self.account_api = AccountAPI(
+            api_key=self._api_key,
+            api_secret_key=self._secret_key,
+            passphrase=self._passphrase,
+            flag=flag,
+            debug=False
+        )
+
+        # 初始化交易API
+        self.trade_api = TradeAPI(
+            api_key=self._api_key,
+            api_secret_key=self._secret_key,
+            passphrase=self._passphrase,
+            flag=flag,
+            debug=False
+        )
+
+        # 初始化市场数据API
+        self.market_api = MarketAPI(
+            api_key=self._api_key,
+            api_secret_key=self._secret_key,
+            passphrase=self._passphrase,
+            flag=flag,
+            debug=False
+        )
+
+        logger.info(
+            f"[OKX-{'DEMO' if self.is_demo else 'LIVE'}] "
+            f"SDK clients initialized (Account, Trade, Market)"
+        )
 
     @retry(
         stop=stop_after_attempt(3),

@@ -309,6 +309,210 @@ class OKXTradingClient:
             'status_code': data.get('sCode', '0')
         }
 
+    async def cancel_order(
+        self,
+        inst_id: str,
+        order_id: Optional[str] = None,
+        client_order_id: Optional[str] = None
+    ) -> Dict:
+        """撤单（异步）
+
+        Args:
+            inst_id: 产品ID
+            order_id: 订单ID（与client_order_id二选一）
+            client_order_id: 客户端订单ID（与order_id二选一）
+
+        Returns:
+            撤单结果，格式：
+            {
+                "order_id": "123456",
+                "client_order_id": "my-order-1",
+                "status_code": "0"
+            }
+
+        Raises:
+            ValueError: 如果order_id和client_order_id都未提供
+            OKXOrderError: 订单不存在或撤单失败
+            OKXError: 其他错误
+        """
+        if not order_id and not client_order_id:
+            raise ValueError("Either order_id or client_order_id must be provided")
+
+        return await asyncio.to_thread(
+            self._cancel_order_sync, inst_id, order_id, client_order_id
+        )
+
+    def _cancel_order_sync(
+        self,
+        inst_id: str,
+        order_id: Optional[str] = None,
+        client_order_id: Optional[str] = None
+    ) -> Dict:
+        """撤单的同步实现"""
+        # 构建请求参数
+        params = {'instId': inst_id}
+
+        if order_id:
+            params['ordId'] = order_id
+        if client_order_id:
+            params['clOrdId'] = client_order_id
+
+        # 调用SDK
+        response = self.trade_api.cancel_order(**params)
+
+        # 验证响应
+        self._validate_response(response)
+
+        # 解析结果
+        data = response.get('data', [{}])[0]
+        return {
+            'order_id': data.get('ordId'),
+            'client_order_id': data.get('clOrdId', ''),
+            'status_code': data.get('sCode', '0')
+        }
+
+    async def get_order_details(
+        self,
+        inst_id: str,
+        order_id: Optional[str] = None,
+        client_order_id: Optional[str] = None
+    ) -> Dict:
+        """查询订单详情（异步）
+
+        Args:
+            inst_id: 产品ID
+            order_id: 订单ID（与client_order_id二选一）
+            client_order_id: 客户端订单ID（与order_id二选一）
+
+        Returns:
+            订单详情，格式：
+            {
+                "order_id": "123456",
+                "client_order_id": "my-order-1",
+                "inst_id": "BTC-USDT",
+                "status": "filled",
+                "side": "buy",
+                "order_type": "limit",
+                "size": "0.01",
+                "filled_size": "0.01",
+                "price": "50000",
+                "average_price": "50000",
+                "timestamp": "1710000000000"
+            }
+
+        Raises:
+            ValueError: 如果order_id和client_order_id都未提供
+            OKXOrderError: 订单不存在
+            OKXError: 其他错误
+        """
+        if not order_id and not client_order_id:
+            raise ValueError("Either order_id or client_order_id must be provided")
+
+        return await asyncio.to_thread(
+            self._get_order_details_sync, inst_id, order_id, client_order_id
+        )
+
+    def _get_order_details_sync(
+        self,
+        inst_id: str,
+        order_id: Optional[str] = None,
+        client_order_id: Optional[str] = None
+    ) -> Dict:
+        """查询订单详情的同步实现"""
+        # 构建请求参数
+        params = {'instId': inst_id}
+
+        if order_id:
+            params['ordId'] = order_id
+        if client_order_id:
+            params['clOrdId'] = client_order_id
+
+        # 调用SDK
+        response = self.trade_api.get_order(**params)
+
+        # 验证响应
+        self._validate_response(response)
+
+        # 解析订单数据
+        data = response.get('data', [{}])[0]
+        return {
+            'order_id': data.get('ordId'),
+            'client_order_id': data.get('clOrdId', ''),
+            'inst_id': data.get('instId'),
+            'status': data.get('state'),
+            'side': data.get('side'),
+            'order_type': data.get('ordType'),
+            'size': data.get('sz'),
+            'filled_size': data.get('fillSz'),
+            'price': data.get('px') or None,
+            'average_price': data.get('avgPx') or None,
+            'timestamp': data.get('cTime')
+        }
+
+    async def get_order_history(
+        self,
+        inst_type: str = 'SPOT',
+        inst_id: Optional[str] = None,
+        limit: int = 100
+    ) -> List[Dict]:
+        """查询历史订单（异步）
+
+        Args:
+            inst_type: 产品类型，如SPOT/MARGIN/SWAP/FUTURES
+            inst_id: 产品ID（可选，不传则返回该类型所有产品）
+            limit: 返回数量限制，默认100
+
+        Returns:
+            历史订单列表，格式同get_order_details
+
+        Raises:
+            OKXError: API错误
+        """
+        return await asyncio.to_thread(
+            self._get_order_history_sync, inst_type, inst_id, limit
+        )
+
+    def _get_order_history_sync(
+        self,
+        inst_type: str = 'SPOT',
+        inst_id: Optional[str] = None,
+        limit: int = 100
+    ) -> List[Dict]:
+        """查询历史订单的同步实现"""
+        # 构建请求参数
+        params = {
+            'instType': inst_type,
+            'limit': str(limit)
+        }
+
+        if inst_id:
+            params['instId'] = inst_id
+
+        # 调用SDK
+        response = self.trade_api.get_orders_history(**params)
+
+        # 验证响应
+        self._validate_response(response)
+
+        # 解析订单列表
+        orders = []
+        for order in response.get('data', []):
+            orders.append({
+                'order_id': order.get('ordId'),
+                'client_order_id': order.get('clOrdId', ''),
+                'inst_id': order.get('instId'),
+                'status': order.get('state'),
+                'side': order.get('side'),
+                'order_type': order.get('ordType'),
+                'size': order.get('sz'),
+                'filled_size': order.get('fillSz'),
+                'price': order.get('px') or None,
+                'average_price': order.get('avgPx') or None,
+                'timestamp': order.get('cTime')
+            })
+
+        return orders
+
     def _validate_response(self, response: Dict) -> None:
         """验证OKX API响应
 

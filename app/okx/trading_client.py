@@ -1,4 +1,5 @@
 """OKX交易客户端"""
+import asyncio
 import logging
 from typing import Dict, List, Optional
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -117,3 +118,90 @@ class OKXTradingClient:
                 f"Rate limit hit, retrying... {e}"
             )
             raise
+
+    async def get_account_balance(self, currency: Optional[str] = None) -> List[Dict]:
+        """获取账户余额（异步）
+
+        Args:
+            currency: 币种，如BTC、USDT，不传则返回所有币种
+
+        Returns:
+            余额信息列表，格式：
+            [
+                {
+                    "currency": "USDT",
+                    "available": "1000.5",
+                    "frozen": "100.0",
+                    "total": "1100.5"
+                }
+            ]
+
+        Raises:
+            OKXAuthError: 认证错误
+            OKXError: 其他API错误
+        """
+        return await asyncio.to_thread(self._get_account_balance_sync, currency)
+
+    def _get_account_balance_sync(self, currency: Optional[str] = None) -> List[Dict]:
+        """获取账户余额的同步实现"""
+        # 构建请求参数
+        params = {}
+        if currency:
+            params['ccy'] = currency
+
+        # 调用SDK
+        response = self.account_api.get_account_balance(**params)
+
+        # 验证响应
+        self._validate_response(response)
+
+        # 解析余额数据
+        balances = []
+        data = response.get('data', [])
+        if data and len(data) > 0:
+            details = data[0].get('details', [])
+            for detail in details:
+                balances.append({
+                    'currency': detail.get('ccy'),
+                    'available': detail.get('availBal'),
+                    'frozen': detail.get('frozenBal'),
+                    'total': detail.get('bal')
+                })
+
+        return balances
+
+    def _validate_response(self, response: Dict) -> None:
+        """验证OKX API响应
+
+        Args:
+            response: OKX API响应
+
+        Raises:
+            OKXAuthError: 认证错误
+            OKXRateLimitError: 频率限制错误
+            OKXError: 其他错误
+        """
+        from .exceptions import (
+            OKXError, OKXAuthError, OKXRateLimitError,
+            OKXInsufficientBalanceError, OKXOrderError
+        )
+
+        code = response.get('code')
+        if code != '0':
+            msg = response.get('msg', 'Unknown error')
+
+            # 认证错误
+            if code in ['50113', '50101', '50102', '50103']:
+                raise OKXAuthError(msg, code=code)
+            # 频率限制
+            elif code == '50011':
+                raise OKXRateLimitError(msg, code=code)
+            # 业务错误
+            elif code and code.startswith('51'):
+                if '余额不足' in msg or 'Insufficient' in msg.lower():
+                    raise OKXInsufficientBalanceError(msg, code=code)
+                else:
+                    raise OKXOrderError(msg, code=code)
+            else:
+                raise OKXError(msg, code=code)
+

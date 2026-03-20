@@ -56,6 +56,28 @@ def get_ohlc_aggregated(symbol: str, start: str, end: str, interval: str) -> Lis
             ORDER BY date ASC
         """
         params = (symbol.upper(), start, end)
+    elif interval == 'week':
+        # Aggregate by ISO week (Monday to Sunday)
+        query = """
+            SELECT
+                date(date, 'weekday 0', '-6 days') as date,
+                (SELECT open FROM ohlc o2
+                 WHERE o2.symbol = ohlc.symbol
+                 AND date(o2.date, 'weekday 0', '-6 days') = date(ohlc.date, 'weekday 0', '-6 days')
+                 ORDER BY o2.date ASC LIMIT 1) as open,
+                MAX(high) as high,
+                MIN(low) as low,
+                (SELECT close FROM ohlc o3
+                 WHERE o3.symbol = ohlc.symbol
+                 AND date(o3.date, 'weekday 0', '-6 days') = date(ohlc.date, 'weekday 0', '-6 days')
+                 ORDER BY o3.date DESC LIMIT 1) as close,
+                SUM(volume) as volume
+            FROM ohlc
+            WHERE symbol = ? AND date >= ? AND date <= ?
+            GROUP BY date(date, 'weekday 0', '-6 days')
+            ORDER BY date ASC
+        """
+        params = (symbol.upper(), start, end)
     else:
         conn.close()
         raise ValueError(f"Invalid interval: {interval}")

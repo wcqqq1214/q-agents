@@ -118,4 +118,4 @@ export interface DataStatusResponse {
   total_records: number;
 }
 
-export type TimeRange = '1M' | '3M' | '6M' | '1Y' | '5Y';
+export type TimeRange = 'D' | 'W' | 'M' | 'Y';

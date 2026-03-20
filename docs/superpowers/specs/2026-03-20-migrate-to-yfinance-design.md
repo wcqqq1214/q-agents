@@ -53,9 +53,31 @@ This document outlines the design for migrating the Finance Agent application fr
 - Easier to mock/test
 
 **Required MCP Tools**:
-- `get_us_stock_quote` - Already exists, used for real-time quotes
-- `get_stock_data` or similar - Need to verify if historical OHLC interface exists
-- If missing: Either extend MCP server or create direct yfinance client
+- `get_us_stock_quote` - ✅ Already exists, used for real-time quotes
+- `get_stock_history` - ❌ **DOES NOT EXIST** - Must be added to MCP server
+
+**Critical Finding**: The existing `get_stock_data` tool returns technical indicators (SMA, MACD, Bollinger Bands) but NOT raw OHLC data. We must extend the MCP server with a new tool.
+
+**New MCP Tool Specification**:
+```python
+@mcp.tool()
+def get_stock_history(ticker: str, start_date: str, end_date: str) -> dict[str, Any]:
+    """Fetch historical OHLC data for a ticker.
+
+    Args:
+        ticker: Stock symbol (e.g., AAPL)
+        start_date: Start date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format
+
+    Returns:
+        Dict with:
+        - ticker: str
+        - data: List[{date, open, high, low, close, volume}]
+
+    Implementation:
+        yf.Ticker(ticker).history(start=start_date, end=end_date)
+    """
+```
 
 ## Architecture Changes
 
@@ -212,10 +234,14 @@ DELETE FROM metadata;
 | Error Type | Cause | Handling |
 |------------|-------|----------|
 | Invalid ticker | Symbol doesn't exist | Return 404, log warning |
-| No data for range | Date range has no trading days | Return empty array, log info |
+| No data for range | Date range has no trading days | Return empty array with 200, log info |
+| Invalid date range | end_date < start_date | Return 400, log warning |
+| Future dates | start_date > today | Adjust to today, log info |
+| Empty result set | No trading days in range (weekends/holidays) | Return empty array with 200, log info |
 | Rate limiting | Too many requests | Exponential backoff, retry |
 | Network timeout | Connection issues | Retry with backoff (max 3) |
 | Parse error | Unexpected data format | Log error, return 500 |
+| yfinance data quality | Missing/incorrect data | Log warning, return partial data |
 
 ### Error Propagation
 
@@ -233,35 +259,41 @@ yfinance → MCP Server → MCP Client → API Route → Frontend
 
 ## Implementation Plan
 
-### Phase 1: MCP Server Investigation (Priority: Critical)
+### Phase 1: Extend MCP Server (Priority: Critical, Blocking)
 
-**Objective**: Determine if MCP yfinance server supports historical data retrieval.
+**Objective**: Add historical OHLC data endpoint to MCP yfinance server.
 
 **Tasks**:
-1. Write test script to list all available MCP tools
-2. Check for historical data endpoints (e.g., `get_stock_data`, `get_history`)
-3. Test endpoint parameters and response format
-4. Document findings
+1. Locate MCP server code: `mcp_servers/market_data/main.py`
+2. Add new tool `get_stock_history(ticker, start_date, end_date)`
+3. Implement using `yf.Ticker(ticker).history(start=start_date, end=end_date)`
+4. Return format: `{ticker: str, data: [{date, open, high, low, close, volume}]}`
+5. Test with sample request for AAPL 2021-2026
+6. Restart MCP server
 
-**Decision Point**:
-- **If MCP has historical data**: Proceed with MCP integration
-- **If MCP lacks historical data**:
-  - Option A: Extend MCP server with new tool (recommended)
-  - Option B: Create direct yfinance client wrapper
+**Files**:
+- `mcp_servers/market_data/main.py`
 
-**Estimated Time**: 30 minutes
+**Estimated Time**: 30-45 minutes
 
 ### Phase 2: Frontend Quick Fix (Priority: High, Independent)
 
 **Objective**: Fix K-line chart English localization.
 
 **Tasks**:
-1. Modify `KLineChart.tsx` to add localization config
-2. Test in browser with different locale settings
-3. Verify English dates display correctly
+1. Modify `KLineChart.tsx` - **ADD** new `localization` property to createChart config (line ~95)
+2. Insert before `layout` property:
+   ```typescript
+   localization: {
+     locale: 'en-US',
+     dateFormat: 'yyyy-MM-dd',
+   },
+   ```
+3. Test in browser with zh-CN locale setting
+4. Verify English dates display correctly in chart and tooltips
 
 **Files**:
-- `frontend/src/components/chart/KLineChart.tsx`
+- `frontend/src/components/chart/KLineChart.tsx` (line 95-113)
 
 **Estimated Time**: 15 minutes
 
@@ -272,9 +304,10 @@ yfinance → MCP Server → MCP Client → API Route → Frontend
 **Tasks**:
 1. Extend `app/mcp_client/finance_client.py` with history function
 2. Update `app/scripts/init_ohlc_data.py` to use MCP client
-3. Update `app/tasks/update_ohlc.py` to use MCP client
-4. Add comprehensive error handling
-5. Test data retrieval for all 7 stocks
+3. Add rate limiting: `time.sleep(0.5)` between symbol fetches (respectful to Yahoo Finance)
+4. Update `app/tasks/update_ohlc.py` to use MCP client
+5. Add comprehensive error handling for date ranges, network failures
+6. Test data retrieval for all 7 stocks
 
 **Files**:
 - `app/mcp_client/finance_client.py`
@@ -289,9 +322,12 @@ yfinance → MCP Server → MCP Client → API Route → Frontend
 
 **Tasks**:
 1. Remove logo field from `StockQuote` model (or make optional)
-2. Remove logo fetching in `stocks.py`
-3. Update frontend components to not display logo
-4. Update TypeScript types
+2. Remove logo fetching in `stocks.py` (lines 31, 45)
+3. Update frontend: No changes needed - StockCard.tsx already handles missing logos gracefully (lines 40-55)
+4. Update TypeScript types in `frontend/src/lib/types.ts`
+5. Audit all imports of `app.polygon.client` - keep only `fetch_news` for news functionality
+6. Add comment to `polygon/client.py`: "Only fetch_news is used; OHLC migrated to yfinance"
+7. Update `.env.example` to clarify `POLYGON_API_KEY` is optional (news only)
 
 **Files**:
 - `app/api/models/schemas.py`
@@ -306,23 +342,28 @@ yfinance → MCP Server → MCP Client → API Route → Frontend
 **Objective**: Populate database with 5 years of historical data.
 
 **Tasks**:
-1. Backup existing database (optional)
-2. Clear OHLC and metadata tables
-3. Run initialization script
-4. Verify data range: 2021-03-20 to 2026-03-20
-5. Verify data quality (no gaps, correct values)
-
-**Commands**:
-```bash
-# Backup (optional)
-cp app/data/finance.db app/data/finance.db.backup
-
-# Clear and reinitialize
-uv run python -c "from app.database import get_conn; conn = get_conn(); conn.execute('DELETE FROM ohlc'); conn.execute('DELETE FROM metadata'); conn.commit(); conn.close()"
-
-# Run init script
-uv run python -m app.scripts.init_ohlc_data
-```
+1. **Stop backend server** (if running) to prevent concurrent access
+2. Backup existing database:
+   ```bash
+   cp app/data/finance.db app/data/finance.db.polygon-backup-$(date +%Y%m%d)
+   ```
+3. Clear OHLC and metadata tables:
+   ```bash
+   uv run python -c "from app.database import get_conn; conn = get_conn(); conn.execute('DELETE FROM ohlc'); conn.execute('DELETE FROM metadata'); conn.commit(); conn.close()"
+   ```
+4. Run initialization script:
+   ```bash
+   uv run python -m app.scripts.init_ohlc_data
+   ```
+5. Verify data range and quality:
+   ```bash
+   uv run python -c "from app.database import get_conn; conn = get_conn(); result = conn.execute('SELECT symbol, COUNT(*) as cnt, MIN(date) as earliest, MAX(date) as latest FROM ohlc GROUP BY symbol').fetchall(); print('\\n'.join([f\"{r['symbol']}: {r['cnt']} records, {r['earliest']} to {r['latest']}\" for r in result])); conn.close()"
+   ```
+6. Expected results:
+   - Each symbol: ~1,260 records (5 years of trading days)
+   - Date range: ~2021-03-20 to 2026-03-20
+   - No major gaps (allow holidays/weekends)
+7. **Restart backend server**
 
 **Estimated Time**: 30 minutes (including API calls)
 
@@ -333,24 +374,42 @@ uv run python -m app.scripts.init_ohlc_data
 **Test Cases**:
 
 **Backend**:
-- [ ] MCP client can fetch 5 years of OHLC data
-- [ ] Stock quotes API returns correct data without logo
+- [ ] MCP server has `get_stock_history` tool available
+- [ ] MCP client can fetch 5 years of OHLC data for AAPL
+- [ ] Database validation:
+  ```bash
+  # Record count per symbol (expected: ~1,260)
+  SELECT symbol, COUNT(*) FROM ohlc GROUP BY symbol;
+
+  # Date range per symbol (expected: 2021-03-20 to 2026-03-20)
+  SELECT symbol, MIN(date), MAX(date) FROM ohlc GROUP BY symbol;
+
+  # Check for weekday gaps (should be minimal, holidays OK)
+  ```
+- [ ] Stock quotes API returns correct data without logo field
 - [ ] OHLC API returns correct data from database
-- [ ] Polygon news API still works
-- [ ] Error handling works for invalid tickers
-- [ ] Error handling works for network failures
+- [ ] Polygon news API still works (fetch_news function)
+- [ ] Error handling: Invalid ticker returns 404
+- [ ] Error handling: Network failure retries with backoff
 
 **Frontend**:
-- [ ] K-line chart displays English dates
-- [ ] K-line chart loads and displays correctly
-- [ ] Stock cards display without logo
+- [ ] K-line chart displays English dates (test with browser locale set to zh-CN)
+- [ ] Chart tooltip shows "yyyy-MM-dd" format, not localized
+- [ ] K-line chart loads and displays correctly for all 7 stocks
+- [ ] Stock cards display without logo (shows fallback)
 - [ ] Chart zoom and pan work correctly
-- [ ] Error messages display properly
+- [ ] Error messages display properly for invalid symbols
 
 **Integration**:
 - [ ] Full flow: Select stock → Load chart → Display data
 - [ ] Multiple stocks can be loaded sequentially
 - [ ] Page refresh maintains functionality
+- [ ] No console errors related to missing logo
+
+**Performance**:
+- [ ] Initialization completes in < 5 minutes for all 7 stocks
+- [ ] OHLC API responds in < 500ms for 5-year range
+- [ ] Database size < 50MB after initialization
 
 **Estimated Time**: 1 hour
 
@@ -375,13 +434,17 @@ If migration fails or causes issues:
 
 ## Success Criteria
 
-- [ ] K-line chart displays English dates only
+- [ ] K-line chart displays English dates only (verified in zh-CN locale)
 - [ ] Database contains 5 years of OHLC data (2021-2026)
+- [ ] Each symbol has ~1,260 trading day records
 - [ ] Stock quotes display correctly without logos
 - [ ] All 7 stocks load successfully
 - [ ] No Polygon API calls for OHLC or quotes
 - [ ] Polygon news functionality unchanged
 - [ ] No regressions in existing features
+- [ ] Initialization completes in < 5 minutes
+- [ ] OHLC API responds in < 500ms for 5-year range
+- [ ] Database size < 50MB after initialization
 
 ## Dependencies
 
@@ -399,11 +462,15 @@ If migration fails or causes issues:
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
-| MCP server lacks historical data API | High | Medium | Extend MCP server or use direct yfinance |
-| yfinance rate limiting | Medium | Low | Add delays, implement backoff |
-| Data format incompatibility | High | Low | Validate and transform data |
-| 5-year data unavailable | High | Low | Verify with test before full migration |
+| MCP server lacks historical data API | High | Confirmed | Extend MCP server with get_stock_history tool (Phase 1) |
+| yfinance rate limiting | Medium | Low | Add 0.5s delays between requests; implement backoff |
+| yfinance data quality issues | High | Medium | Implement data validation checks; log anomalies; verify against known values |
+| yfinance library breaking changes | Medium | Low | Pin yfinance version in MCP server; monitor GitHub releases |
+| Data format incompatibility | High | Low | Validate and transform data; comprehensive testing |
+| 5-year data unavailable | High | Low | Verified in testing - yfinance provides 5+ years |
 | Frontend breaking changes | Medium | Low | Test thoroughly, keep changes minimal |
+| Concurrent access during migration | Medium | Medium | Stop backend server before database operations |
+| Database corruption during migration | High | Low | Backup before clearing; verify after initialization |
 
 ## Future Considerations
 

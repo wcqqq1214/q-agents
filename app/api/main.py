@@ -7,7 +7,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.tasks.update_ohlc import update_daily_ohlc
 
 from .models import HealthResponse
-from .routes import analyze, reports, system, settings, stocks, ohlc
+from .routes import analyze, reports, system, settings, stocks, ohlc, history
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,7 @@ app.include_router(system.router, prefix="/api", tags=["system"])
 app.include_router(settings.router, prefix="/api", tags=["settings"])
 app.include_router(stocks.router, prefix="/api", tags=["stocks"])
 app.include_router(ohlc.router, prefix="/api/stocks", tags=["ohlc"])
+app.include_router(history.router, prefix="/api", tags=["history"])
 
 
 @app.get("/")

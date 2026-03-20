@@ -32,6 +32,8 @@ dependencies = [
     "python-multipart>=0.0.12",
     "httpx>=0.28.1",
     "apscheduler>=3.10.4",
+    "python-okx>=0.4.1",
+    "tenacity>=9.1.4",
 ]
 
 [tool.pyright]

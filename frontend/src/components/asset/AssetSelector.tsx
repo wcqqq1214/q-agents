@@ -5,6 +5,7 @@ import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StockCard } from '../stock/StockCard';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import type { StockInfo } from '@/lib/types';
@@ -71,9 +72,12 @@ export function AssetSelector({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-          Stocks
-        </h2>
+        <Tabs value={assetType} onValueChange={onAssetTypeChange}>
+          <TabsList variant="default">
+            <TabsTrigger value="crypto">Crypto</TabsTrigger>
+            <TabsTrigger value="stocks">Stocks</TabsTrigger>
+          </TabsList>
+        </Tabs>
         <Button
           variant="ghost"
           size="icon"

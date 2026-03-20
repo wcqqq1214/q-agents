@@ -28,7 +28,7 @@ from app.quant.generate_report import generate_report as generate_quant_report
 from app.reporting.run_context import make_run_dir
 from app.reporting.writer import write_json
 from app.social.generate_report import generate_report as generate_social_report
-from app.database.agent_history import save_agent_execution, save_tool_call, init_db
+from app.database.agent_history import save_agent_execution, save_tool_call, save_analysis_run, update_analysis_run_decision, init_db
 from app.database.message_adapter import convert_messages_to_standard
 
 load_dotenv()
@@ -242,6 +242,20 @@ def _parallel_runner(state: AgentState) -> Dict[str, Any]:
     asset = _extract_asset_from_query(query)
     ctx = make_run_dir(asset)
 
+    # Save analysis run to database
+    try:
+        db_path = os.getenv("AGENT_HISTORY_DB_PATH", "data/agent_history.db")
+        init_db(db_path)
+        save_analysis_run(
+            run_id=ctx.run_id,
+            asset=asset,
+            query=query,
+            timestamp=datetime.now(timezone(timedelta(hours=8))),
+            db_path=db_path
+        )
+    except Exception as e:
+        logger.error(f"Failed to save analysis run to history database: {e}", exc_info=True)
+
     with ThreadPoolExecutor(max_workers=3) as executor:
         fut_quant = executor.submit(
             generate_quant_report,
@@ -322,6 +336,14 @@ def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> 
         cio_path = str(Path(run_dir) / "cio.json")
         write_json(Path(cio_path), cio_obj)
         cio_obj["report_path"] = cio_path
+
+    # Update final_decision in database
+    if run_id:
+        try:
+            db_path = os.getenv("AGENT_HISTORY_DB_PATH", "data/agent_history.db")
+            update_analysis_run_decision(run_id, str(content), db_path)
+        except Exception as e:
+            logger.error(f"Failed to update final_decision in history database: {e}", exc_info=True)
 
     return {"final_decision": str(content), "cio_report_path": cio_path or ""}
 

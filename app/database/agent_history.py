@@ -358,3 +358,22 @@ def query_tool_calls(
     conn.close()
 
     return [dict(row) for row in rows]
+
+
+def update_analysis_run_decision(
+    run_id: str,
+    final_decision: str,
+    db_path: str = DEFAULT_DB_PATH
+) -> None:
+    """Update the final_decision field for an analysis run."""
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        UPDATE analysis_runs
+        SET final_decision = ?
+        WHERE run_id = ?
+    """, (final_decision, run_id))
+
+    conn.commit()
+    conn.close()

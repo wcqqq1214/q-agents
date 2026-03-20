@@ -194,3 +194,167 @@ def save_tool_call(
 
     conn.commit()
     conn.close()
+
+
+def query_analysis_runs(
+    asset: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    db_path: str = DEFAULT_DB_PATH
+) -> List[Dict[str, Any]]:
+    """Query analysis runs with optional filters.
+
+    Args:
+        asset: Filter by asset ticker
+        date_from: Filter by start date (ISO format)
+        date_to: Filter by end date (ISO format)
+        limit: Maximum number of results
+        offset: Offset for pagination
+        db_path: Database file path
+
+    Returns:
+        List of analysis run dicts
+    """
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+
+    query = "SELECT * FROM analysis_runs WHERE 1=1"
+    params = []
+
+    if asset:
+        query += " AND asset = ?"
+        params.append(asset)
+    if date_from:
+        query += " AND timestamp >= ?"
+        params.append(date_from)
+    if date_to:
+        query += " AND timestamp <= ?"
+        params.append(date_to)
+
+    query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [dict(row) for row in rows]
+
+
+def query_run_detail(
+    run_id: str,
+    db_path: str = DEFAULT_DB_PATH
+) -> Optional[Dict[str, Any]]:
+    """Query detailed information for a single run.
+
+    Returns:
+        Dict with run info and list of agent executions, or None if not found
+    """
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+
+    # Get run info
+    cursor.execute("SELECT * FROM analysis_runs WHERE run_id = ?", (run_id,))
+    run_row = cursor.fetchone()
+
+    if not run_row:
+        conn.close()
+        return None
+
+    run_dict = dict(run_row)
+
+    # Get agent executions
+    cursor.execute("""
+        SELECT execution_id, agent_type, output_text, start_time, end_time, duration_seconds
+        FROM agent_executions
+        WHERE run_id = ?
+        ORDER BY start_time
+    """, (run_id,))
+
+    agent_rows = cursor.fetchall()
+    run_dict["agents"] = [dict(row) for row in agent_rows]
+
+    conn.close()
+    return run_dict
+
+
+def query_agent_messages(
+    execution_id: str,
+    db_path: str = DEFAULT_DB_PATH
+) -> Optional[Dict[str, Any]]:
+    """Query complete message history for an agent execution.
+
+    Returns:
+        Dict with execution info and messages list, or None if not found
+    """
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT execution_id, agent_type, messages_json
+        FROM agent_executions
+        WHERE execution_id = ?
+    """, (execution_id,))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    result = {
+        "execution_id": row["execution_id"],
+        "agent_type": row["agent_type"],
+        "messages": json.loads(row["messages_json"])
+    }
+
+    return result
+
+
+def query_tool_calls(
+    tool_name: Optional[str] = None,
+    status: Optional[str] = None,
+    date_from: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    db_path: str = DEFAULT_DB_PATH
+) -> List[Dict[str, Any]]:
+    """Query tool calls with optional filters.
+
+    Args:
+        tool_name: Filter by tool name
+        status: Filter by status ('success' or 'failed')
+        date_from: Filter by start date (ISO format)
+        limit: Maximum number of results
+        offset: Offset for pagination
+        db_path: Database file path
+
+    Returns:
+        List of tool call dicts
+    """
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+
+    query = "SELECT * FROM tool_calls WHERE 1=1"
+    params = []
+
+    if tool_name:
+        query += " AND tool_name = ?"
+        params.append(tool_name)
+    if status:
+        query += " AND status = ?"
+        params.append(status)
+    if date_from:
+        query += " AND timestamp >= ?"
+        params.append(date_from)
+
+    query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [dict(row) for row in rows]

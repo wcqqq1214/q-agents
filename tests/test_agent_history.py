@@ -11,7 +11,11 @@ from app.database.agent_history import (
     get_connection,
     save_analysis_run,
     save_agent_execution,
-    save_tool_call
+    save_tool_call,
+    query_analysis_runs,
+    query_run_detail,
+    query_agent_messages,
+    query_tool_calls
 )
 
 
@@ -218,3 +222,115 @@ def test_save_tool_call(tmp_path):
     stored_result = json.loads(row["result_json"])
     assert stored_result["data"][0]["close"] == 150.0
     conn.close()
+
+
+def test_query_analysis_runs(tmp_path):
+    """Test querying analysis runs with filters."""
+    db_path = tmp_path / "test.db"
+    init_db(str(db_path))
+
+    # Insert test data
+    tz = timezone(timedelta(hours=8))
+    save_analysis_run("20260321_100000", "AAPL", "test1", datetime(2026, 3, 21, 10, 0, 0, tzinfo=tz), db_path=str(db_path))
+    save_analysis_run("20260321_110000", "AAPL", "test2", datetime(2026, 3, 21, 11, 0, 0, tzinfo=tz), db_path=str(db_path))
+    save_analysis_run("20260321_120000", "NVDA", "test3", datetime(2026, 3, 21, 12, 0, 0, tzinfo=tz), db_path=str(db_path))
+
+    # Query all
+    results = query_analysis_runs(db_path=str(db_path))
+    assert len(results) == 3
+
+    # Query by asset
+    results = query_analysis_runs(asset="AAPL", db_path=str(db_path))
+    assert len(results) == 2
+    assert all(r["asset"] == "AAPL" for r in results)
+
+    # Query with limit
+    results = query_analysis_runs(limit=1, db_path=str(db_path))
+    assert len(results) == 1
+
+
+def test_query_run_detail(tmp_path):
+    """Test querying detailed run information."""
+    db_path = tmp_path / "test.db"
+    init_db(str(db_path))
+
+    # Setup test data
+    run_id = "20260321_143052"
+    tz = timezone(timedelta(hours=8))
+    save_analysis_run(run_id, "AAPL", "test", datetime.now(tz), "decision", str(db_path))
+
+    exec_id = str(uuid.uuid4())
+    save_agent_execution(
+        exec_id, run_id, "quant", [{"role": "system", "content": "test"}],
+        datetime.now(tz), "output", datetime.now(tz), str(db_path)
+    )
+
+    # Query detail
+    result = query_run_detail(run_id, db_path=str(db_path))
+
+    assert result is not None
+    assert result["run_id"] == run_id
+    assert result["asset"] == "AAPL"
+    assert "agents" in result
+    assert len(result["agents"]) == 1
+    assert result["agents"][0]["agent_type"] == "quant"
+
+
+def test_query_agent_messages(tmp_path):
+    """Test querying agent messages."""
+    db_path = tmp_path / "test.db"
+    init_db(str(db_path))
+
+    # Setup
+    run_id = "20260321_143052"
+    exec_id = str(uuid.uuid4())
+    tz = timezone(timedelta(hours=8))
+    messages = [
+        {"role": "system", "content": "You are an analyst"},
+        {"role": "user", "content": "Analyze AAPL"}
+    ]
+
+    save_analysis_run(run_id, "AAPL", "test", datetime.now(tz), db_path=str(db_path))
+    save_agent_execution(exec_id, run_id, "quant", messages, datetime.now(tz), db_path=str(db_path))
+
+    # Query messages
+    result = query_agent_messages(exec_id, db_path=str(db_path))
+
+    assert result is not None
+    assert result["execution_id"] == exec_id
+    assert result["agent_type"] == "quant"
+    assert len(result["messages"]) == 2
+    assert result["messages"][0]["role"] == "system"
+
+
+def test_query_tool_calls(tmp_path):
+    """Test querying tool calls with filters."""
+    db_path = tmp_path / "test.db"
+    init_db(str(db_path))
+
+    # Setup
+    run_id = "20260321_143052"
+    exec_id = str(uuid.uuid4())
+    tz = timezone(timedelta(hours=8))
+
+    save_analysis_run(run_id, "AAPL", "test", datetime.now(tz), db_path=str(db_path))
+    save_agent_execution(exec_id, run_id, "quant", [], datetime.now(tz), db_path=str(db_path))
+
+    # Insert tool calls
+    save_tool_call(str(uuid.uuid4()), exec_id, "get_stock_data", {"ticker": "AAPL"}, "success", datetime.now(tz), {"data": []}, db_path=str(db_path))
+    save_tool_call(str(uuid.uuid4()), exec_id, "search_news", {"query": "AAPL"}, "failed", datetime.now(tz), error_message="timeout", db_path=str(db_path))
+
+    # Query all
+    results = query_tool_calls(db_path=str(db_path))
+    assert len(results) == 2
+
+    # Query by tool_name
+    results = query_tool_calls(tool_name="get_stock_data", db_path=str(db_path))
+    assert len(results) == 1
+    assert results[0]["tool_name"] == "get_stock_data"
+
+    # Query by status
+    results = query_tool_calls(status="failed", db_path=str(db_path))
+    assert len(results) == 1
+    assert results[0]["status"] == "failed"
+    assert results[0]["error_message"] == "timeout"

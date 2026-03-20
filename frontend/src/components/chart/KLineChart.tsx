@@ -16,19 +16,20 @@ function calculateDateRange(range: TimeRange): { start: string; end: string } {
   const start = new Date();
 
   switch (range) {
-    case '1M':
-      start.setMonth(start.getMonth() - 1);
-      break;
-    case '3M':
+    case 'D':
+      // Day: show last 3 months of daily data (~60-90 bars)
       start.setMonth(start.getMonth() - 3);
       break;
-    case '6M':
-      start.setMonth(start.getMonth() - 6);
-      break;
-    case '1Y':
+    case 'W':
+      // Week: show last 1 year of weekly data (~52 bars)
       start.setFullYear(start.getFullYear() - 1);
       break;
-    case '5Y':
+    case 'M':
+      // Month: show last 3 years of monthly data (~36 bars)
+      start.setFullYear(start.getFullYear() - 3);
+      break;
+    case 'Y':
+      // Year: show all available yearly data (5 years, ~5 bars)
       start.setFullYear(start.getFullYear() - 5);
       break;
   }
@@ -40,7 +41,7 @@ function calculateDateRange(range: TimeRange): { start: string; end: string } {
 }
 
 export function KLineChart({ selectedStock }: KLineChartProps) {
-  const [timeRange, setTimeRange] = useState<TimeRange>('3M');
+  const [timeRange, setTimeRange] = useState<TimeRange>('W');
   const [ohlcData, setOhlcData] = useState<OHLCRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +61,21 @@ export function KLineChart({ selectedStock }: KLineChartProps) {
 
     try {
       const { start, end } = calculateDateRange(timeRange);
-      const response = await api.getOHLC(selectedStock, start, end);
+
+      // Map frontend TimeRange to backend interval parameter
+      const intervalMap: Record<TimeRange, string> = {
+        'D': 'day',
+        'W': 'week',
+        'M': 'month',
+        'Y': 'year',
+      };
+
+      const response = await api.getOHLC(
+        selectedStock,
+        start,
+        end,
+        intervalMap[timeRange]
+      );
       setOhlcData(response.data);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load chart data';

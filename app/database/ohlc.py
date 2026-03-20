@@ -78,6 +78,50 @@ def get_ohlc_aggregated(symbol: str, start: str, end: str, interval: str) -> Lis
             ORDER BY date ASC
         """
         params = (symbol.upper(), start, end)
+    elif interval == 'month':
+        # Aggregate by calendar month
+        query = """
+            SELECT
+                strftime('%Y-%m-01', date) as date,
+                (SELECT open FROM ohlc o2
+                 WHERE o2.symbol = ohlc.symbol
+                 AND strftime('%Y-%m', o2.date) = strftime('%Y-%m', ohlc.date)
+                 ORDER BY o2.date ASC LIMIT 1) as open,
+                MAX(high) as high,
+                MIN(low) as low,
+                (SELECT close FROM ohlc o3
+                 WHERE o3.symbol = ohlc.symbol
+                 AND strftime('%Y-%m', o3.date) = strftime('%Y-%m', ohlc.date)
+                 ORDER BY o3.date DESC LIMIT 1) as close,
+                SUM(volume) as volume
+            FROM ohlc
+            WHERE symbol = ? AND date >= ? AND date <= ?
+            GROUP BY strftime('%Y-%m', date)
+            ORDER BY date ASC
+        """
+        params = (symbol.upper(), start, end)
+    elif interval == 'year':
+        # Aggregate by calendar year
+        query = """
+            SELECT
+                strftime('%Y-01-01', date) as date,
+                (SELECT open FROM ohlc o2
+                 WHERE o2.symbol = ohlc.symbol
+                 AND strftime('%Y', o2.date) = strftime('%Y', ohlc.date)
+                 ORDER BY o2.date ASC LIMIT 1) as open,
+                MAX(high) as high,
+                MIN(low) as low,
+                (SELECT close FROM ohlc o3
+                 WHERE o3.symbol = ohlc.symbol
+                 AND strftime('%Y', o3.date) = strftime('%Y', ohlc.date)
+                 ORDER BY o3.date DESC LIMIT 1) as close,
+                SUM(volume) as volume
+            FROM ohlc
+            WHERE symbol = ? AND date >= ? AND date <= ?
+            GROUP BY strftime('%Y', date)
+            ORDER BY date ASC
+        """
+        params = (symbol.upper(), start, end)
     else:
         conn.close()
         raise ValueError(f"Invalid interval: {interval}")

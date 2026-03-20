@@ -17,15 +17,15 @@ function calculateDateRange(range: TimeRange): { start: string; end: string } {
 
   switch (range) {
     case 'D':
-      // Day: load 2 years of data for zooming, initially show last 3 months
-      start.setFullYear(start.getFullYear() - 2);
+      // Day: load all available data for zooming, initially show last 3 months
+      start.setFullYear(start.getFullYear() - 10);
       break;
     case 'W':
-      // Week: load 5 years of data for zooming, initially show last 1 year
-      start.setFullYear(start.getFullYear() - 5);
+      // Week: load all available data for zooming, initially show last 1 year
+      start.setFullYear(start.getFullYear() - 10);
       break;
     case 'M':
-      // Month: load 10 years of data for zooming, initially show last 3 years
+      // Month: load all available data for zooming, initially show last 3 years
       start.setFullYear(start.getFullYear() - 10);
       break;
     case 'Y':

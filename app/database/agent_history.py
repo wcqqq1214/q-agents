@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import sqlite3
+import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any, Dict, List
+from datetime import datetime
 
 DEFAULT_DB_PATH = "data/agent_history.db"
 
@@ -89,6 +91,106 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> None:
             FOREIGN KEY (run_id) REFERENCES analysis_runs(run_id)
         )
     """)
+
+    conn.commit()
+    conn.close()
+
+
+def save_analysis_run(
+    run_id: str,
+    asset: str,
+    query: str,
+    timestamp: datetime,
+    final_decision: Optional[str] = None,
+    db_path: str = DEFAULT_DB_PATH
+) -> None:
+    """Save an analysis run to the database."""
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO analysis_runs (run_id, asset, query, timestamp, final_decision)
+        VALUES (?, ?, ?, ?, ?)
+    """, (run_id, asset, query, timestamp.isoformat(), final_decision))
+
+    conn.commit()
+    conn.close()
+
+
+def save_agent_execution(
+    execution_id: str,
+    run_id: str,
+    agent_type: str,
+    messages: List[Dict[str, Any]],
+    start_time: datetime,
+    output_text: Optional[str] = None,
+    end_time: Optional[datetime] = None,
+    db_path: str = DEFAULT_DB_PATH
+) -> None:
+    """Save an agent execution to the database."""
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+
+    # Calculate duration if end_time provided
+    duration_seconds = None
+    if end_time:
+        duration_seconds = (end_time - start_time).total_seconds()
+
+    # Serialize messages to JSON
+    messages_json = json.dumps(messages, ensure_ascii=False)
+
+    cursor.execute("""
+        INSERT INTO agent_executions
+        (execution_id, run_id, agent_type, messages_json, output_text, start_time, end_time, duration_seconds)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        execution_id,
+        run_id,
+        agent_type,
+        messages_json,
+        output_text,
+        start_time.isoformat(),
+        end_time.isoformat() if end_time else None,
+        duration_seconds
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def save_tool_call(
+    call_id: str,
+    execution_id: str,
+    tool_name: str,
+    arguments: Dict[str, Any],
+    status: str,
+    timestamp: datetime,
+    result: Optional[Dict[str, Any]] = None,
+    error_message: Optional[str] = None,
+    db_path: str = DEFAULT_DB_PATH
+) -> None:
+    """Save a tool call to the database."""
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+
+    # Serialize JSON fields
+    arguments_json = json.dumps(arguments, ensure_ascii=False)
+    result_json = json.dumps(result, ensure_ascii=False) if result else None
+
+    cursor.execute("""
+        INSERT INTO tool_calls
+        (call_id, execution_id, tool_name, arguments_json, result_json, status, error_message, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        call_id,
+        execution_id,
+        tool_name,
+        arguments_json,
+        result_json,
+        status,
+        error_message,
+        timestamp.isoformat()
+    ))
 
     conn.commit()
     conn.close()

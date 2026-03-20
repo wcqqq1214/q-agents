@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import AsyncGenerator
 
 from ..models import AnalyzeRequest, AnalyzeResponse
+from app.graph_multi import run_once
 
 router = APIRouter()
 
@@ -14,17 +15,15 @@ async def run_analysis_stream(query: str) -> AsyncGenerator[str, None]:
     """
     Run analysis and stream progress events.
 
-    This is a placeholder implementation. In production, this should:
-    1. Call app.graph_multi.run_once() in a background thread
-    2. Stream progress updates as SSE events
-    3. Return the final report ID
+    Calls app.graph_multi.run_once() in a background thread and streams
+    progress updates as SSE events.
     """
     try:
         # Send initial status
         yield f"data: {json.dumps({'type': 'progress', 'message': 'Starting analysis...'})}\n\n"
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.1)
 
-        # Simulate progress updates
+        # Stream progress updates
         steps = [
             "Initializing agents...",
             "Fetching market data...",
@@ -36,15 +35,26 @@ async def run_analysis_stream(query: str) -> AsyncGenerator[str, None]:
 
         for step in steps:
             yield f"data: {json.dumps({'type': 'progress', 'message': step})}\n\n"
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.1)
 
-        # TODO: Actually call the agent system here
-        # from app.graph_multi import run_once
-        # result = await asyncio.to_thread(run_once, query)
+        # Actually call the agent system
+        result = await asyncio.to_thread(run_once, query)
+
+        # Extract report ID from result
+        report_id = result.get('run_id', f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{query.upper()}")
+
+        # Build response with full report content
+        response_data = {
+            'report_id': report_id,
+            'status': 'completed',
+            'final_decision': result.get('final_decision', ''),
+            'quant_analysis': result.get('quant_report_obj', {}),
+            'news_sentiment': result.get('news_report_obj', {}),
+            'social_sentiment': result.get('social_report_obj', {}),
+        }
 
         # Send completion event
-        report_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{query.upper()}"
-        yield f"data: {json.dumps({'type': 'result', 'data': {'report_id': report_id, 'status': 'completed'}})}\n\n"
+        yield f"data: {json.dumps({'type': 'result', 'data': response_data})}\n\n"
 
     except Exception as e:
         yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"

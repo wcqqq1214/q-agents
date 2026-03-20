@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ResultCardProps {
   symbol: string;
@@ -11,30 +10,6 @@ interface ResultCardProps {
   progress: string[];
   result: Record<string, unknown> | null;
   isAnalyzing: boolean;
-}
-
-function CollapsibleSection({
-  title,
-  children,
-  defaultOpen = false,
-}: {
-  title: string;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border rounded-md overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium bg-muted/50 hover:bg-muted transition-colors"
-      >
-        {title}
-        {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-      </button>
-      {open && <div className="px-3 py-2 text-sm">{children}</div>}
-    </div>
-  );
 }
 
 export function ResultCard({ symbol, query, progress, result, isAnalyzing }: ResultCardProps) {
@@ -64,35 +39,10 @@ export function ResultCard({ symbol, query, progress, result, isAnalyzing }: Res
           </div>
         )}
 
-        {/* Structured result */}
-        {result && (
-          <div className="space-y-2 pt-1">
-            {result.quant_analysis && (
-              <CollapsibleSection title="Technical Analysis" defaultOpen>
-                <pre className="text-xs whitespace-pre-wrap break-words">
-                  {JSON.stringify(result.quant_analysis, null, 2)}
-                </pre>
-              </CollapsibleSection>
-            )}
-            {result.news_sentiment && (
-              <CollapsibleSection title="News Summary">
-                <pre className="text-xs whitespace-pre-wrap break-words">
-                  {JSON.stringify(result.news_sentiment, null, 2)}
-                </pre>
-              </CollapsibleSection>
-            )}
-            {result.social_sentiment && (
-              <CollapsibleSection title="Social Sentiment">
-                <pre className="text-xs whitespace-pre-wrap break-words">
-                  {JSON.stringify(result.social_sentiment, null, 2)}
-                </pre>
-              </CollapsibleSection>
-            )}
-            {result.final_decision && (
-              <CollapsibleSection title="Recommendation" defaultOpen>
-                <p className="text-sm">{String(result.final_decision)}</p>
-              </CollapsibleSection>
-            )}
+        {/* Final Decision - Markdown formatted */}
+        {result && result.final_decision && (
+          <div className="pt-1">
+            <MarkdownRenderer content={String(result.final_decision)} />
           </div>
         )}
       </CardContent>

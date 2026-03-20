@@ -33,6 +33,38 @@ def get_ohlc(symbol: str, start: str, end: str) -> List[Dict]:
     return [dict(row) for row in rows]
 
 
+def get_ohlc_aggregated(symbol: str, start: str, end: str, interval: str) -> List[Dict]:
+    """Query aggregated OHLC data from database.
+
+    Args:
+        symbol: Stock symbol (e.g., 'AAPL')
+        start: Start date in YYYY-MM-DD format
+        end: End date in YYYY-MM-DD format
+        interval: Time granularity ('day', 'week', 'month', 'year')
+
+    Returns:
+        List of aggregated OHLC records as dictionaries
+    """
+    conn = get_conn()
+
+    if interval == 'day':
+        # Direct query, no aggregation needed
+        query = """
+            SELECT date, open, high, low, close, volume
+            FROM ohlc
+            WHERE symbol = ? AND date >= ? AND date <= ?
+            ORDER BY date ASC
+        """
+        params = (symbol.upper(), start, end)
+    else:
+        conn.close()
+        raise ValueError(f"Invalid interval: {interval}")
+
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
 def upsert_ohlc(symbol: str, data: List[Dict]):
     """Insert or update OHLC data (batch operation).
 

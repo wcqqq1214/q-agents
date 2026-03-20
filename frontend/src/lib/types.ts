@@ -102,7 +102,7 @@ export interface OHLCRecord {
   high: number;
   low: number;
   close: number;
-  volume: number;
+  volume: number;  // Can be float from database
 }
 
 export interface OHLCResponse {

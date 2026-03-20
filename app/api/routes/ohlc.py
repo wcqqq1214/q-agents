@@ -18,7 +18,7 @@ class OHLCRecord(BaseModel):
     high: float
     low: float
     close: float
-    volume: int
+    volume: float  # Changed from int to float to handle database values
 
 
 class OHLCResponse(BaseModel):

@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { StockInfo } from '@/lib/types';
 
 const SYMBOLS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA'];
-const REFRESH_INTERVAL = 60000;
+const REFRESH_INTERVAL = 120000; // 2 minutes - reduced frequency to avoid rate limits
 
 interface StockSelectorProps {
   selectedStock: string | null;

@@ -41,7 +41,7 @@ function calculateDateRange(range: TimeRange): { start: string; end: string } {
 }
 
 export function KLineChart({ selectedStock }: KLineChartProps) {
-  const [timeRange, setTimeRange] = useState<TimeRange>('W');
+  const [timeRange, setTimeRange] = useState<TimeRange>('D');
   const [ohlcData, setOhlcData] = useState<OHLCRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

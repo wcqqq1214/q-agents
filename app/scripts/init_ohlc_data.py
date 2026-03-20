@@ -6,9 +6,14 @@ Usage:
 """
 
 import logging
+import time
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
 from app.database import init_db, upsert_ohlc, update_metadata, DEFAULT_DB_PATH
-from app.polygon.client import fetch_ohlc
+from app.mcp_client.finance_client import call_get_stock_history
+
+# Load environment variables from .env file
+load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,7 +48,7 @@ def main():
         logger.info(f"[{i}/{len(SYMBOLS)}] Fetching {symbol}...")
 
         try:
-            data = fetch_ohlc(symbol, start_date.isoformat(), end_date.isoformat())
+            data = call_get_stock_history(symbol, start_date.isoformat(), end_date.isoformat())
 
             if data:
                 upsert_ohlc(symbol, data)
@@ -53,6 +58,10 @@ def main():
                 logger.info(f"  ✓ {symbol}: {len(data)} records inserted")
             else:
                 logger.warning(f"  ✗ {symbol}: No data returned from API")
+
+            # Add rate limiting delay between symbols
+            if i < len(SYMBOLS):
+                time.sleep(0.5)
 
         except Exception as e:
             logger.error(f"  ✗ {symbol}: Failed - {e}")

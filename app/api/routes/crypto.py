@@ -68,13 +68,19 @@ async def get_crypto_quotes(
             try:
                 ticker = await client.get_ticker(symbol)
 
-                # Calculate 24h change
+                # Calculate daily change (based on UTC+8 00:00 open price)
+                # sodUtc8 = Start of Day UTC+8 (Beijing time 00:00)
                 last_price = float(ticker.get('last', 0))
-                open_price = float(ticker.get('open24h', 0))
-                change_amount = last_price - open_price
+                open_today = float(ticker.get('sodUtc8', 0))
+
+                # Fallback to 24h open if sodUtc8 not available
+                if open_today == 0:
+                    open_today = float(ticker.get('open24h', 0))
+
+                change_amount = last_price - open_today
                 change_pct = 0.0
-                if open_price > 0:
-                    change_pct = (change_amount / open_price) * 100
+                if open_today > 0:
+                    change_pct = (change_amount / open_today) * 100
 
                 # Get crypto name
                 name = CRYPTO_NAMES.get(symbol, symbol)

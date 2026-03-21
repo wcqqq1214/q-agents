@@ -35,7 +35,8 @@ class TestCryptoQuotesRoute:
             {
                 'instId': 'BTC-USDT',
                 'last': '50000.5',
-                'open24h': '49000.0',
+                'sodUtc8': '49000.0',  # Today's open price (UTC+8 00:00)
+                'open24h': '48500.0',
                 'high24h': '51000.0',
                 'low24h': '48500.0',
                 'vol24h': '12345.67'
@@ -43,7 +44,8 @@ class TestCryptoQuotesRoute:
             {
                 'instId': 'ETH-USDT',
                 'last': '3000.25',
-                'open24h': '2950.0',
+                'sodUtc8': '2950.0',  # Today's open price (UTC+8 00:00)
+                'open24h': '2900.0',
                 'high24h': '3050.0',
                 'low24h': '2900.0',
                 'vol24h': '54321.12'

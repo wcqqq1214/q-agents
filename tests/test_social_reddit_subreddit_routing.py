@@ -184,3 +184,45 @@ def test_dynamic_filtering_pipeline_integration(monkeypatch):
     assert meta["post_count"] == 2
 
 
+def test_get_reddit_discussion_uses_new_config(monkeypatch):
+    from app.social.reddit import tools as reddit_tools
+    from typing import Any, Dict, Sequence, Tuple
+
+    # Track what parameters were actually passed
+    captured_params = {}
+
+    def _fake_get_reddit_discussion_via_json(
+        *,
+        asset: str,
+        subreddits: Sequence[str],
+        top_posts_limit: int,
+        top_comments_per_post: int,
+        time_filter: str,
+    ) -> Tuple[str, Dict[str, Any]]:
+        # Capture parameters for verification
+        captured_params["top_posts_limit"] = top_posts_limit
+        captured_params["top_comments_per_post"] = top_comments_per_post
+        return "", {
+            "source": "json",
+            "asset": asset,
+            "subreddits": list(subreddits),
+            "posts_fetched_total": 0,
+            "posts_after_filter": 0,
+            "posts_selected": 0,
+            "post_count": 0,
+            "comment_count": 0,
+        }
+
+    monkeypatch.setattr(reddit_tools, "_get_reddit_discussion_via_json", _fake_get_reddit_discussion_via_json)
+
+    text = reddit_tools.get_reddit_discussion.invoke({
+        "asset": "NVDA",
+        "max_chars": 2000,
+    })
+
+    assert "Asset: NVDA" in text
+    # Verify new parameters are passed correctly
+    assert captured_params["top_posts_limit"] == 50, f"Expected top_posts_limit=50 (wide_fetch_limit), got {captured_params['top_posts_limit']}"
+    assert captured_params["top_comments_per_post"] == 3, f"Expected top_comments_per_post=3, got {captured_params['top_comments_per_post']}"
+
+

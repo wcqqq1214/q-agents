@@ -298,8 +298,6 @@ def get_reddit_discussion(
         raise RuntimeError("asset is empty; provide a ticker such as 'BTC' or 'NVDA'.")
 
     config = RedditIngestConfig(
-        top_posts_limit=top_posts_limit,
-        top_comments_per_post=top_comments_per_post,
         time_filter=time_filter,
         max_chars=max_chars,
     )
@@ -320,7 +318,7 @@ def get_reddit_discussion(
             text, meta = _get_reddit_discussion_via_json(
                 asset=normalized_asset,
                 subreddits=subreddits,
-                top_posts_limit=config.top_posts_limit,
+                top_posts_limit=config.wide_fetch_limit,
                 top_comments_per_post=config.top_comments_per_post,
                 time_filter=config.time_filter,
             )

@@ -8,9 +8,13 @@ import { StockCard } from '../stock/StockCard';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
-import type { StockInfo } from '@/lib/types';
+import type { StockInfo, CryptoQuote } from '@/lib/types';
 
 const SYMBOLS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA'];
+const CRYPTO_SYMBOLS = [
+  { symbol: 'BTC-USDT', name: 'Bitcoin' },
+  { symbol: 'ETH-USDT', name: 'Ethereum' }
+];
 const REFRESH_INTERVAL = 120000; // 2 minutes - reduced frequency to avoid rate limits
 
 interface AssetSelectorProps {
@@ -27,11 +31,12 @@ export function AssetSelector({
   onAssetTypeChange
 }: AssetSelectorProps) {
   const [stocks, setStocks] = useState<StockInfo[]>([]);
+  const [cryptos, setCryptos] = useState<CryptoQuote[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
 
-  const fetchQuotes = useCallback(async (isManual = false) => {
+  const fetchStockQuotes = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true);
     try {
       const data = await api.getStockQuotes(SYMBOLS);
@@ -48,6 +53,33 @@ export function AssetSelector({
       setRefreshing(false);
     }
   }, [toast]);
+
+  const fetchCryptoQuotes = useCallback(async (isManual = false) => {
+    if (isManual) setRefreshing(true);
+    try {
+      const symbols = CRYPTO_SYMBOLS.map(c => c.symbol);
+      const data = await api.getCryptoQuotes(symbols);
+      setCryptos(data.quotes);
+    } catch (err) {
+      console.error('Failed to fetch crypto quotes:', err);
+      toast({
+        title: 'Failed to refresh crypto data',
+        description: 'Unable to fetch latest quotes',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [toast]);
+
+  const fetchQuotes = useCallback(async (isManual = false) => {
+    if (assetType === 'crypto') {
+      await fetchCryptoQuotes(isManual);
+    } else {
+      await fetchStockQuotes(isManual);
+    }
+  }, [assetType, fetchCryptoQuotes, fetchStockQuotes]);
 
   useEffect(() => {
     fetchQuotes();
@@ -91,8 +123,23 @@ export function AssetSelector({
 
       <div className="grid grid-cols-2 gap-1.5">
         {loading
-          ? SYMBOLS.map((s) => (
-              <Skeleton key={s} className="h-12 w-full rounded-lg" />
+          ? (assetType === 'crypto' ? CRYPTO_SYMBOLS : SYMBOLS).map((s) => (
+              <Skeleton key={typeof s === 'string' ? s : s.symbol} className="h-12 w-full rounded-lg" />
+            ))
+          : assetType === 'crypto'
+          ? cryptos.map((crypto) => (
+              <StockCard
+                key={crypto.symbol}
+                stock={{
+                  symbol: crypto.symbol,
+                  name: crypto.name,
+                  price: crypto.price,
+                  change: crypto.change,
+                  changePercent: crypto.change,
+                }}
+                selected={selectedAsset === crypto.symbol}
+                onClick={() => onAssetSelect(crypto.symbol)}
+              />
             ))
           : stocks.map((stock) => (
               <StockCard

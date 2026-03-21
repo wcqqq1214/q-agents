@@ -29,11 +29,20 @@ class RedditIngestConfig:
     """Configuration for Reddit ingestion and text normalization."""
 
     subreddit_crypto: str = "CryptoCurrency"
+    # Deprecated: kept for backward compatibility, no longer used
     subreddit_stocks_primary: str = "wallstreetbets"
     subreddit_stocks_secondary: str = "stocks"
-    # Slightly higher defaults to reduce sampling noise.
+
+    # Wide fetch: posts per subreddit in initial fetch
+    wide_fetch_limit: int = 50
+    # Final output: posts after filtering and sorting
+    final_posts_limit: int = 15
+    # Comments per post (reduced from 5 to 3)
+    top_comments_per_post: int = 3
+
+    # Deprecated: kept for backward compatibility, use wide_fetch_limit instead
     top_posts_limit: int = 20
-    top_comments_per_post: int = 5
+
     time_filter: str = "day"
     max_chars: int = 24000
 

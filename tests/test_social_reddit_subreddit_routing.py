@@ -81,3 +81,34 @@ def test_lowercase_asset_routes_correctly():
     assert len(subreddits) == 5
 
 
+def test_filter_posts_by_asset():
+    from app.social.reddit.tools import _filter_posts_by_asset
+    from app.social.reddit.json_client import RedditPost
+
+    posts = [
+        RedditPost(title="NVDA hits new high", selftext="Great earnings", permalink="/r/stocks/1", score=100, created_utc=1.0),
+        RedditPost(title="Market update", selftext="TSLA and NVDA moving", permalink="/r/stocks/2", score=50, created_utc=2.0),
+        RedditPost(title="AMD discussion", selftext="No mention of target", permalink="/r/stocks/3", score=80, created_utc=3.0),
+        RedditPost(title="nvda options play", selftext="Calls looking good", permalink="/r/options/1", score=120, created_utc=4.0),
+    ]
+
+    filtered = _filter_posts_by_asset(posts, "NVDA")
+
+    assert len(filtered) == 3
+    assert filtered[0]["title"] == "NVDA hits new high"
+    assert filtered[1]["title"] == "Market update"
+    assert filtered[2]["title"] == "nvda options play"
+
+
+def test_filter_posts_empty_result():
+    from app.social.reddit.tools import _filter_posts_by_asset
+    from app.social.reddit.json_client import RedditPost
+
+    posts = [
+        RedditPost(title="AMD discussion", selftext="No mention of target", permalink="/r/stocks/1", score=100, created_utc=1.0),
+    ]
+
+    filtered = _filter_posts_by_asset(posts, "NVDA")
+    assert len(filtered) == 0
+
+

@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from langchain_core.tools import tool
 
 from app.social.reddit.json_client import (
+    RedditPost,
     fetch_post_and_comments_json,
     fetch_subreddit_top_posts_json,
     select_top_comments,
@@ -63,6 +64,32 @@ def _asset_to_subreddits(asset: str, config: RedditIngestConfig) -> Sequence[str
         return [config.subreddit_crypto]
     # Stock assets route to 5 subreddits covering fundamentals and momentum
     return ["stocks", "investing", "StockMarket", "wallstreetbets", "options"]
+
+
+def _filter_posts_by_asset(
+    posts: List[RedditPost],
+    asset: str
+) -> List[RedditPost]:
+    """Filter posts that mention the target asset ticker.
+
+    Args:
+        posts: List of Reddit posts (RedditPost TypedDict instances)
+        asset: Asset ticker (e.g., "NVDA")
+
+    Returns:
+        Filtered list of posts that contain the asset ticker
+    """
+    asset_upper = asset.upper()
+    filtered = []
+
+    for post in posts:
+        title = (post.get("title") or "").upper()
+        selftext = (post.get("selftext") or "").upper()
+
+        if asset_upper in title or asset_upper in selftext:
+            filtered.append(post)
+
+    return filtered
 
 
 def _clean_text(text: str) -> str:

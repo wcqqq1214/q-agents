@@ -76,3 +76,63 @@ async def test_get_candles_invalid_symbol(mock_client):
         await mock_client.get_candles('INVALID-SYMBOL')
 
     assert 'Instrument ID does not exist' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_get_ticker_success(mock_client):
+    """测试成功获取ticker数据"""
+    mock_client.market_api.get_ticker = Mock(return_value={
+        'code': '0',
+        'msg': '',
+        'data': [
+            {
+                'instId': 'BTC-USDT',
+                'last': '50000.5',
+                'open24h': '49000.0',
+                'high24h': '51000.0',
+                'low24h': '48500.0',
+                'vol24h': '12345.67'
+            }
+        ]
+    })
+
+    result = await mock_client.get_ticker('BTC-USDT')
+
+    # 验证返回类型
+    assert isinstance(result, dict)
+
+    # 验证数据结构
+    assert 'instId' in result
+    assert 'last' in result
+    assert 'open24h' in result
+    assert 'high24h' in result
+    assert 'low24h' in result
+    assert 'vol24h' in result
+
+    # 验证数据值
+    assert result['instId'] == 'BTC-USDT'
+    assert result['last'] == '50000.5'
+    assert result['open24h'] == '49000.0'
+    assert result['high24h'] == '51000.0'
+    assert result['low24h'] == '48500.0'
+    assert result['vol24h'] == '12345.67'
+
+    # 验证API调用参数
+    mock_client.market_api.get_ticker.assert_called_once_with(instId='BTC-USDT')
+
+
+@pytest.mark.asyncio
+async def test_get_ticker_no_data(mock_client):
+    """测试ticker无数据场景"""
+    from app.okx.exceptions import OKXError
+
+    mock_client.market_api.get_ticker = Mock(return_value={
+        'code': '0',
+        'msg': '',
+        'data': []
+    })
+
+    with pytest.raises(OKXError) as exc_info:
+        await mock_client.get_ticker('BTC-USDT')
+
+    assert 'No ticker data' in str(exc_info.value)

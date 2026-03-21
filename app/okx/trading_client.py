@@ -595,6 +595,65 @@ class OKXTradingClient:
             )
             raise OKXError(f"Failed to get candles: {str(e)}")
 
+    async def get_ticker(self, inst_id: str) -> Dict[str, Any]:
+        """获取ticker数据
+
+        Args:
+            inst_id: 产品ID，如 BTC-USDT
+
+        Returns:
+            Ticker data:
+            {
+                "instId": "BTC-USDT",
+                "last": "50000.5",        # 最新成交价
+                "open24h": "49000.0",     # 24小时开盘价
+                "high24h": "51000.0",     # 24小时最高价
+                "low24h": "48500.0",      # 24小时最低价
+                "vol24h": "12345.67"      # 24小时成交量
+            }
+
+        Raises:
+            OKXError: API错误或无数据
+        """
+        from .exceptions import OKXError
+
+        try:
+            logger.info(
+                f"[OKX-{'DEMO' if self.is_demo else 'LIVE'}] "
+                f"Fetching ticker for {inst_id}"
+            )
+
+            result = await asyncio.to_thread(
+                self.market_api.get_ticker,
+                instId=inst_id
+            )
+
+            # Validate response
+            self._validate_response(result)
+
+            # Check if data array is empty
+            data = result.get("data", [])
+            if not data:
+                raise OKXError(f"No ticker data returned for {inst_id}")
+
+            ticker = data[0]
+
+            logger.info(
+                f"[OKX-{'DEMO' if self.is_demo else 'LIVE'}] "
+                f"Successfully fetched ticker for {inst_id}: last={ticker.get('last')}"
+            )
+
+            return ticker
+
+        except OKXError:
+            raise
+        except Exception as e:
+            logger.error(
+                f"[OKX-{'DEMO' if self.is_demo else 'LIVE'}] "
+                f"Unexpected error getting ticker: {e}"
+            )
+            raise OKXError(f"Failed to get ticker: {str(e)}")
+
     def _validate_response(self, response: Dict) -> None:
         """验证OKX API响应
 

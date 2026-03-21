@@ -125,8 +125,8 @@ export interface CryptoQuote {
   symbol: string;
   name: string;
   price: number;
-  change: number;
-  changeAmount: number;
+  change: number;  // Price change amount (e.g., $261.09)
+  changePercent: number;  // Price change percentage (e.g., 0.37%)
   volume24h: number;
   high24h: number;
   low24h: number;

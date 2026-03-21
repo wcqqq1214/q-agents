@@ -135,7 +135,7 @@ export function AssetSelector({
                   name: crypto.name,
                   price: crypto.price,
                   change: crypto.change,
-                  changePercent: crypto.changeAmount,
+                  changePercent: crypto.changePercent,
                 }}
                 selected={selectedAsset === crypto.symbol}
                 onClick={() => onAssetSelect(crypto.symbol)}

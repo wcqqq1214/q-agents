@@ -26,8 +26,8 @@ class CryptoQuote(BaseModel):
     symbol: str = Field(..., description="Trading pair symbol (e.g., BTC-USDT)")
     name: str = Field(..., description="Crypto name (e.g., Bitcoin)")
     price: float = Field(..., description="Current price")
-    change: float = Field(..., description="24h price change percentage")
-    changeAmount: float = Field(..., description="24h price change amount")
+    change: float = Field(..., description="24h price change amount")
+    changePercent: float = Field(..., description="24h price change percentage")
     volume24h: float = Field(..., description="24h trading volume")
     high24h: float = Field(..., description="24h highest price")
     low24h: float = Field(..., description="24h lowest price")
@@ -83,8 +83,8 @@ async def get_crypto_quotes(
                     symbol=symbol,
                     name=name,
                     price=last_price,
-                    change=change_pct,
-                    changeAmount=change_amount,
+                    change=change_amount,
+                    changePercent=change_pct,
                     volume24h=float(ticker.get('vol24h', 0)),
                     high24h=float(ticker.get('high24h', 0)),
                     low24h=float(ticker.get('low24h', 0))

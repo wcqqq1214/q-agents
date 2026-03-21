@@ -65,10 +65,10 @@ class TestCryptoQuotesRoute:
         assert btc_quote['high24h'] == 51000.0
         assert btc_quote['low24h'] == 48500.0
         assert btc_quote['volume24h'] == 12345.67
-        # Change percentage: (50000.5 - 49000.0) / 49000.0 * 100 = 2.04%
-        assert abs(btc_quote['change'] - 2.04) < 0.01
         # Change amount: 50000.5 - 49000.0 = 1000.5
-        assert abs(btc_quote['changeAmount'] - 1000.5) < 0.01
+        assert abs(btc_quote['change'] - 1000.5) < 0.01
+        # Change percentage: (50000.5 - 49000.0) / 49000.0 * 100 = 2.04%
+        assert abs(btc_quote['changePercent'] - 2.04) < 0.01
 
         # Check ETH quote
         eth_quote = data['quotes'][1]

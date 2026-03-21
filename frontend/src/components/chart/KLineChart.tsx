@@ -17,6 +17,7 @@ function calculateDateRange(range: TimeRange): { start: string; end: string } {
   const start = new Date();
 
   switch (range) {
+    // Stock ranges
     case 'D':
       // Day: load all available data for zooming, initially show last 3 months
       start.setFullYear(start.getFullYear() - 10);
@@ -32,6 +33,29 @@ function calculateDateRange(range: TimeRange): { start: string; end: string } {
     case 'Y':
       // Year: load all available data (20 years)
       start.setFullYear(start.getFullYear() - 20);
+      break;
+    // Crypto short-term ranges
+    case '15M':
+      start.setDate(start.getDate() - 7); // 7 days
+      break;
+    case '1H':
+      start.setDate(start.getDate() - 30); // 30 days
+      break;
+    case '4H':
+      start.setDate(start.getDate() - 90); // 90 days
+      break;
+    // Crypto long-term ranges
+    case '1D':
+      start.setFullYear(start.getFullYear() - 1); // 1 year
+      break;
+    case '1W':
+      start.setFullYear(start.getFullYear() - 3); // 3 years
+      break;
+    case '1M':
+      start.setFullYear(start.getFullYear() - 5); // 5 years
+      break;
+    case '1Y':
+      start.setFullYear(start.getFullYear() - 10); // 10 years
       break;
   }
 

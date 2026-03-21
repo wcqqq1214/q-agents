@@ -61,19 +61,20 @@ class TestCryptoQuotesRoute:
         btc_quote = data['quotes'][0]
         assert btc_quote['symbol'] == 'BTC-USDT'
         assert btc_quote['name'] == 'Bitcoin'
-        assert btc_quote['price'] == '50000.5'
-        assert btc_quote['open24h'] == '49000.0'
-        assert btc_quote['high24h'] == '51000.0'
-        assert btc_quote['low24h'] == '48500.0'
-        assert btc_quote['volume24h'] == '12345.67'
+        assert btc_quote['price'] == 50000.5
+        assert btc_quote['high24h'] == 51000.0
+        assert btc_quote['low24h'] == 48500.0
+        assert btc_quote['volume24h'] == 12345.67
         # Change percentage: (50000.5 - 49000.0) / 49000.0 * 100 = 2.04%
-        assert abs(float(btc_quote['change24h']) - 2.04) < 0.01
+        assert abs(btc_quote['change'] - 2.04) < 0.01
+        # Change amount: 50000.5 - 49000.0 = 1000.5
+        assert abs(btc_quote['changeAmount'] - 1000.5) < 0.01
 
         # Check ETH quote
         eth_quote = data['quotes'][1]
         assert eth_quote['symbol'] == 'ETH-USDT'
         assert eth_quote['name'] == 'Ethereum'
-        assert eth_quote['price'] == '3000.25'
+        assert eth_quote['price'] == 3000.25
 
     def test_get_crypto_quotes_missing_symbols(self, client):
         """Test validation error when symbols parameter missing."""

@@ -25,12 +25,12 @@ class CryptoQuote(BaseModel):
     """Crypto quote model."""
     symbol: str = Field(..., description="Trading pair symbol (e.g., BTC-USDT)")
     name: str = Field(..., description="Crypto name (e.g., Bitcoin)")
-    price: str = Field(..., description="Current price")
-    open24h: str = Field(..., description="24h opening price")
-    high24h: str = Field(..., description="24h highest price")
-    low24h: str = Field(..., description="24h lowest price")
-    volume24h: str = Field(..., description="24h trading volume")
-    change24h: str = Field(..., description="24h price change percentage")
+    price: float = Field(..., description="Current price")
+    change: float = Field(..., description="24h price change percentage")
+    changeAmount: float = Field(..., description="24h price change amount")
+    volume24h: float = Field(..., description="24h trading volume")
+    high24h: float = Field(..., description="24h highest price")
+    low24h: float = Field(..., description="24h lowest price")
 
 
 class CryptoQuotesResponse(BaseModel):
@@ -68,12 +68,13 @@ async def get_crypto_quotes(
             try:
                 ticker = await client.get_ticker(symbol)
 
-                # Calculate 24h change percentage
+                # Calculate 24h change
                 last_price = float(ticker.get('last', 0))
                 open_price = float(ticker.get('open24h', 0))
+                change_amount = last_price - open_price
                 change_pct = 0.0
                 if open_price > 0:
-                    change_pct = ((last_price - open_price) / open_price) * 100
+                    change_pct = (change_amount / open_price) * 100
 
                 # Get crypto name
                 name = CRYPTO_NAMES.get(symbol, symbol)
@@ -81,12 +82,12 @@ async def get_crypto_quotes(
                 quote = CryptoQuote(
                     symbol=symbol,
                     name=name,
-                    price=ticker.get('last', '0'),
-                    open24h=ticker.get('open24h', '0'),
-                    high24h=ticker.get('high24h', '0'),
-                    low24h=ticker.get('low24h', '0'),
-                    volume24h=ticker.get('vol24h', '0'),
-                    change24h=f"{change_pct:.2f}"
+                    price=last_price,
+                    change=change_pct,
+                    changeAmount=change_amount,
+                    volume24h=float(ticker.get('vol24h', 0)),
+                    high24h=float(ticker.get('high24h', 0)),
+                    low24h=float(ticker.get('low24h', 0))
                 )
                 quotes.append(quote)
 

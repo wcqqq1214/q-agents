@@ -235,3 +235,25 @@ def test_get_reddit_discussion_uses_new_config(monkeypatch):
     assert captured_params["top_comments_per_post"] == 3, f"Expected top_comments_per_post=3, got {captured_params['top_comments_per_post']}"
 
 
+def test_load_ticker_aliases():
+    """测试别名配置加载"""
+    from app.social.reddit.tools import _load_ticker_aliases
+
+    aliases = _load_ticker_aliases()
+
+    # 验证配置结构
+    assert isinstance(aliases, dict)
+    assert "NVDA" in aliases
+    assert "aliases" in aliases["NVDA"]
+    assert "type" in aliases["NVDA"]
+
+    # 验证 NVDA 别名
+    nvda_aliases = aliases["NVDA"]["aliases"]
+    assert "NVDA" in nvda_aliases
+    assert "Nvidia" in nvda_aliases
+    assert "Nvidia Corp" in nvda_aliases
+
+    # 验证 META 包含曾用名
+    meta_aliases = aliases["META"]["aliases"]
+    assert "FB" in meta_aliases
+    assert "Facebook" in meta_aliases

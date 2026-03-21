@@ -7,6 +7,10 @@ This module contains the implementation. The legacy module
 from __future__ import annotations
 
 import re
+import json
+import logging
+from functools import lru_cache
+from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -19,6 +23,8 @@ from app.social.reddit.json_client import (
     fetch_subreddit_top_posts_json,
     select_top_comments,
 )
+
+logger = logging.getLogger(__name__)
 
 _URL_RE = re.compile(r"https?://\S+|www\.\S+", flags=re.IGNORECASE)
 _MULTI_NEWLINE_RE = re.compile(r"\n{3,}")
@@ -50,6 +56,28 @@ class RedditIngestConfig:
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+@lru_cache(maxsize=1)
+def _load_ticker_aliases() -> Dict[str, Dict[str, Any]]:
+    """加载 ticker 别名配置（带缓存）。
+
+    使用 lru_cache 确保配置文件只加载一次，避免重复 I/O。
+
+    Returns:
+        字典，键为 ticker（大写），值为配置对象：
+        {
+            "aliases": List[str],  # 别名列表
+            "type": str            # "stock" 或 "crypto"
+        }
+
+    Raises:
+        FileNotFoundError: 配置文件不存在
+        json.JSONDecodeError: 配置文件格式错误
+    """
+    config_path = Path(__file__).parent / "ticker_aliases.json"
+    with open(config_path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 def _asset_to_subreddits(asset: str, config: RedditIngestConfig) -> Sequence[str]:

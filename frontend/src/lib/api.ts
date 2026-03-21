@@ -9,6 +9,7 @@ import type {
   StockQuotesResponse,
   OHLCResponse,
   DataStatusResponse,
+  CryptoQuotesResponse,
 } from './types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -116,6 +117,12 @@ export const api = {
   // Get data status for a stock
   getDataStatus: (symbol: string) =>
     fetchAPI<DataStatusResponse>(`/api/stocks/${symbol}/data-status`),
+
+  // Get crypto quotes
+  getCryptoQuotes: (symbols: string[]) =>
+    fetchAPI<CryptoQuotesResponse>(
+      `/api/crypto/quotes?symbols=${symbols.join(',')}`
+    ),
 };
 
 export { APIError };

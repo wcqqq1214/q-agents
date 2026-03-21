@@ -14,8 +14,17 @@ def test_bnb_usd_routes_to_crypto_subreddit(monkeypatch) -> None:
         top_comments_per_post: int,
         time_filter: str,
     ) -> Tuple[str, Dict[str, Any]]:
-        # No network: only return meta to let header render.
-        return "", {"source": "json", "asset": asset, "subreddits": list(subreddits), "post_count": 0, "comment_count": 0}
+        # Return new metadata format
+        return "", {
+            "source": "json",
+            "asset": asset,
+            "subreddits": list(subreddits),
+            "posts_fetched_total": 0,
+            "posts_after_filter": 0,
+            "posts_selected": 0,
+            "post_count": 0,
+            "comment_count": 0,
+        }
 
     monkeypatch.setattr(reddit_tools, "_get_reddit_discussion_via_json", _fake_get_reddit_discussion_via_json)
 

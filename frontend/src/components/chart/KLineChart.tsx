@@ -9,6 +9,7 @@ import type { TimeRange, OHLCRecord } from '@/lib/types';
 
 interface KLineChartProps {
   selectedStock: string | null;
+  assetType: 'crypto' | 'stocks';
 }
 
 function calculateDateRange(range: TimeRange): { start: string; end: string } {
@@ -40,14 +41,21 @@ function calculateDateRange(range: TimeRange): { start: string; end: string } {
   };
 }
 
-export function KLineChart({ selectedStock }: KLineChartProps) {
-  const [timeRange, setTimeRange] = useState<TimeRange>('D');
+export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
+  const defaultTimeRange: TimeRange = assetType === 'crypto' ? '15M' : 'D';
+  const [timeRange, setTimeRange] = useState<TimeRange>(defaultTimeRange);
   const [ohlcData, setOhlcData] = useState<OHLCRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const { toast } = useToast();
+
+  // Reset timeRange when assetType changes
+  useEffect(() => {
+    const newDefaultRange: TimeRange = assetType === 'crypto' ? '15M' : 'D';
+    setTimeRange(newDefaultRange);
+  }, [assetType]);
 
   // Fetch OHLC data
   const fetchData = useCallback(async () => {
@@ -68,13 +76,13 @@ export function KLineChart({ selectedStock }: KLineChartProps) {
         'W': 'week',
         'M': 'month',
         'Y': 'year',
-        '15M': '15min',
-        '1H': 'hour',
-        '4H': '4hour',
-        '1D': 'day',
-        '1W': 'week',
-        '1M': 'month',
-        '1Y': 'year',
+        '15M': '15m',
+        '1H': '1h',
+        '4H': '4h',
+        '1D': '1d',
+        '1W': '1w',
+        '1M': '1m',
+        '1Y': '1y',
       };
 
       const response = await api.getOHLC(
@@ -176,6 +184,29 @@ export function KLineChart({ selectedStock }: KLineChartProps) {
         case 'Y':
           visibleBars = 5; // Show ~5 years initially
           break;
+        case '15M':
+          visibleBars = 96; // Show ~1 day initially (24h)
+          break;
+        case '1H':
+          visibleBars = 168; // Show ~1 week initially
+          break;
+        case '4H':
+          visibleBars = 42; // Show ~1 week initially
+          break;
+        case '1D':
+          visibleBars = 60; // Show ~2 months initially
+          break;
+        case '1W':
+          visibleBars = 52; // Show ~1 year initially
+          break;
+        case '1M':
+          visibleBars = 36; // Show ~3 years initially
+          break;
+        case '1Y':
+          visibleBars = 5; // Show ~5 years initially
+          break;
+        default:
+          visibleBars = 60;
       }
 
       const fromIndex = Math.max(0, lastIndex - visibleBars + 1);
@@ -238,6 +269,7 @@ export function KLineChart({ selectedStock }: KLineChartProps) {
           value={timeRange}
           onChange={setTimeRange}
           disabled={loading}
+          assetType={assetType}
         />
       </div>
 

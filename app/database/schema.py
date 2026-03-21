@@ -29,6 +29,31 @@ CREATE TABLE IF NOT EXISTS ohlc (
 );
 CREATE INDEX IF NOT EXISTS idx_ohlc_symbol_date ON ohlc(symbol, date DESC);
 
+CREATE TABLE IF NOT EXISTS crypto_ohlc (
+    symbol        TEXT NOT NULL,
+    timestamp     INTEGER NOT NULL,
+    date          TEXT NOT NULL,
+    open          REAL,
+    high          REAL,
+    low           REAL,
+    close         REAL,
+    volume        REAL,
+    bar           TEXT NOT NULL,
+    PRIMARY KEY (symbol, timestamp, bar)
+);
+CREATE INDEX IF NOT EXISTS idx_crypto_ohlc_symbol_date ON crypto_ohlc(symbol, date DESC);
+CREATE INDEX IF NOT EXISTS idx_crypto_ohlc_symbol_bar_date ON crypto_ohlc(symbol, bar, date DESC);
+
+CREATE TABLE IF NOT EXISTS crypto_metadata (
+    symbol        TEXT NOT NULL,
+    bar           TEXT NOT NULL,
+    last_update   TEXT,
+    data_start    TEXT,
+    data_end      TEXT,
+    total_records INTEGER,
+    PRIMARY KEY (symbol, bar)
+);
+
 CREATE TABLE IF NOT EXISTS news (
     id            TEXT PRIMARY KEY,
     symbol        TEXT NOT NULL,

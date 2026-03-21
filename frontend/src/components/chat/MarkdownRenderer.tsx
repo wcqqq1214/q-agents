@@ -77,7 +77,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
 
     // Unordered lists
     html = html.replace(/^[\-\*] (.+)$/gim, '<li class="ml-4 my-1">$1</li>');
-    html = html.replace(/(<li class="ml-4 my-1">.*?<\/li>\n?)+/gs, '<ul class="list-disc space-y-1 my-2 ml-4">$&</ul>');
+    html = html.replace(/(<li class="ml-4 my-1">[\s\S]*?<\/li>\n?)+/g, '<ul class="list-disc space-y-1 my-2 ml-4">$&</ul>');
 
     // Ordered lists
     html = html.replace(/^\d+\. (.+)$/gim, '<li class="ml-4 my-1">$1</li>');

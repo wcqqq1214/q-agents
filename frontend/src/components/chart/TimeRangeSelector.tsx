@@ -7,11 +7,15 @@ interface TimeRangeSelectorProps {
   value: TimeRange;
   onChange: (range: TimeRange) => void;
   disabled?: boolean;
+  assetType: 'crypto' | 'stocks';
 }
 
-const TIME_RANGES: TimeRange[] = ['D', 'W', 'M', 'Y'];
+const STOCK_RANGES: TimeRange[] = ['D', 'W', 'M', 'Y'];
+const CRYPTO_RANGES: TimeRange[] = ['15M', '1H', '4H', '1D', '1W', '1M', '1Y'];
 
-export function TimeRangeSelector({ value, onChange, disabled }: TimeRangeSelectorProps) {
+export function TimeRangeSelector({ value, onChange, disabled, assetType }: TimeRangeSelectorProps) {
+  const ranges = assetType === 'crypto' ? CRYPTO_RANGES : STOCK_RANGES;
+
   const labels: Record<TimeRange, string> = {
     'D': 'Day',
     'W': 'Week',
@@ -28,7 +32,7 @@ export function TimeRangeSelector({ value, onChange, disabled }: TimeRangeSelect
 
   return (
     <div className="flex gap-1">
-      {TIME_RANGES.map((range) => (
+      {ranges.map((range) => (
         <Button
           key={range}
           variant={value === range ? 'default' : 'outline'}

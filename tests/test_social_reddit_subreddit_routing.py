@@ -49,11 +49,7 @@ def test_stock_routes_to_five_subreddits():
     subreddits = _asset_to_subreddits("NVDA", config)
 
     assert len(subreddits) == 5
-    assert "stocks" in subreddits
-    assert "investing" in subreddits
-    assert "StockMarket" in subreddits
-    assert "wallstreetbets" in subreddits
-    assert "options" in subreddits
+    assert subreddits == ["stocks", "investing", "StockMarket", "wallstreetbets", "options"]
 
 
 def test_crypto_still_routes_to_one_subreddit():
@@ -64,4 +60,24 @@ def test_crypto_still_routes_to_one_subreddit():
 
     assert len(subreddits) == 1
     assert subreddits[0] == "CryptoCurrency"
+
+
+def test_stock_pair_routes_to_stock_subreddits():
+    from app.social.reddit.tools import _asset_to_subreddits, RedditIngestConfig
+
+    config = RedditIngestConfig()
+    subreddits = _asset_to_subreddits("AAPL-USD", config)
+
+    assert len(subreddits) == 5
+    assert "stocks" in subreddits
+
+
+def test_lowercase_asset_routes_correctly():
+    from app.social.reddit.tools import _asset_to_subreddits, RedditIngestConfig
+
+    config = RedditIngestConfig()
+    subreddits = _asset_to_subreddits("nvda", config)
+
+    assert len(subreddits) == 5
+
 

@@ -27,7 +27,7 @@ export function TimeRangeSelector({ value, onChange, disabled, assetType }: Time
     '1D': '1 Day',
     '1W': '1 Week',
     '1M': '1 Month',
-    '1Y': '1 Year',
+    '1Y': 'All',  // Shows all available data (monthly bars)
   };
 
   return (

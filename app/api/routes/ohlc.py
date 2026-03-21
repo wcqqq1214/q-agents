@@ -53,6 +53,7 @@ def get_crypto_ohlc_from_db(
         OHLCResponse with crypto OHLC data
     """
     # Map interval to bar format
+    # Note: OKX doesn't support 1Y bar, so we use 1M (monthly) as the longest interval
     interval_to_bar = {
         '15m': '15m',
         '1h': '1H',
@@ -63,8 +64,8 @@ def get_crypto_ohlc_from_db(
         'week': '1W',
         '1m': '1M',
         'month': '1M',
-        '1y': '1Y',
-        'year': '1Y',
+        '1y': '1M',  # Use monthly data for yearly view
+        'year': '1M',  # Use monthly data for yearly view
     }
 
     bar = interval_to_bar.get(interval)

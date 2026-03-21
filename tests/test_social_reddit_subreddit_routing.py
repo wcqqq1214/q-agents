@@ -37,9 +37,7 @@ def test_config_has_new_parameters():
     from app.social.reddit.tools import RedditIngestConfig
 
     config = RedditIngestConfig()
-    assert hasattr(config, 'wide_fetch_limit')
     assert config.wide_fetch_limit == 50
-    assert hasattr(config, 'final_posts_limit')
     assert config.final_posts_limit == 15
     assert config.top_comments_per_post == 3
 

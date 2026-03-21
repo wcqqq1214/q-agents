@@ -40,7 +40,7 @@ class RedditIngestConfig:
     # Comments per post (reduced from 5 to 3)
     top_comments_per_post: int = 3
 
-    # Deprecated: kept for backward compatibility, use wide_fetch_limit instead
+    # Deprecated: will be replaced by wide_fetch_limit in Task 6
     top_posts_limit: int = 20
 
     time_filter: str = "day"
@@ -56,7 +56,7 @@ def _asset_to_subreddits(asset: str, config: RedditIngestConfig) -> Sequence[str
 
     a = (asset or "").strip().upper()
     crypto = {"BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK"}
-    # Yahoo-style crypto pairs like BNB-USD should route to crypto subreddits.
+    # Yahoo-style crypto pairs like BNB-USD should route to crypto subreddits
     m = re.fullmatch(r"([A-Z]{2,10})-USD", a)
     base = m.group(1) if m else a
     if base in crypto:
@@ -250,7 +250,7 @@ def get_reddit_discussion(
     text = ""
     meta: Dict[str, Any] = {}
 
-    # JSON-only strategy with up to 5 retry attempts. We never fall back to Playwright.
+    # JSON-only strategy with up to 5 retry attempts; we never fall back to Playwright
     last_exc: Optional[Exception] = None
     for attempt in range(5):
         try:

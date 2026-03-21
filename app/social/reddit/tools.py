@@ -92,6 +92,27 @@ def _filter_posts_by_asset(
     return filtered
 
 
+def _select_top_posts_globally(
+    posts: List[RedditPost],
+    limit: int
+) -> List[RedditPost]:
+    """Select top N posts by score across all subreddits.
+
+    Args:
+        posts: List of filtered posts
+        limit: Maximum number of posts to select
+
+    Returns:
+        Top N posts sorted by score (descending)
+    """
+    sorted_posts = sorted(
+        posts,
+        key=lambda p: int(p.get("score") or 0),
+        reverse=True
+    )
+    return sorted_posts[:limit]
+
+
 def _clean_text(text: str) -> str:
     """Normalize Reddit text into a compact, LLM-friendly format."""
 

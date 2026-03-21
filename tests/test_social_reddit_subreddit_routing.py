@@ -112,3 +112,33 @@ def test_filter_posts_empty_result():
     assert len(filtered) == 0
 
 
+def test_select_top_posts_globally():
+    from app.social.reddit.tools import _select_top_posts_globally
+    from app.social.reddit.json_client import RedditPost
+
+    posts = [
+        RedditPost(title="Post A", selftext="", permalink="/1", score=50, created_utc=1.0),
+        RedditPost(title="Post B", selftext="", permalink="/2", score=200, created_utc=2.0),
+        RedditPost(title="Post C", selftext="", permalink="/3", score=100, created_utc=3.0),
+        RedditPost(title="Post D", selftext="", permalink="/4", score=150, created_utc=4.0),
+    ]
+
+    selected = _select_top_posts_globally(posts, limit=2)
+
+    assert len(selected) == 2
+    assert selected[0]["score"] == 200
+    assert selected[1]["score"] == 150
+
+
+def test_select_top_posts_limit_exceeds_available():
+    from app.social.reddit.tools import _select_top_posts_globally
+    from app.social.reddit.json_client import RedditPost
+
+    posts = [
+        RedditPost(title="Post A", selftext="", permalink="/1", score=50, created_utc=1.0),
+    ]
+
+    selected = _select_top_posts_globally(posts, limit=10)
+    assert len(selected) == 1
+
+

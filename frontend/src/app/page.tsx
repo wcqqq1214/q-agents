@@ -25,7 +25,7 @@ export default function Home() {
 
         {/* Bottom: K-line chart (60% height) */}
         <div className="flex-1 overflow-hidden">
-          <KLineChart selectedStock={selectedAsset} />
+          <KLineChart selectedStock={selectedAsset} assetType={assetType} />
         </div>
       </div>
 

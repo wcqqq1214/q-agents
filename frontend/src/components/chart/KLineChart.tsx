@@ -109,12 +109,19 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
         '1Y': '1y',
       };
 
-      const response = await api.getOHLC(
-        selectedStock,
-        start,
-        end,
-        intervalMap[timeRange]
-      );
+      const response = assetType === 'crypto'
+        ? await api.getCryptoOHLC(
+            selectedStock,
+            start,
+            end,
+            intervalMap[timeRange]
+          )
+        : await api.getStockOHLC(
+            selectedStock,
+            start,
+            end,
+            intervalMap[timeRange]
+          );
       setOhlcData(response.data);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load chart data';
@@ -127,7 +134,7 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
     } finally {
       setLoading(false);
     }
-  }, [selectedStock, timeRange, toast]);
+  }, [selectedStock, timeRange, assetType, toast]);
 
   useEffect(() => {
     fetchData();

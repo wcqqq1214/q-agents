@@ -103,7 +103,7 @@ export const api = {
     ),
 
   // Get OHLC data for a stock
-  getOHLC: (symbol: string, start?: string, end?: string, interval: string = 'day') => {
+  getStockOHLC: (symbol: string, start?: string, end?: string, interval: string = 'day') => {
     const params = new URLSearchParams();
     if (start) params.append('start', start);
     if (end) params.append('end', end);
@@ -123,6 +123,18 @@ export const api = {
     fetchAPI<CryptoQuotesResponse>(
       `/api/crypto/quotes?symbols=${symbols.join(',')}`
     ),
+
+  // Get OHLC data for a crypto symbol
+  getCryptoOHLC: (symbol: string, start?: string, end?: string, interval: string = '15m') => {
+    const params = new URLSearchParams();
+    if (start) params.append('start', start);
+    if (end) params.append('end', end);
+    params.append('interval', interval);
+    const query = params.toString();
+    return fetchAPI<OHLCResponse>(
+      `/api/crypto/${symbol}/ohlc${query ? `?${query}` : ''}`
+    );
+  },
 };
 
 export { APIError };

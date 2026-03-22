@@ -49,9 +49,11 @@ def daily_crypto_download():
                 # Determine dates to download
                 if max_date is None:
                     # No data exists, download only yesterday
+                    logger.info(f"No data in database for {symbol} {interval}, downloading yesterday only")
                     dates_to_download = [yesterday]
                 elif max_date >= yesterday:
                     # Data is current, no download needed
+                    logger.info(f"Database up to date for {symbol} {interval} (max date: {max_date})")
                     dates_to_download = []
                 else:
                     # Calculate missing dates (from day after max_date to yesterday)
@@ -60,6 +62,7 @@ def daily_crypto_download():
                     while current_date <= yesterday:
                         dates_to_download.append(current_date)
                         current_date += timedelta(days=1)
+                    logger.info(f"Found {len(dates_to_download)} missing dates for {symbol} {interval}: {dates_to_download[0]} to {dates_to_download[-1]}")
 
                 # Download each missing date
                 for target_date in dates_to_download:
@@ -68,9 +71,10 @@ def daily_crypto_download():
                         # Run async function in sync context
                         asyncio.run(download_daily_data(symbol, interval, target_date))
                         successful_downloads += 1
+                        logger.info(f"✓ Downloaded {symbol} {interval} for {target_date}")
                     except Exception as e:
                         failed_downloads += 1
-                        logger.error(f"Failed to download {symbol} {interval} for {target_date}: {e}")
+                        logger.error(f"✗ Failed to download {symbol} {interval} for {target_date}: {e}")
 
             except Exception as e:
                 logger.error(f"Failed to process {symbol} {interval}: {e}")

@@ -1,7 +1,7 @@
 """Initialize crypto K-line data for cold-hot architecture.
 
-This script downloads recent historical data to populate the cold storage layer.
-For production, you should download more historical data.
+This script downloads historical data from 2021-03-22 to 2026-03-21
+to populate the cold storage layer.
 
 Usage:
     uv run python scripts/init_crypto_data.py
@@ -21,7 +21,7 @@ from app.database.schema import init_db
 
 
 async def main():
-    """Download last 7 days of data for BTCUSDT and ETHUSDT."""
+    """Download data from 2017-08-17 (Binance launch) to yesterday for BTCUSDT and ETHUSDT."""
     print("初始化加密货币 K 线数据...")
 
     # Initialize database
@@ -31,35 +31,59 @@ async def main():
     symbols = ["BTCUSDT", "ETHUSDT"]
     intervals = ["1m", "1d"]
 
-    # Use 2024 data since 2026 data is not available yet
-    # Download data from March 2024
-    base_date = date(2024, 3, 20)
-    days_to_download = 7
+    # Download from Binance launch date to yesterday
+    # BTCUSDT and ETHUSDT both started on 2017-08-17
+    start_date = date(2017, 8, 17)
+    end_date = date.today() - timedelta(days=1)  # Yesterday
 
-    print(f"\n下载 2024年3月 的数据（用于测试）...")
+    total_days = (end_date - start_date).days + 1
+    print(f"\n下载时间范围: {start_date} 至 {end_date}")
+    print(f"总共 {total_days} 天的数据")
+    print(f"预计下载: ~{total_days * 2 * 2:,} 个文件 (2个币种 × 2个时间间隔)\n")
 
     total_records = 0
-    for i in range(days_to_download):
-        target_date = base_date - timedelta(days=i)
-        print(f"\n日期: {target_date}")
+    success_count = 0
+    fail_count = 0
 
+    current_date = start_date
+    while current_date <= end_date:
+        # 每100天显示一次进度
+        if (current_date - start_date).days % 100 == 0:
+            progress = ((current_date - start_date).days / total_days) * 100
+            print(f"\n进度: {progress:.1f}% - 日期: {current_date}")
+
+        day_records = 0
+        day_success = True
         for symbol in symbols:
             for interval in intervals:
                 try:
-                    records = await download_daily_data(symbol, interval, target_date)
+                    records = await download_daily_data(symbol, interval, current_date)
                     if records:
-                        total_records += len(records)
-                        print(f"  ✓ {symbol} {interval}: {len(records)} 条记录")
+                        day_records += len(records)
                     else:
-                        print(f"  ✗ {symbol} {interval}: 无数据")
-                except Exception as e:
-                    print(f"  ✗ {symbol} {interval}: 错误 - {e}")
+                        day_success = False
+                except Exception:
+                    day_success = False
 
-    print(f"\n完成！共下载 {total_records} 条记录")
-    print("\n提示：")
-    print("- 1m 数据用于热缓存（最近48小时）")
-    print("- 1d 数据用于长期历史分析")
-    print("- 生产环境建议下载更多历史数据")
+        total_records += day_records
+        if day_success:
+            success_count += 1
+        else:
+            fail_count += 1
+
+        current_date += timedelta(days=1)
+
+    print(f"\n\n{'='*60}")
+    print(f"下载完成！")
+    print(f"{'='*60}")
+    print(f"成功: {success_count:,} 天")
+    print(f"失败: {fail_count:,} 天")
+    print(f"共下载: {total_records:,} 条记录")
+    print(f"\n数据时间范围: {start_date} 至 {end_date}")
+    print(f"\n提示：")
+    print("- 1m 数据：每天1440条记录（24小时 × 60分钟）")
+    print("- 1d 数据：每天1条记录")
+    print("- 失败的日期通常是因为 Binance Vision 尚未发布数据")
 
 
 if __name__ == "__main__":

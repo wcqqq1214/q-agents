@@ -9,6 +9,11 @@ export default function Home() {
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
   const [assetType, setAssetType] = useState<'crypto' | 'stocks'>('stocks');
 
+  const handleAssetTypeChange = (type: 'crypto' | 'stocks') => {
+    setAssetType(type);
+    setSelectedAsset(null); // Clear selection when switching asset type
+  };
+
   return (
     <div className="flex gap-4 h-[calc(100vh-8rem)]">
       {/* Left panel */}
@@ -19,7 +24,7 @@ export default function Home() {
             selectedAsset={selectedAsset}
             onAssetSelect={setSelectedAsset}
             assetType={assetType}
-            onAssetTypeChange={setAssetType}
+            onAssetTypeChange={handleAssetTypeChange}
           />
         </div>
 

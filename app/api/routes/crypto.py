@@ -171,6 +171,8 @@ def get_crypto_ohlc_endpoint(
         'day': ('1d', False),
         '1w': ('1d', True),
         'week': ('1d', True),
+        '1M': ('1d', True),  # Monthly bars
+        'month': ('1d', True),
     }
 
     source_info = interval_to_source.get(interval)
@@ -193,6 +195,19 @@ def get_crypto_ohlc_endpoint(
         else:
             # For daily data, default to 365 days
             start = (datetime.now().date() - timedelta(days=365)).isoformat()
+
+    # Validate date range for minute data to prevent excessive queries
+    if source_bar == '1m':
+        start_date = datetime.fromisoformat(start).date()
+        end_date = datetime.fromisoformat(end).date()
+        days_diff = (end_date - start_date).days
+
+        # Limit minute data queries to 1 year (365 days)
+        if days_diff > 365:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Date range too large for minute data. Maximum 365 days allowed, requested {days_diff} days."
+            )
 
     # Query database
     try:

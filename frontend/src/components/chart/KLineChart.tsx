@@ -36,26 +36,26 @@ function calculateDateRange(range: TimeRange): { start: string; end: string } {
       break;
     // Crypto short-term ranges
     case '15M':
-      start.setDate(start.getDate() - 7); // 7 days
+      start.setDate(start.getDate() - 90); // Load 90 days for zooming
       break;
     case '1H':
-      start.setDate(start.getDate() - 30); // 30 days
+      start.setDate(start.getDate() - 90); // Load 90 days for zooming
       break;
     case '4H':
-      start.setDate(start.getDate() - 90); // 90 days
+      start.setDate(start.getDate() - 180); // Load 180 days for zooming
       break;
-    // Crypto long-term ranges
+    // Crypto long-term ranges (load all available data for zooming)
     case '1D':
-      start.setFullYear(start.getFullYear() - 1); // 1 year
+      start.setFullYear(start.getFullYear() - 10); // Load 10 years for zooming
       break;
     case '1W':
-      start.setFullYear(start.getFullYear() - 3); // 3 years
+      start.setFullYear(start.getFullYear() - 10); // Load 10 years for zooming
       break;
     case '1M':
-      start.setFullYear(start.getFullYear() - 5); // 5 years
+      start.setFullYear(start.getFullYear() - 10); // Load 10 years for zooming
       break;
     case '1Y':
-      start.setFullYear(start.getFullYear() - 10); // 10 years
+      start.setFullYear(start.getFullYear() - 10); // Load 10 years for zooming
       break;
   }
 
@@ -95,7 +95,9 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       const { start, end } = calculateDateRange(timeRange);
 
       // Map frontend TimeRange to backend interval parameter
-      const intervalMap: Record<TimeRange, string> = {
+      // Crypto supports: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w
+      // Stocks support: day, week, month, year
+      const stockIntervalMap: Record<TimeRange, string> = {
         'D': 'day',
         'W': 'week',
         'M': 'month',
@@ -108,6 +110,22 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
         '1M': '1m',
         '1Y': '1y',
       };
+
+      const cryptoIntervalMap: Record<TimeRange, string> = {
+        'D': '1d',      // Day view: use daily bars
+        'W': '1d',      // Week view: use daily bars
+        'M': '1d',      // Month view: use daily bars
+        'Y': '1d',      // Year view: use daily bars
+        '15M': '15m',   // 15-minute view
+        '1H': '1h',     // 1-hour view
+        '4H': '4h',     // 4-hour view
+        '1D': '1d',     // 1-day view
+        '1W': '1w',     // 1-week view
+        '1M': '1M',     // 1-month button: use monthly bars
+        '1Y': '1d',     // 1-year button: use daily bars
+      };
+
+      const intervalMap = assetType === 'crypto' ? cryptoIntervalMap : stockIntervalMap;
 
       const response = assetType === 'crypto'
         ? await api.getCryptoOHLC(

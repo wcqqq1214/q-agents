@@ -11,7 +11,7 @@ interface TimeRangeSelectorProps {
 }
 
 const STOCK_RANGES: TimeRange[] = ['D', 'W', 'M', 'Y'];
-const CRYPTO_RANGES: TimeRange[] = ['15M', '1H', '4H', '1D', '1W', '1M', '1Y'];
+const CRYPTO_RANGES: TimeRange[] = ['15M', '1H', '4H', '1D', '1W', '1M'];
 
 export function TimeRangeSelector({ value, onChange, disabled, assetType }: TimeRangeSelectorProps) {
   const ranges = assetType === 'crypto' ? CRYPTO_RANGES : STOCK_RANGES;

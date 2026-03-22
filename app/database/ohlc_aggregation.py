@@ -39,6 +39,8 @@ def aggregate_ohlc(
         '4h': '4h',     # 4 hours
         '1d': '1D',     # 1 day
         '1w': '1W',     # 1 week
+        '1M': '1ME',    # 1 month (month end)
+        'month': '1ME', # 1 month (month end)
     }
 
     freq = interval_to_freq.get(target_interval)

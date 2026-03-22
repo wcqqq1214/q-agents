@@ -5,6 +5,10 @@ from datetime import datetime, date, timedelta
 import asyncio
 import logging
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.tasks.update_ohlc import update_daily_ohlc

@@ -78,3 +78,58 @@ async def fetch_binance_klines(
         raw_klines = response.json()
 
     return parse_kline_response(raw_klines)
+
+
+async def fetch_klines_with_pagination(
+    symbol: str,
+    interval: str,
+    start_time: int,
+    end_time: int
+) -> List[Dict[str, Any]]:
+    """
+    Fetch K-line data from Binance with automatic pagination.
+
+    Handles Binance's 1000-record limit by making multiple requests
+    and combining results into a single list.
+
+    Args:
+        symbol: Trading pair symbol (e.g., "BTCUSDT")
+        interval: K-line interval (e.g., "1m", "1h", "1d")
+        start_time: Start timestamp in milliseconds
+        end_time: End timestamp in milliseconds
+
+    Returns:
+        Complete list of K-line data for the entire time range
+
+    Raises:
+        httpx.HTTPError: If any API request fails
+    """
+    all_klines = []
+    current_start = start_time
+
+    while current_start < end_time:
+        batch = await fetch_binance_klines(
+            symbol=symbol,
+            interval=interval,
+            start_time=current_start,
+            end_time=end_time,
+            limit=1000
+        )
+
+        if not batch:
+            break
+
+        all_klines.extend(batch)
+
+        if len(batch) < 1000:
+            break
+
+        last_timestamp = batch[-1]['timestamp']
+
+        if last_timestamp >= end_time:
+            break
+
+        current_start = last_timestamp + 1
+
+    logger.info(f"Fetched {len(all_klines)} records for {symbol} {interval} with pagination")
+    return all_klines

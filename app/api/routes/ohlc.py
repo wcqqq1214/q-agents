@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 
 from app.database import get_ohlc, get_metadata, get_ohlc_aggregated
 from app.database.crypto_ohlc import get_crypto_ohlc
+from app.database.ohlc_aggregation import aggregate_ohlc
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -55,52 +56,63 @@ def get_crypto_ohlc_from_db(
     # Convert symbol format: BTC-USDT -> BTCUSDT (database format)
     db_symbol = symbol.replace('-', '')
 
-    # Map interval to bar format
-    # Note: Database uses 1m for 1-minute and 1d for 1-day
-    interval_to_bar = {
-        '15m': '15m',
-        '1h': '1H',
-        '4h': '4H',
-        '1d': '1d',  # Changed from '1D' to '1d' to match database
-        'day': '1d',
-        '1w': '1W',
-        'week': '1W',
-        '1m': '1m',  # This is 1-minute, not 1-month
-        'month': '1M',
-        '1y': '1M',  # Use monthly data for yearly view
-        'year': '1M',  # Use monthly data for yearly view
+    # Map interval to source bar and determine if aggregation is needed
+    # Database has: 1m (1-minute) and 1d (1-day)
+    # For other intervals, we fetch 1m data and aggregate
+    interval_to_source = {
+        '1m': ('1m', False),   # Direct 1m data
+        '5m': ('1m', True),    # Aggregate from 1m
+        '15m': ('1m', True),   # Aggregate from 1m
+        '30m': ('1m', True),   # Aggregate from 1m
+        '1h': ('1m', True),    # Aggregate from 1m
+        '4h': ('1m', True),    # Aggregate from 1m
+        '1d': ('1d', False),   # Direct 1d data
+        'day': ('1d', False),
+        '1w': ('1d', True),    # Aggregate from 1d
+        'week': ('1d', True),
+        'month': ('1d', True),
+        '1y': ('1d', True),
+        'year': ('1d', True),
     }
 
-    bar = interval_to_bar.get(interval)
-    if not bar:
-        valid_intervals = list(interval_to_bar.keys())
+    source_info = interval_to_source.get(interval)
+    if not source_info:
+        valid_intervals = list(interval_to_source.keys())
         raise HTTPException(
             status_code=400,
             detail=f"Invalid interval. Must be one of: {', '.join(valid_intervals)}"
         )
 
-    # Set default date ranges based on bar
+    source_bar, needs_aggregation = source_info
+
+    # Set default date ranges based on source bar
     if not end:
         end = datetime.now().date().isoformat()
     if not start:
-        if bar in ['15m', '1H']:
-            # 7 days for short intervals
+        if source_bar == '1m':
+            # For minute data, default to 7 days
             start = (datetime.now().date() - timedelta(days=7)).isoformat()
-        elif bar in ['4H', '1D']:
-            # 90 days for medium intervals
-            start = (datetime.now().date() - timedelta(days=90)).isoformat()
         else:
-            # 365 days for long intervals
+            # For daily data, default to 365 days
             start = (datetime.now().date() - timedelta(days=365)).isoformat()
 
     # Query database
     try:
-        data = get_crypto_ohlc(db_symbol, bar, start, end)
+        data = get_crypto_ohlc(db_symbol, source_bar, start, end)
         if not data:
             raise HTTPException(
                 status_code=404,
                 detail=f"No OHLC data found for {symbol}"
             )
+
+        # Aggregate if needed
+        if needs_aggregation:
+            data = aggregate_ohlc(data, interval)
+            if not data:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No data available after aggregation for {symbol}"
+                )
 
         # Transform to OHLCRecord list
         records = [

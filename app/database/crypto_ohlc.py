@@ -5,7 +5,7 @@ This module provides functions for storing and retrieving cryptocurrency OHLC
 """
 
 from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, date
 import sqlite3
 from .schema import get_conn
 
@@ -162,3 +162,55 @@ def get_crypto_metadata(symbol: str, bar: str) -> Optional[Dict[str, Any]]:
     conn.close()
 
     return dict(row) if row else None
+
+
+def get_max_timestamp(symbol: str, bar: str) -> Optional[int]:
+    """Get the maximum timestamp for a symbol and bar.
+
+    Args:
+        symbol: Cryptocurrency symbol (e.g., 'BTC-USDT')
+        bar: Timeframe bar (e.g., '1m', '5m', '1h', '1d')
+
+    Returns:
+        Maximum timestamp in milliseconds, or None if no data exists
+    """
+    conn = get_conn()
+
+    query = """
+        SELECT MAX(timestamp) as max_ts
+        FROM crypto_ohlc
+        WHERE symbol = ? AND bar = ?
+    """
+
+    cursor = conn.execute(query, (symbol, bar))
+    row = cursor.fetchone()
+    conn.close()
+
+    return row['max_ts'] if row and row['max_ts'] is not None else None
+
+
+def get_max_date(symbol: str, bar: str) -> Optional[date]:
+    """Get the maximum date for a symbol and bar.
+
+    Args:
+        symbol: Cryptocurrency symbol (e.g., 'BTC-USDT')
+        bar: Timeframe bar (e.g., '1m', '5m', '1h', '1d')
+
+    Returns:
+        Maximum date, or None if no data exists
+    """
+    conn = get_conn()
+
+    query = """
+        SELECT MAX(DATE(date)) as max_date
+        FROM crypto_ohlc
+        WHERE symbol = ? AND bar = ?
+    """
+
+    cursor = conn.execute(query, (symbol, bar))
+    row = cursor.fetchone()
+    conn.close()
+
+    if row and row['max_date']:
+        return date.fromisoformat(row['max_date'])
+    return None

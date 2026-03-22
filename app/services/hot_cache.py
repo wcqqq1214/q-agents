@@ -50,8 +50,7 @@ def get_hot_cache(symbol: str, interval: str) -> pd.DataFrame:
 def append_to_hot_cache(
     symbol: str,
     interval: str,
-    new_data: pd.DataFrame,
-    max_records: int = 2880
+    new_data: pd.DataFrame
 ) -> None:
     """
     Append new data to hot cache with deduplication.
@@ -60,7 +59,6 @@ def append_to_hot_cache(
         symbol: Trading pair symbol (e.g., 'BTCUSDT')
         interval: Time interval (e.g., '1m', '5m')
         new_data: DataFrame with new K-line data
-        max_records: Maximum number of records to keep (default: 2880 for 48 hours)
     """
     if symbol not in HOT_CACHE:
         logger.warning(f"Symbol {symbol} not in hot cache structure")
@@ -79,10 +77,10 @@ def append_to_hot_cache(
         combined = combined.drop_duplicates(subset=['timestamp'], keep='last')
         combined = combined.sort_values('timestamp').reset_index(drop=True)
 
-    # Limit to max_records (keep most recent)
-    if len(combined) > max_records:
-        combined = combined.tail(max_records).reset_index(drop=True)
-        logger.debug(f"Trimmed {symbol} {interval} cache to {max_records} records")
+    # Limit to 2880 records (48 hours of 1-minute data)
+    if len(combined) > 2880:
+        combined = combined.tail(2880).reset_index(drop=True)
+        logger.debug(f"Trimmed {symbol} {interval} cache to 2880 records")
 
     HOT_CACHE[symbol][interval] = combined
     logger.info(f"Appended data to {symbol} {interval} cache, now {len(combined)} records")

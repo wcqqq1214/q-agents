@@ -54,12 +54,20 @@ async def download_daily_data_raw(
                 continue
 
             try:
-                timestamp_ms = int(row[0])
+                timestamp_raw = int(row[0])
 
-                # Validate timestamp is in milliseconds (reasonable range)
-                # Valid range: 2000-01-01 to 2100-01-01
+                # Auto-detect timestamp format (milliseconds vs microseconds)
+                # Microseconds: > 10^15 (e.g., 1736065740000000)
+                # Milliseconds: < 10^15 (e.g., 1736065740000)
+                if timestamp_raw > 10**15:
+                    # Convert microseconds to milliseconds
+                    timestamp_ms = timestamp_raw // 1000
+                else:
+                    timestamp_ms = timestamp_raw
+
+                # Validate timestamp is reasonable (2000-01-01 to 2100-01-01)
                 if timestamp_ms < 946684800000 or timestamp_ms > 4102444800000:
-                    logger.warning(f"Invalid timestamp {timestamp_ms} in row {row_num}, skipping")
+                    logger.warning(f"Invalid timestamp {timestamp_raw} in row {row_num}, skipping")
                     continue
 
                 dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)

@@ -50,7 +50,7 @@ async def warmup_hot_cache() -> None:
 
     now = datetime.now(timezone.utc)
     end_time = int(now.timestamp() * 1000)
-    max_gap_hours = 48
+    max_gap_hours = WARMUP_HOURS
 
     for symbol in SYMBOLS:
         for interval in INTERVALS:

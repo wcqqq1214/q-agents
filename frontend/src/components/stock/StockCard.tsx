@@ -40,16 +40,13 @@ export function StockCard({ stock, selected, onClick }: StockCardProps) {
       )}
     >
       {/* Logo */}
-      <div className={cn(
-        'rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center',
-        isCrypto ? 'w-10 h-10 bg-transparent' : 'w-8 h-8 bg-muted'
-      )}>
+      <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-muted flex items-center justify-center">
         {stock.logo ? (
           <Image
             src={stock.logo}
             alt={stock.symbol}
-            width={isCrypto ? 40 : 24}
-            height={isCrypto ? 40 : 24}
+            width={isCrypto ? 32 : 24}
+            height={isCrypto ? 32 : 24}
             className={cn('object-contain', isCrypto ? '' : 'p-1')}
             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />

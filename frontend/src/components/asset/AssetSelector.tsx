@@ -133,6 +133,7 @@ export function AssetSelector({
                 stock={{
                   symbol: crypto.symbol,
                   name: crypto.name,
+                  logo: `/logos/${crypto.symbol}.png`,
                   price: crypto.price,
                   change: crypto.change,
                   changePercent: crypto.changePercent,

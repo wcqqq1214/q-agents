@@ -124,6 +124,7 @@ export type TimeRange = 'D' | 'W' | 'M' | 'Y' | '15M' | '1H' | '4H' | '1D' | '1W
 export interface CryptoQuote {
   symbol: string;
   name: string;
+  logo?: string;
   price: number;
   change: number;  // Price change amount (e.g., $261.09)
   changePercent: number;  // Price change percentage (e.g., 0.37%)

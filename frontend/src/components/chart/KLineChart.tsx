@@ -191,6 +191,20 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       localization: {
         locale: 'en-US',
         dateFormat: 'yyyy-MM-dd',
+        // Custom time formatter for tooltips and crosshair
+        timeFormatter: (timestamp: number) => {
+          // timestamp is Unix seconds, convert to milliseconds
+          const date = new Date(timestamp * 1000);
+          // Format as local time string
+          return date.toLocaleString('en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          });
+        },
       },
       layout: {
         background: { color: 'transparent' },
@@ -203,6 +217,7 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       timeScale: {
         borderColor: '#334155',
         timeVisible: true,
+        secondsVisible: false,
       },
       rightPriceScale: {
         borderColor: '#334155',

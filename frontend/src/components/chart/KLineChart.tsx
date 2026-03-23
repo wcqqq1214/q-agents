@@ -360,9 +360,14 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
     <div className="h-full flex flex-col border rounded-lg bg-card p-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold">
-          {selectedStock} - K-Line Chart
-        </h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold">
+            {selectedStock} - K-Line Chart
+          </h3>
+          <span className="text-xs text-muted-foreground" title={timezoneInfo.name}>
+            ({timezoneInfo.offset})
+          </span>
+        </div>
         <TimeRangeSelector
           value={timeRange}
           onChange={setTimeRange}

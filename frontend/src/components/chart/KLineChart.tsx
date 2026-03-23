@@ -87,6 +87,7 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const { toast } = useToast();
+  const [timezoneInfo] = useState(getTimezoneInfo());
 
   // Reset timeRange when assetType changes
   useEffect(() => {

@@ -155,8 +155,8 @@ def get_crypto_ohlc_endpoint(
     Returns:
         OHLCResponse with OHLC data
     """
-    # Convert symbol format: BTC-USDT -> BTCUSDT (database format)
-    db_symbol = symbol.replace('-', '')
+    # Database uses symbol with hyphen (BTC-USDT)
+    db_symbol = symbol
 
     # Map interval to source bar and determine if aggregation is needed
     # Database has: 1m (1-minute) and 1d (1-day)

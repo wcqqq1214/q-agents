@@ -3,9 +3,10 @@
 功能：
 1. 下载月度数据（2020-01 到上个月）- 使用 Binance Vision 月度压缩包（更快）
 2. 下载每日数据（本月1日到昨天）- 使用 Binance Vision 每日文件
-3. 支持断点续传
-4. 批量插入优化
-5. WAL 模式优化
+3. 自动检测并填补数据gap
+4. 支持断点续传
+5. 批量插入优化
+6. WAL 模式优化
 
 用法：
     uv run python scripts/download_crypto_data.py
@@ -31,6 +32,7 @@ sys.path.insert(0, str(project_root))
 from app.services.batch_downloader_raw import download_daily_data_raw
 from app.database.schema import init_db, get_conn
 from app.database.batch_operations import BatchInserter
+from app.database.crypto_ohlc import get_max_date
 
 # Configure logging
 logging.basicConfig(
@@ -226,6 +228,117 @@ def download_monthly_data(symbol: str, interval: str, start_year: int, end_year:
     return total_records
 
 
+def detect_gaps(symbol: str, interval: str, start_date: date, end_date: date) -> list[Tuple[date, date]]:
+    """Detect gaps in downloaded data.
+
+    Args:
+        symbol: Database symbol (e.g., 'BTC-USDT')
+        interval: K-line interval (e.g., '1m', '1d')
+        start_date: Start date to check
+        end_date: End date to check
+
+    Returns:
+        List of (gap_start, gap_end) tuples
+    """
+    conn = get_conn()
+
+    # Get all dates that have data
+    query = """
+        SELECT DISTINCT DATE(date) as download_date
+        FROM crypto_ohlc
+        WHERE symbol = ? AND bar = ?
+        AND DATE(date) >= ? AND DATE(date) <= ?
+        ORDER BY download_date
+    """
+
+    cursor = conn.execute(query, (symbol, interval, start_date.isoformat(), end_date.isoformat()))
+    downloaded_dates = {date.fromisoformat(row[0]) for row in cursor.fetchall()}
+    conn.close()
+
+    # Find gaps
+    gaps = []
+    current = start_date
+    gap_start = None
+
+    while current <= end_date:
+        if current not in downloaded_dates:
+            if gap_start is None:
+                gap_start = current
+        else:
+            if gap_start is not None:
+                gaps.append((gap_start, current - timedelta(days=1)))
+                gap_start = None
+        current += timedelta(days=1)
+
+    # Handle gap at the end
+    if gap_start is not None:
+        gaps.append((gap_start, end_date))
+
+    return gaps
+
+
+async def fill_gaps(symbols: list[str], intervals: list[str], inserter) -> int:
+    """Fill gaps in data for all symbols and intervals.
+
+    Args:
+        symbols: List of trading symbols (e.g., ['BTCUSDT', 'ETHUSDT'])
+        intervals: List of intervals (e.g., ['1m', '1d'])
+        inserter: BatchInserter instance
+
+    Returns:
+        Total number of days filled
+    """
+    print("\n" + "="*70)
+    print("阶段 3: 检测并填补数据gap")
+    print("="*70)
+
+    start_date = date(2020, 1, 1)
+    yesterday = date.today() - timedelta(days=1)
+
+    total_filled = 0
+
+    for symbol in symbols:
+        db_symbol = f"{symbol[:3]}-{symbol[3:]}"  # BTCUSDT -> BTC-USDT
+
+        for interval in intervals:
+            # Detect gaps
+            gaps = detect_gaps(db_symbol, interval, start_date, yesterday)
+
+            if not gaps:
+                logger.info(f"{symbol} {interval}: 无gap，数据连续")
+                continue
+
+            logger.info(f"{symbol} {interval}: 发现 {len(gaps)} 个gap")
+
+            # Fill each gap
+            for gap_start, gap_end in gaps:
+                gap_days = (gap_end - gap_start).days + 1
+                logger.info(f"  填补gap: {gap_start} 至 {gap_end} ({gap_days} 天)")
+
+                current = gap_start
+                success = 0
+                fail = 0
+
+                while current <= gap_end:
+                    try:
+                        records = await download_daily_data_raw(symbol, interval, current)
+                        if records:
+                            inserter.add_records(db_symbol, interval, records)
+                            success += 1
+                        else:
+                            fail += 1
+                    except Exception as e:
+                        logger.error(f"    下载失败 {current}: {e}")
+                        fail += 1
+
+                    current += timedelta(days=1)
+
+                logger.info(f"  完成: 成功 {success} 天, 失败 {fail} 天")
+                total_filled += success
+
+    return total_filled
+
+
 async def main():
     """Download data from 2020-01-01 to yesterday with monthly + daily strategy."""
     print("="*70)
@@ -246,7 +359,7 @@ async def main():
     enable_wal_mode()
 
     # 4. Configuration
-    symbols = ["BTCUSDT"]  # 可以添加更多: ["BTCUSDT", "ETHUSDT"]
+    symbols = ["BTCUSDT", "ETHUSDT"]  # BTC和ETH
     intervals = ["1m", "1d"]  # 1分钟和1天数据
     start_year = 2020
     current_date = datetime.now()
@@ -259,6 +372,7 @@ async def main():
 
     total_monthly_records = 0
     total_daily_records = 0
+    total_gap_filled = 0
 
     with BatchInserter(batch_size=10000) as inserter:
         # ===== 阶段 1: 下载月度数据（2020-01 到上个月）=====
@@ -324,6 +438,9 @@ async def main():
         else:
             print("当前月份暂无数据需要下载")
 
+        # ===== 阶段 3: 检测并填补gap =====
+        total_gap_filled = await fill_gaps(symbols, intervals, inserter)
+
     # ===== 最终统计 =====
     print(f"\n\n{'='*70}")
     print(f"下载完成！")
@@ -331,6 +448,7 @@ async def main():
     print(f"本次下载:")
     print(f"  月度数据: {total_monthly_records:,} 条")
     print(f"  每日数据: {total_daily_records:,} 条")
+    print(f"  填补gap: {total_gap_filled} 天")
     print(f"  总计: {total_monthly_records + total_daily_records:,} 条")
 
     # Database statistics
@@ -350,6 +468,7 @@ async def main():
     print(f"\n提示：")
     print("- 月度数据下载速度更快，适合历史数据")
     print("- 每日数据用于补充当前月份")
+    print("- 自动检测并填补数据gap")
     print("- 重新运行此脚本会自动跳过已下载的月份")
     print("- WAL 模式已启用，写入性能已优化")
 

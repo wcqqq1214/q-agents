@@ -44,9 +44,9 @@
 
 注意：`yfinance` 和 `apscheduler` 已存在，无需添加。
 
-- [ ] **Step 2: 安装依赖**
+- [ ] **Step 2: 同步依赖**
 
-Run: `uv pip install pandas-market-calendars`
+Run: `uv sync`
 Expected: Successfully installed pandas-market-calendars
 
 - [ ] **Step 3: 验证依赖安装**
@@ -72,6 +72,11 @@ git commit -m "deps: add pandas-market-calendars for US holiday detection"
 
 **Files:**
 - Create: `app/services/trading_hours.py`
+
+- [ ] **Step 0: 创建 services 目录（如果不存在）**
+
+Run: `mkdir -p /home/wcqqq21/finance-agent/app/services`
+Expected: 目录创建成功（如果已存在则无操作）
 
 - [ ] **Step 1: 创建文件并添加基础结构**
 
@@ -602,9 +607,15 @@ git commit -m "feat: add async wrapper for intraday update
 **Files:**
 - Modify: `app/api/main.py`
 
-- [ ] **Step 1: 添加导入语句**
+- [ ] **Step 1: 替换调度器导入语句**
 
-在 `app/api/main.py` 文件顶部添加：
+在 `app/api/main.py` 中，找到第 13 行的导入语句：
+
+```python
+from apscheduler.schedulers.background import BackgroundScheduler
+```
+
+**替换**为：
 
 ```python
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -612,29 +623,42 @@ from apscheduler.triggers.cron import CronTrigger
 from app.services.stock_updater import update_stocks_intraday
 ```
 
-- [ ] **Step 2: 创建全局调度器实例**
+- [ ] **Step 2: 替换全局调度器实例**
 
-在 `app/api/main.py` 中，在 `app = FastAPI(...)` 之后添加：
+在 `app/api/main.py` 中，找到第 26 行的：
 
 ```python
-# Create global scheduler instance
+scheduler = BackgroundScheduler()
+```
+
+**替换**为：
+
+```python
+# Create global scheduler instance (replaced BackgroundScheduler with AsyncIOScheduler)
 scheduler = AsyncIOScheduler(timezone="America/New_York")
 ```
 
-注意：如果文件中已有 `scheduler = BackgroundScheduler()`，需要替换为上面的代码。
+- [ ] **Step 3: 在 lifespan 函数中添加调度器配置**
 
-- [ ] **Step 3: 修改 startup 事件处理器**
-
-找到 `@app.on_event("startup")` 函数，在其中添加调度器配置：
+在 `app/api/main.py` 的 `lifespan` 函数中，找到第 118-126 行（daily_ohlc_update 配置）：
 
 ```python
-@app.on_event("startup")
-async def startup_event():
-    # ... existing startup code ...
-    
+    # Update daily after US market close (UTC 21:30 = EST 16:30)
+    scheduler.add_job(
+        update_daily_ohlc,
+        'cron',
+        hour=21,
+        minute=30,
+        id='daily_ohlc_update'
+    )
+```
+
+在这段代码**之后**、第 126 行 `scheduler.start()` **之前**添加：
+
+```python
     # Add stock intraday update scheduler
-    logger.info("Starting APScheduler for intraday stock updates...")
-    
+    logger.info("Configuring intraday stock update scheduler...")
+
     scheduler.add_job(
         update_stocks_intraday,
         trigger=CronTrigger(
@@ -644,27 +668,19 @@ async def startup_event():
         id='intraday_stock_update',
         name='Intraday Stock Data Update (15min)',
         replace_existing=True,
-        max_instances=1  # Prevent overlapping executions
+        max_instances=1
     )
-    
-    scheduler.start()
-    logger.info("✓ APScheduler started: updates at :01, :16, :31, :46 (ET)")
+
+    logger.info("✓ Intraday stock update configured: updates at :01, :16, :31, :46 (ET)")
 ```
 
-- [ ] **Step 4: 修改 shutdown 事件处理器**
+注意：不要重复调用 `scheduler.start()`，它已经在第 126 行被调用。
 
-找到 `@app.on_event("shutdown")` 函数，在其中添加调度器关闭逻辑：
+- [ ] **Step 4: 验证 shutdown 逻辑已存在**
 
-```python
-@app.on_event("shutdown")
-async def shutdown_event():
-    # ... existing shutdown code ...
-    
-    # Stop scheduler
-    logger.info("Stopping APScheduler...")
-    scheduler.shutdown(wait=True)
-    logger.info("✓ APScheduler stopped")
-```
+在 `app/api/main.py` 的 `lifespan` 函数中，确认第 138 行已有 `scheduler.shutdown()`。
+
+无需修改，shutdown 逻辑已存在。此步骤仅验证。
 
 - [ ] **Step 5: 验证修改**
 

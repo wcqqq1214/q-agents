@@ -3,14 +3,12 @@ from typing import List, Dict, Any
 from datetime import datetime, timezone
 import httpx
 import logging
-import os
+
+from app.config.network import PROXY_URL
 
 logger = logging.getLogger(__name__)
 
 BINANCE_API_BASE = "https://api.binance.com"
-
-# Get proxy from environment variables
-PROXY = os.getenv("https_proxy") or os.getenv("HTTPS_PROXY") or os.getenv("http_proxy") or os.getenv("HTTP_PROXY")
 
 
 def parse_kline_response(raw_klines: List[List[Any]]) -> List[Dict[str, Any]]:
@@ -76,9 +74,9 @@ async def fetch_binance_klines(
         "limit": min(limit, 1000)  # Binance max is 1000
     }
 
-    # Create client with proxy support
-    # httpx uses 'proxy' parameter (singular), not 'proxies'
-    async with httpx.AsyncClient(proxy=PROXY, timeout=30.0) as client:
+    # Create client with proxy support (if configured)
+    # PROXY_URL will be None if proxy is disabled
+    async with httpx.AsyncClient(proxy=PROXY_URL, timeout=30.0) as client:
         response = await client.get(url, params=params)
         response.raise_for_status()
         raw_klines = response.json()

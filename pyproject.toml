@@ -12,6 +12,7 @@ dependencies = [
     "chromadb",
     "langchain-chroma",
     "pandas",
+    "pandas-market-calendars>=4.3.3",
     "yfinance",
     "tavily-python",
     "ddgs",

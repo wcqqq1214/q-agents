@@ -10,11 +10,13 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from app.tasks.update_ohlc import update_daily_ohlc
 from app.database.agent_history import init_db as init_agent_history_db
 from app.services.realtime_agent import warmup_hot_cache, update_hot_cache_loop
 from app.services.batch_downloader import download_daily_data
+from app.services.stock_updater import update_stocks_intraday
 from app.database.crypto_ohlc import get_max_date
 
 from .models import HealthResponse
@@ -23,7 +25,7 @@ from .routes import analyze, reports, system, settings, stocks, ohlc, history, o
 logger = logging.getLogger(__name__)
 
 # Create scheduler
-scheduler = BackgroundScheduler()
+scheduler = AsyncIOScheduler(timezone="America/New_York")
 
 # Symbols and intervals for batch downloads
 CRYPTO_SYMBOLS = ["BTCUSDT", "ETHUSDT"]
@@ -123,8 +125,23 @@ async def lifespan(app: FastAPI):
         minute=30,
         id='daily_ohlc_update'
     )
+
+    logger.info("Configuring intraday stock update scheduler...")
+    scheduler.add_job(
+        update_stocks_intraday,
+        trigger=CronTrigger(
+            minute='1,16,31,46',
+            timezone='America/New_York'
+        ),
+        id='intraday_stock_update',
+        name='Intraday Stock Data Update (15min)',
+        replace_existing=True,
+        max_instances=1
+    )
+    logger.info("✓ Intraday stock update configured: updates at :01, :16, :31, :46 (ET)")
+
     scheduler.start()
-    logger.info("✓ Scheduler started: daily OHLC update at 21:30 UTC")
+    logger.info("✓ APScheduler started: updates at :01, :16, :31, :46 (ET)")
 
     yield
 

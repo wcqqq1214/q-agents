@@ -153,6 +153,37 @@ def upsert_ohlc(symbol: str, data: List[Dict]):
     logger.info(f"Upserted {len(data)} records for {symbol}")
 
 
+def upsert_ohlc_overwrite(symbol: str, data: List[Dict]):
+    """Insert or update OHLC data, overwriting existing records.
+
+    This uses ON CONFLICT DO UPDATE so intraday refreshes can replace the
+    current day's partial candle and backfills can heal gaps.
+    """
+    if not data:
+        return
+
+    conn = get_conn()
+    conn.executemany(
+        """
+        INSERT INTO ohlc (symbol, date, open, high, low, close, volume)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(symbol, date) DO UPDATE SET
+            open = excluded.open,
+            high = excluded.high,
+            low = excluded.low,
+            close = excluded.close,
+            volume = excluded.volume
+        """,
+        [
+            (symbol.upper(), d["date"], d["open"], d["high"], d["low"], d["close"], d["volume"])
+            for d in data
+        ],
+    )
+    conn.commit()
+    conn.close()
+    logger.info(f"Upserted (overwrite) {len(data)} records for {symbol}")
+
+
 def update_metadata(symbol: str, start: str, end: str):
     """Update metadata after data sync.
 

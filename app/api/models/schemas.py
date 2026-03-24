@@ -68,6 +68,7 @@ class StockQuote(BaseModel):
 
     class Config:
         populate_by_name = True
+        by_alias = True
 
 
 class StockQuotesResponse(BaseModel):

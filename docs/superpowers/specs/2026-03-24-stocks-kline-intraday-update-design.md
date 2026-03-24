@@ -826,3 +826,71 @@ Stocks 架构更简单，因为：
 
 **实施完成后，Stocks K-Line 将具备与 Crypto K-Line 相当的数据完整性和实时性，同时保持更低的系统复杂度和 API 成本。**
 
+
+---
+
+## 附录：实施前的关键检查清单
+
+### Critical 问题（必须修复）
+
+#### 1. 统一调度器类型 ⚠️
+
+**当前状态：** `app/api/main.py:26` 使用 `BackgroundScheduler`
+
+**需要改为：**
+```python
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+scheduler = AsyncIOScheduler(timezone="America/New_York")
+```
+
+**影响：** 混用调度器类型可能导致异步任务执行问题
+
+#### 2. 添加 upsert_ohlc_overwrite 函数 ⚠️
+
+**当前状态：** `app/database/ohlc.py:145-149` 使用 `ON CONFLICT DO NOTHING`
+
+**需要添加：** 新函数 `upsert_ohlc_overwrite` 使用 `ON CONFLICT DO UPDATE`
+
+**影响：** 盘中多次更新同一天的 K 线时，只有第一次会写入
+
+#### 3. 添加 pandas-market-calendars 依赖 ⚠️
+
+**需要执行：**
+```bash
+uv pip install pandas-market-calendars
+```
+
+**需要添加到 pyproject.toml：**
+```toml
+"pandas-market-calendars>=4.3.3",
+```
+
+**影响：** 无法进行美国节假日检测，守门员功能无法正常工作
+
+### 表结构依赖确认
+
+**必须确认 ohlc 表有 UNIQUE 约束：**
+```sql
+CREATE TABLE IF NOT EXISTS ohlc (
+    symbol TEXT NOT NULL,
+    date TEXT NOT NULL,
+    open REAL,
+    high REAL,
+    low REAL,
+    close REAL,
+    volume REAL,
+    PRIMARY KEY (symbol, date)  -- 必须有此约束
+);
+```
+
+**验证命令：**
+```bash
+uv run python -c "
+from app.database.schema import get_conn
+conn = get_conn()
+result = conn.execute(\"SELECT sql FROM sqlite_master WHERE type='table' AND name='ohlc'\").fetchone()
+print(result[0] if result else 'Table not found')
+"
+```
+

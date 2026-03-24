@@ -23,19 +23,19 @@ This project uses **Binance Vision** public data archive to download historical 
 uv run python scripts/clean_crypto_data.py
 
 # 2. Download historical data
-uv run python scripts/download_binance_vision.py
+uv run python scripts/download_crypto_data.py
 ```
 
 ### Usage
 
 ```bash
-# Download all historical data (2020-2025)
-uv run python scripts/download_binance_vision.py
+# Download all historical data (2020-present)
+uv run python scripts/download_crypto_data.py
 ```
 
 ### Configuration
 
-Edit `scripts/download_binance_vision.py` to customize:
+Edit `scripts/download_crypto_data.py` to customize:
 
 ```python
 SYMBOLS = ["BTCUSDT", "ETHUSDT"]  # Add more symbols
@@ -120,7 +120,7 @@ CREATE TABLE crypto_metadata (
 ### Replaced Scripts
 
 - ❌ `scripts/fetch_crypto_ohlc.py` (deleted - used OKX API)
-- ✅ `scripts/download_binance_vision.py` (new - uses Binance Vision)
+- ✅ `scripts/download_crypto_data.py` (current - uses Binance Vision with monthly + daily strategy)
 
 ### OKX API Still Used For
 

@@ -54,9 +54,11 @@ Finance Agent 是一个基于大语言模型的金融智能体项目，目前系
 ### 技术选型
 
 - **Redis 客户端**：`redis[asyncio]` - 异步 Redis 客户端
-- **任务队列**：`rq` - 轻量级 Redis 任务队列
+- **任务队列**：`arq` - 原生异步 Redis 任务队列（与 FastAPI 完美契合）
 - **连接池**：`redis.asyncio.ConnectionPool` - 异步连接池管理
-- **序列化**：JSON（Pydantic 模型支持）
+- **序列化**：
+  - K 线数据（DataFrame）：MessagePack 或 Parquet（高性能二进制格式）
+  - Pydantic 模型：JSON（保持可读性）
 
 ### 部署策略
 
@@ -124,7 +126,7 @@ Finance Agent 是一个基于大语言模型的金融智能体项目，目前系
 
 ### 健康检查机制
 
-**Circuit Breaker 模式**：
+**Circuit Breaker 模式（本地状态机）**：
 
 ```python
 状态机：
@@ -135,11 +137,21 @@ CLOSED (正常) → OPEN (故障) → HALF_OPEN (探测) → CLOSED
 - HALF_OPEN: 定期探测 Redis，成功则恢复 CLOSED
 ```
 
+**关键设计原则**：
+- ⚠️ **熔断器状态必须维护在进程本地内存**（不能存 Redis，否则逻辑悖论）
+- 每个 FastAPI 实例独立维护自己的熔断器状态
+- 使用 Python 内存变量（如 `CircuitBreakerState` 类）
+
 **参数配置**：
 - 失败阈值：连续 5 次失败触发 OPEN
-- 超时时间：Redis 操作超时 2 秒
+- 超时时间：Redis 操作超时 2 秒（包含连接超时 + 读写超时）
+- 连接池超时：等待获取连接最多 1 秒（超时立即降级）
 - 恢复探测：每 30 秒尝试一次 PING
 - 半开窗口：允许 3 次探测请求
+
+**降级恢复时的缓存清理**：
+- 当熔断器从 OPEN 恢复到 CLOSED 时，主动清空本地内存缓存
+- 接受短时间的 Cache Miss，避免返回过期数据
 
 ### TTL 策略
 
@@ -157,18 +169,45 @@ CLOSED (正常) → OPEN (故障) → HALF_OPEN (探测) → CLOSED
 
 ### 序列化方案
 
-**K 线数据（DataFrame）**：
+**K 线数据（DataFrame）- 高性能方案**：
 ```python
+# 方案 1: MessagePack（推荐，速度快 10 倍于 JSON）
+import msgpack
+import pandas as pd
+
 # 写入 Redis
-df.to_json(orient='records') → JSON 字符串 → Redis
+data_dict = df.to_dict(orient='records')
+serialized = msgpack.packb(data_dict, use_bin_type=True)
+await redis.set(key, serialized)
 
 # 从 Redis 读取
-Redis → JSON 字符串 → pd.DataFrame(json.loads(data))
+data = await redis.get(key)
+data_dict = msgpack.unpackb(data, raw=False)
+df = pd.DataFrame(data_dict)
+
+# 方案 2: Parquet（最高压缩率，适合大数据集）
+import io
+
+# 写入 Redis
+buffer = io.BytesIO()
+df.to_parquet(buffer, engine='pyarrow', compression='snappy')
+await redis.set(key, buffer.getvalue())
+
+# 从 Redis 读取
+data = await redis.get(key)
+df = pd.read_parquet(io.BytesIO(data))
 ```
+
+**性能对比**（1000 行 K 线数据）：
+| 方案 | 序列化时间 | 反序列化时间 | 存储大小 |
+|------|-----------|-------------|---------|
+| JSON | ~15ms | ~20ms | 150KB |
+| MessagePack | ~2ms | ~3ms | 120KB |
+| Parquet | ~5ms | ~4ms | 80KB |
 
 **Pydantic 模型**：
 ```python
-# 写入 Redis
+# 写入 Redis（保持 JSON 可读性）
 model.model_dump_json() → JSON 字符串 → Redis
 
 # 从 Redis 读取
@@ -267,23 +306,69 @@ await record_request("binance", "BTCUSDT")
 
 ### 降级策略
 
-**Redis 不可用时**：
-- 使用本地内存计数器（`collections.deque`）
-- 仅限当前进程，无法跨实例共享
-- 日志记录降级状态，便于监控
+**⚠️ 关键风险：多实例放大效应**
 
-**实现**：
+当 Redis 不可用时，如果每个实例都使用全局配额的本地限流器，会导致实际请求量 = 配额 × 实例数，触发交易所封禁。
+
+**保守降级方案**：
+
 ```python
-# 降级到本地限流器
-local_limiter = {
-    "binance": deque(maxlen=1200),  # 最多保留 1200 条记录
-    "okx": deque(maxlen=20),
-    "polygon": deque(maxlen=5),
+import os
+from collections import deque
+from time import time
+
+# 从环境变量读取实例数量（默认 4）
+INSTANCE_COUNT = int(os.getenv("INSTANCE_COUNT", "4"))
+
+# 降级时的本地限流配置（全局配额 / 实例数）
+FALLBACK_RATE_LIMITS = {
+    "binance": {
+        "max_requests": 1200 // INSTANCE_COUNT,  # 300 请求/实例
+        "window": 60
+    },
+    "okx": {
+        "max_requests": 20 // INSTANCE_COUNT,    # 5 请求/实例
+        "window": 1
+    },
+    "polygon": {
+        "max_requests": 5 // INSTANCE_COUNT,     # 1-2 请求/实例
+        "window": 60
+    },
 }
+
+class LocalRateLimiter:
+    """本地滑动窗口限流器（降级使用）"""
+    def __init__(self, max_requests: int, window: int):
+        self.max_requests = max_requests
+        self.window = window
+        self.requests = deque()  # 存储时间戳
+
+    def is_allowed(self) -> bool:
+        now = time()
+        # 移除窗口外的请求
+        while self.requests and self.requests[0] < now - self.window:
+            self.requests.popleft()
+
+        # 检查是否超限
+        if len(self.requests) < self.max_requests:
+            self.requests.append(now)
+            return True
+        return False
+```
+
+**降级日志和监控**：
+```python
+import logging
+
+logger.warning(
+    f"Rate limiter degraded to local mode. "
+    f"Quota reduced to {max_requests}/{window}s per instance. "
+    f"Total cluster capacity: ~{max_requests * INSTANCE_COUNT}/{window}s"
+)
 ```
 
 
-## RQ 任务队列设计
+## ARQ 任务队列设计
 
 ### 架构概览
 
@@ -291,44 +376,56 @@ local_limiter = {
 ┌──────────────────┐
 │  APScheduler     │  定时触发器（每天凌晨 2 点）
 └────────┬─────────┘
-         │ enqueue_task()
+         │ await enqueue_job()
          ▼
 ┌──────────────────┐
 │   Redis Queue    │  任务队列（持久化）
+│   (ARQ)          │
 └────────┬─────────┘
          │ fetch_job()
          ▼
 ┌──────────────────┐
-│   RQ Worker      │  后台执行器（支持重试）
+│   ARQ Worker     │  异步后台执行器（原生 asyncio）
 └────────┬─────────┘
          │
          ▼
 ┌──────────────────┐
-│  Task Function   │  实际业务逻辑
+│  Async Task      │  实际业务逻辑（无需 asyncio.run 包装）
 │  (update_ohlc)   │
 └──────────────────┘
 ```
+
+### 为什么选择 ARQ 而非 RQ
+
+| 特性 | RQ | ARQ |
+|------|----|----|
+| 异步支持 | ❌ 需要 asyncio.run() 包装 | ✅ 原生 asyncio |
+| FastAPI 集成 | ⚠️ 事件循环冲突风险 | ✅ 完美契合 |
+| 性能 | 同步阻塞 | 高并发异步 |
+| 连接池复用 | ❌ 无法复用 FastAPI 的连接池 | ✅ 共享连接池 |
 
 ### 与 APScheduler 的配合
 
 **职责划分**：
 - **APScheduler**：负责定时触发（cron 表达式）
-- **RQ**：负责异步执行（长耗时任务）
+- **ARQ**：负责异步执行（长耗时任务）
 
 **示例**：
 ```python
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from rq import Queue
-from redis import Redis
+from arq import create_pool
+from arq.connections import RedisSettings
 
 scheduler = AsyncIOScheduler()
-redis_conn = Redis(host='localhost', port=6379)
-queue = Queue('default', connection=redis_conn)
 
-# APScheduler 定时触发，将任务推送到 RQ
+# 初始化 ARQ
+redis_settings = RedisSettings.from_dsn(os.getenv("REDIS_URL"))
+arq_pool = await create_pool(redis_settings)
+
+# APScheduler 定时触发，将任务推送到 ARQ
 @scheduler.scheduled_job('cron', hour=2, minute=0)
-def schedule_daily_update():
-    queue.enqueue('app.tasks.update_ohlc.update_daily_ohlc')
+async def schedule_daily_update():
+    await arq_pool.enqueue_job('update_daily_ohlc')
     logger.info("Enqueued daily OHLC update task")
 ```
 
@@ -343,61 +440,66 @@ app/tasks/
 └── generate_reports.py  # 报告生成
 ```
 
-**任务函数签名**：
+**ARQ 任务函数签名（原生异步）**：
 ```python
 # app/tasks/update_ohlc.py
-def update_daily_ohlc() -> dict:
-    """RQ 任务：更新每日 OHLC 数据
-    
+async def update_daily_ohlc(ctx) -> dict:
+    """ARQ 任务：更新每日 OHLC 数据
+
+    Args:
+        ctx: ARQ 上下文（包含 Redis 连接等）
+
     Returns:
         dict: {"success": int, "failed": int, "total_records": int}
     """
-    # 业务逻辑
+    # 直接使用 async/await，无需包装
+    data = await call_get_stock_history(...)
+    await upsert_ohlc(symbol, data)
+
     return {"success": 7, "failed": 0, "total_records": 1234}
 ```
 
 ### 重试策略
 
-**配置**：
+**ARQ 配置**：
 ```python
-from rq import Retry
+# app/tasks/__init__.py
+from arq.connections import RedisSettings
 
-queue.enqueue(
-    'app.tasks.update_ohlc.update_daily_ohlc',
-    retry=Retry(max=3, interval=[60, 300, 900])  # 1分钟、5分钟、15分钟
-)
+class WorkerSettings:
+    redis_settings = RedisSettings.from_dsn(os.getenv("REDIS_URL"))
+
+    functions = [update_daily_ohlc, daily_harvester]
+
+    # 重试配置
+    max_tries = 3
+    retry_jobs = True
+    job_timeout = 600  # 10 分钟超时
+
+    # 结果保留时间
+    keep_result = 3600  # 1 小时
 ```
 
 **失败处理**：
 - 任务失败后自动重试（最多 3 次）
-- 重试间隔递增（指数退避）
-- 最终失败后记录到 `failed` 队列
-- 支持手动重新入队
+- ARQ 自动处理重试间隔
+- 失败任务记录在 Redis 中，可通过 ARQ 监控工具查看
 
 ### Worker 配置
 
 **启动命令**：
 ```bash
-# 启动单个 worker
-uv run rq worker default --with-scheduler
+# 启动 ARQ worker
+uv run arq app.tasks.WorkerSettings
 
-# 启动多个 worker（生产环境）
-uv run rq worker default high low --burst
+# 生产环境（多 worker）
+uv run arq app.tasks.WorkerSettings --burst
 ```
 
-**Worker 配置文件**（`app/config/rq_config.py`）：
-```python
-RQ_CONFIG = {
-    "default_timeout": 600,  # 10 分钟超时
-    "result_ttl": 3600,      # 结果保留 1 小时
-    "failure_ttl": 86400,    # 失败记录保留 24 小时
-}
-```
-
-**队列优先级**：
-- `high`: 实时任务（账户查询、下单）
-- `default`: 常规任务（数据更新）
-- `low`: 批量任务（历史数据回填）
+**Worker 配置**（已在 WorkerSettings 中定义）：
+- 任务超时：600 秒（10 分钟）
+- 结果保留：3600 秒（1 小时）
+- 最大重试：3 次
 
 
 ## 实现清单
@@ -409,7 +511,7 @@ RQ_CONFIG = {
 app/services/redis_client.py       # Redis 连接客户端（健康检查、连接池）
 app/services/rate_limiter.py       # 限流装饰器和逻辑
 app/config/rate_limits.py          # 限流配置
-app/config/rq_config.py            # RQ 配置
+app/tasks/worker_settings.py       # ARQ Worker 配置
 docker-compose.yml                 # Docker Compose 配置（Redis）
 ```
 
@@ -432,8 +534,10 @@ pyproject.toml                     # 添加 Redis 和 RQ 依赖
 dependencies = [
     # ... 现有依赖 ...
     "redis[asyncio]>=5.0.0",       # Redis 异步客户端
-    "rq>=1.16.0",                  # Redis Queue 任务队列
+    "arq>=0.26.0",                 # ARQ 异步任务队列
     "hiredis>=2.3.0",              # Redis 协议加速（可选）
+    "msgpack>=1.0.0",              # MessagePack 序列化（高性能）
+    "pyarrow>=15.0.0",             # Parquet 支持（可选）
 ]
 ```
 
@@ -450,9 +554,10 @@ dependencies = [
 REDIS_URL=redis://localhost:6379/0
 
 # Redis 连接池配置
-REDIS_MAX_CONNECTIONS=50
-REDIS_SOCKET_TIMEOUT=5
-REDIS_SOCKET_CONNECT_TIMEOUT=5
+REDIS_MAX_CONNECTIONS=100
+REDIS_SOCKET_TIMEOUT=2
+REDIS_SOCKET_CONNECT_TIMEOUT=2
+REDIS_POOL_TIMEOUT=1
 
 # Redis 健康检查
 REDIS_HEALTH_CHECK_INTERVAL=30
@@ -461,16 +566,22 @@ REDIS_HEALTH_CHECK_INTERVAL=30
 REDIS_ENABLED=true
 
 # ============================================
-# RQ 任务队列配置
+# 限流器配置
 # ============================================
-# RQ Worker 数量
-RQ_WORKER_COUNT=2
+# 实例数量（用于降级时的配额分配）
+INSTANCE_COUNT=4
 
-# RQ 任务超时（秒）
-RQ_DEFAULT_TIMEOUT=600
+# ============================================
+# ARQ 任务队列配置
+# ============================================
+# ARQ Worker 数量
+ARQ_WORKER_COUNT=2
 
-# RQ 结果保留时间（秒）
-RQ_RESULT_TTL=3600
+# ARQ 任务超时（秒）
+ARQ_JOB_TIMEOUT=600
+
+# ARQ 结果保留时间（秒）
+ARQ_KEEP_RESULT=3600
 ```
 
 ### Docker Compose 配置
@@ -558,9 +669,10 @@ tests/integration/test_rate_limit_e2e.py # 端到端限流测试
 **测试覆盖重点**：
 1. Redis 连接失败时的降级行为
 2. 限流器在高并发下的准确性
-3. RQ 任务的重试和失败处理
+3. ARQ 任务的重试和失败处理
 4. 缓存 TTL 过期行为
 5. Circuit Breaker 状态转换
+6. 多实例降级时的配额分配
 
 ### 监控和日志
 
@@ -568,36 +680,17 @@ tests/integration/test_rate_limit_e2e.py # 端到端限流测试
 - Redis 连接状态（健康/降级）
 - 缓存命中率（Redis/内存）
 - 限流触发次数（按交易所）
-- RQ 任务成功/失败率
+- ARQ 任务成功/失败率
 - Redis 内存使用率
+- 连接池等待时间
 
 **日志级别**：
 - INFO: 正常操作（缓存命中、任务完成）
-- WARNING: 降级事件（Redis 不可用）
-- ERROR: 失败操作（任务失败、限流异常）
+- WARNING: 降级事件（Redis 不可用、限流降级）
+- ERROR: 失败操作（任务失败、连接超时）
 
 
 ## 技术细节补充
-
-### RQ 异步任务处理
-
-**问题**：RQ 不原生支持 async 函数
-
-**解决方案**：使用同步包装器
-```python
-# app/tasks/update_ohlc.py
-import asyncio
-
-def update_daily_ohlc() -> dict:
-    """RQ 任务入口（同步）"""
-    return asyncio.run(_update_daily_ohlc_async())
-
-async def _update_daily_ohlc_async() -> dict:
-    """实际业务逻辑（异步）"""
-    # 异步调用 API
-    data = await call_get_stock_history(...)
-    return {"success": 7, "failed": 0}
-```
 
 ### 限流装饰器实现细节
 
@@ -634,25 +727,62 @@ def rate_limit(exchange: str, identifier_key: str = "symbol"):
 - 值: `{"state": "OPEN", "failures": 5, "last_failure": 1234567890}`
 - TTL: 300 秒（5 分钟）
 
+### Circuit Breaker 状态持久化（修正版）
+
+**⚠️ 关键修正：本地状态机，避免逻辑悖论**
+
+熔断器状态必须维护在进程本地内存，不能存储在 Redis 中（否则 Redis 宕机时无法读取状态）。
+
 **实现**：
 ```python
+from enum import Enum
+from datetime import datetime, timedelta
+
+class CircuitState(Enum):
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
 class CircuitBreaker:
-    async def get_state(self) -> str:
-        """从 Redis 读取状态（跨实例共享）"""
-        state = await redis.get("circuit_breaker:redis:state")
-        return state or "CLOSED"
-    
-    async def record_failure(self):
-        """记录失败并更新状态"""
-        await redis.incr("circuit_breaker:redis:failures")
-        failures = await redis.get("circuit_breaker:redis:failures")
-        if int(failures) >= 5:
-            await redis.set("circuit_breaker:redis:state", "OPEN", ex=60)
+    """本地熔断器（每个实例独立维护）"""
+    def __init__(self):
+        self.state = CircuitState.CLOSED
+        self.failure_count = 0
+        self.last_failure_time = None
+        self.next_retry_time = None
+
+    def record_failure(self):
+        """记录失败"""
+        self.failure_count += 1
+        self.last_failure_time = datetime.now()
+
+        if self.failure_count >= 5:
+            self.state = CircuitState.OPEN
+            self.next_retry_time = datetime.now() + timedelta(seconds=30)
+            logger.warning("Circuit breaker OPEN: Redis unavailable")
+
+    def record_success(self):
+        """记录成功"""
+        self.failure_count = 0
+        self.state = CircuitState.CLOSED
+        logger.info("Circuit breaker CLOSED: Redis recovered")
+
+    def can_attempt(self) -> bool:
+        """是否允许尝试请求"""
+        if self.state == CircuitState.CLOSED:
+            return True
+        elif self.state == CircuitState.OPEN:
+            if datetime.now() >= self.next_retry_time:
+                self.state = CircuitState.HALF_OPEN
+                return True
+            return False
+        else:  # HALF_OPEN
+            return True
 ```
 
-### 限流 Lua 脚本
+### 限流 Lua 脚本（优化版）
 
-**原子性保证**：
+**原子性保证 + 毫秒级精度**：
 ```lua
 -- rate_limit.lua
 local key = KEYS[1]
@@ -671,7 +801,8 @@ local count = redis.call('ZCARD', key)
 if count < max_requests then
     -- 允许请求，添加新记录
     redis.call('ZADD', key, now, request_id)
-    redis.call('EXPIRE', key, window + 10)
+    -- 使用 PEXPIRE 毫秒级精度
+    redis.call('PEXPIRE', key, window * 1000)
     return 1  -- 允许
 else
     return 0  -- 拒绝
@@ -687,32 +818,6 @@ allowed = await script(
 )
 ```
 
-### 内存限流器修正
-
-**正确的滑动窗口实现**：
-```python
-from collections import deque
-from time import time
-
-class LocalRateLimiter:
-    def __init__(self, max_requests: int, window: int):
-        self.max_requests = max_requests
-        self.window = window
-        self.requests = deque()  # 存储时间戳
-    
-    def is_allowed(self) -> bool:
-        now = time()
-        # 移除窗口外的请求
-        while self.requests and self.requests[0] < now - self.window:
-            self.requests.popleft()
-        
-        # 检查是否超限
-        if len(self.requests) < self.max_requests:
-            self.requests.append(now)
-            return True
-        return False
-```
-
 ### Key 命名和哈希
 
 **参数哈希生成**：
@@ -725,49 +830,10 @@ def generate_cache_key(data_type: str, symbol: str, interval: str, **params) -> 
     # 标准化参数（排序确保一致性）
     params_str = json.dumps(params, sort_keys=True)
     params_hash = hashlib.md5(params_str.encode()).hexdigest()[:8]
-    
+
     return f"cache:{data_type}:{symbol}:{interval}:{params_hash}"
 
 # 示例
 key = generate_cache_key("kline", "BTCUSDT", "1m", start_time=1234567890)
 # 结果: cache:kline:BTCUSDT:1m:a3f2b1c4
 ```
-
-### APScheduler + RQ 集成修正
-
-**使用同步 Redis 连接**：
-```python
-from apscheduler.schedulers.background import BackgroundScheduler  # 同步版本
-from redis import Redis  # 同步版本
-from rq import Queue
-
-redis_conn = Redis.from_url(os.getenv("REDIS_URL"))
-queue = Queue('default', connection=redis_conn)
-
-scheduler = BackgroundScheduler()
-
-@scheduler.scheduled_job('cron', hour=2, minute=0)
-def schedule_daily_update():
-    queue.enqueue('app.tasks.update_ohlc.update_daily_ohlc')
-```
-
-**或使用 aiorq（异步版本）**：
-```python
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from aiorq import create_pool
-from aiorq.queue import Queue
-
-async def init_queue():
-    redis = await create_pool(os.getenv("REDIS_URL"))
-    return Queue(redis_pool=redis)
-
-scheduler = AsyncIOScheduler()
-
-@scheduler.scheduled_job('cron', hour=2, minute=0)
-async def schedule_daily_update():
-    queue = await init_queue()
-    await queue.enqueue('app.tasks.update_ohlc.update_daily_ohlc')
-```
-
-**推荐方案**：使用同步 RQ + BackgroundScheduler（更成熟稳定）
-

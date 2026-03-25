@@ -210,12 +210,12 @@ git commit -m "feat: add Redis configuration management methods"
 - Create: `app/services/redis_client.py`
 - Create: `tests/services/test_redis_client.py`
 
-- [ ] **Step 1: 写测试 - Redis 连接**
+- [ ] **Step 1: 写测试 - Redis 连接和熔断器**
 
 ```python
 # tests/services/test_redis_client.py
 import pytest
-from app.services.redis_client import get_redis_client, CircuitState
+from app.services.redis_client import get_redis_client, CircuitState, CircuitBreaker
 
 @pytest.mark.asyncio
 async def test_redis_client_connection():
@@ -223,25 +223,53 @@ async def test_redis_client_connection():
     client = await get_redis_client()
     assert client is not None
     await client.ping()
+
+def test_circuit_breaker_state_transitions():
+    """测试熔断器状态转换"""
+    cb = CircuitBreaker()
+
+    # 初始状态：CLOSED
+    assert cb.state == CircuitState.CLOSED
+    assert cb.can_attempt() is True
+
+    # 累积 5 次失败 → OPEN
+    for _ in range(5):
+        cb.record_failure()
+    assert cb.state == CircuitState.OPEN
+    assert cb.can_attempt() is False
+
+    # 等待恢复时间后 → HALF_OPEN
+    cb.next_retry_time = None  # 模拟时间已过
+    assert cb.can_attempt() is True
+    assert cb.state == CircuitState.HALF_OPEN
+
+    # HALF_OPEN 状态下失败 → 立即 OPEN
+    cb.record_failure()
+    assert cb.state == CircuitState.OPEN
+
+    # HALF_OPEN 状态下成功 → CLOSED
+    cb.state = CircuitState.HALF_OPEN
+    cb.record_success()
+    assert cb.state == CircuitState.CLOSED
+    assert cb.failure_count == 0
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `uv run pytest tests/services/test_redis_client.py::test_redis_client_connection -v`
+Run: `uv run pytest tests/services/test_redis_client.py -v`
 Expected: FAIL (模块不存在)
 
-- [ ] **Step 3: 实现 Redis 客户端基础结构**
+- [ ] **Step 3: 实现 CircuitBreaker 类**
+
+- [ ] **Step 3: 实现 CircuitBreaker 类**
 
 ```python
 # app/services/redis_client.py
 """Redis 客户端（含熔断器和连接池管理）"""
 import logging
-import os
 from enum import Enum
 from datetime import datetime, timedelta
 from typing import Optional
-from redis.asyncio import Redis, ConnectionPool
-from redis.exceptions import RedisError, ConnectionError, TimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -295,9 +323,29 @@ class CircuitBreaker:
         else:  # HALF_OPEN
             return True
 
-# 全局实例
-_redis_client: Optional[Redis] = None
+# 全局熔断器实例
 _circuit_breaker = CircuitBreaker()
+
+def get_circuit_breaker() -> CircuitBreaker:
+    """获取熔断器实例"""
+    return _circuit_breaker
+```
+
+- [ ] **Step 4: 运行测试确认通过**
+
+Run: `uv run pytest tests/services/test_redis_client.py::test_circuit_breaker_state_transitions -v`
+Expected: PASS
+
+- [ ] **Step 5: 实现 Redis 客户端连接池**
+
+在 `app/services/redis_client.py` 添加：
+```python
+import os
+from redis.asyncio import Redis, ConnectionPool
+from redis.exceptions import RedisError, ConnectionError, TimeoutError
+
+# 全局 Redis 客户端
+_redis_client: Optional[Redis] = None
 
 async def get_redis_client() -> Redis:
     """获取 Redis 客户端（单例）"""
@@ -314,25 +362,21 @@ async def get_redis_client() -> Redis:
             max_connections=max_connections,
             socket_timeout=socket_timeout,
             socket_connect_timeout=socket_connect_timeout,
-            decode_responses=False,  # 二进制模式（支持 Parquet/MessagePack）
+            decode_responses=False,  # 二进制模式
         )
 
         _redis_client = Redis(connection_pool=pool)
         logger.info(f"Redis client initialized: {redis_url}")
 
     return _redis_client
-
-def get_circuit_breaker() -> CircuitBreaker:
-    """获取熔断器实例"""
-    return _circuit_breaker
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [ ] **Step 6: 运行测试确认通过**
 
 Run: `uv run pytest tests/services/test_redis_client.py::test_redis_client_connection -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add app/services/redis_client.py tests/services/test_redis_client.py
@@ -573,22 +617,52 @@ FALLBACK_RATE_LIMITS = {
 }
 ```
 
-- [ ] **Step 2: 写测试 - 限流器基本功能**
+- [ ] **Step 2: 写测试 - 限流器基本功能和拒绝**
 
 ```python
 # tests/services/test_rate_limiter.py
 import pytest
+import asyncio
 from app.services.rate_limiter import check_rate_limit
 
 @pytest.mark.asyncio
 async def test_rate_limiter_allows_within_limit():
     """测试限流器在配额内允许请求"""
     exchange = "binance"
-    identifier = "test_user"
+    identifier = "test_user_allow"
 
     # 第一次请求应该被允许
     allowed = await check_rate_limit(exchange, identifier)
     assert allowed is True
+
+@pytest.mark.asyncio
+async def test_rate_limiter_rejects_over_limit():
+    """测试限流器超过配额时拒绝请求"""
+    exchange = "polygon"  # 5 请求/60秒
+    identifier = "test_user_reject"
+
+    # 发送 5 次请求（配额内）
+    for i in range(5):
+        allowed = await check_rate_limit(exchange, identifier)
+        assert allowed is True, f"Request {i+1} should be allowed"
+
+    # 第 6 次请求应该被拒绝
+    allowed = await check_rate_limit(exchange, identifier)
+    assert allowed is False, "Request 6 should be rejected"
+
+@pytest.mark.asyncio
+async def test_rate_limiter_concurrent_requests():
+    """测试限流器并发请求的原子性"""
+    exchange = "okx"  # 20 请求/秒
+    identifier = "test_concurrent"
+
+    # 并发发送 25 次请求
+    tasks = [check_rate_limit(exchange, identifier) for _ in range(25)]
+    results = await asyncio.gather(*tasks)
+
+    # 应该有 20 个 True，5 个 False
+    allowed_count = sum(results)
+    assert allowed_count == 20, f"Expected 20 allowed, got {allowed_count}"
 ```
 
 - [ ] **Step 3: 运行测试确认失败**
@@ -844,13 +918,53 @@ git commit -m "feat: integrate rate limiter into API clients"
 
 ## 阶段 5：ARQ 任务队列
 
-### Task 8: 创建 ARQ Worker 配置
+### Task 8: 创建 ARQ Worker 配置和任务
 
 **Files:**
 - Create: `app/tasks/worker_settings.py`
 - Modify: `app/tasks/update_ohlc.py`
+- Create: `tests/tasks/test_update_ohlc_arq.py`
 
-- [ ] **Step 1: 创建 ARQ Worker 配置**
+- [ ] **Step 1: 写测试 - ARQ 任务执行**
+
+```python
+# tests/tasks/test_update_ohlc_arq.py
+import pytest
+from unittest.mock import AsyncMock, patch
+from app.tasks.update_ohlc import update_daily_ohlc
+
+@pytest.mark.asyncio
+async def test_update_daily_ohlc_arq_task():
+    """测试 ARQ 任务执行"""
+    # 模拟 ARQ 上下文
+    mock_redis = AsyncMock()
+    ctx = {
+        'redis': mock_redis,
+        'job_id': 'test-job-123',
+        'job_try': 1
+    }
+
+    # Mock 外部依赖
+    with patch('app.tasks.update_ohlc.call_get_stock_history') as mock_get:
+        with patch('app.tasks.update_ohlc.upsert_ohlc') as mock_upsert:
+            mock_get.return_value = [{'date': '2024-01-01', 'close': 100}]
+
+            # 执行任务
+            result = await update_daily_ohlc(ctx)
+
+            # 验证结果
+            assert 'success' in result
+            assert 'failed' in result
+            assert 'total_records' in result
+            assert result['success'] >= 0
+```
+
+- [ ] **Step 2: 运行测试确认失败**
+
+Run: `uv run pytest tests/tasks/test_update_ohlc_arq.py -v`
+Expected: FAIL (函数签名不匹配)
+
+- [ ] **Step 3: 创建 ARQ Worker 配置**
 
 ```python
 # app/tasks/worker_settings.py
@@ -1095,10 +1209,29 @@ async def test_full_redis_integration():
 @pytest.mark.asyncio
 async def test_redis_failover():
     """测试 Redis 故障切换"""
-    # 模拟 Redis 不可用（通过关闭连接）
-    # 验证系统降级到内存缓存
-    # 这个测试需要手动停止 Redis 容器来验证
-    pass
+    from app.services.redis_client import get_circuit_breaker
+    from app.services.hot_cache import set_hot_cache, get_hot_cache
+    import pandas as pd
+
+    # 模拟 Redis 故障（触发熔断器）
+    cb = get_circuit_breaker()
+    for _ in range(5):
+        cb.record_failure()
+
+    assert cb.state.value == "open"
+
+    # 在降级模式下写入缓存
+    test_data = pd.DataFrame({'timestamp': [123], 'close': [100.0]})
+    await set_hot_cache("TESTFAIL", "1m", test_data, ttl=60)
+
+    # 应该能从内存缓存读取
+    result = await get_hot_cache("TESTFAIL", "1m")
+    assert not result.empty
+    assert result['close'].iloc[0] == 100.0
+
+    # 恢复 Redis（模拟）
+    cb.record_success()
+    assert cb.state.value == "closed"
 ```
 
 - [ ] **Step 2: 运行集成测试**

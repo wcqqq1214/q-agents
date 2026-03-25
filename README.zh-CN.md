@@ -119,6 +119,87 @@ MCP_MARKET_DATA_URL=http://127.0.0.1:8000/mcp
 MCP_NEWS_SEARCH_URL=http://127.0.0.1:8001/mcp
 ```
 
+## Web 前端与 API
+
+项目包含完整的 Web 应用程序栈：
+
+### 后端（FastAPI）
+
+REST API 服务器提供：
+- **分析端点**：提交查询并检索报告
+- **股票数据**：实时报价和历史数据
+- **加密货币**：加密货币市场数据和 OKX 交易所集成
+- **智能体历史**：查询过去的分析运行和工具使用情况
+- **健康监控**：检查系统和 MCP 服务器状态
+
+### 前端（Next.js）
+
+现代化 Web 界面，具有：
+- **交互式查询界面**：通过 Web UI 提交股票分析请求
+- **报告仪表板**：浏览和查看生成的分析报告
+- **系统监控**：检查后端服务和 MCP 服务器的健康状况
+- **实时更新**：通过服务器发送事件（SSE）流式传输分析进度
+
+### 快速启动
+
+**选项 1：一次启动所有服务（推荐）**
+
+```bash
+bash scripts/start_all.sh
+```
+
+这将启动：
+- MCP 服务器（端口 8000、8001）
+- FastAPI 后端（端口 8080）
+- Next.js 前端（端口 3000）
+
+**选项 2：单独启动服务**
+
+```bash
+# 终端 1：MCP 服务器
+bash scripts/start_mcp_servers.sh
+
+# 终端 2：FastAPI 后端
+bash scripts/start_api.sh
+
+# 终端 3：前端
+cd frontend && pnpm dev
+```
+
+### 访问应用程序
+
+- **前端**：http://localhost:3000
+- **API**：http://localhost:8080
+- **API 文档**：http://localhost:8080/docs（Swagger UI）
+
+### 前端开发
+
+前端位于 `frontend/` 目录：
+
+```bash
+cd frontend
+
+# 安装依赖（仅首次）
+pnpm install
+
+# 启动开发服务器
+pnpm dev
+
+# 生产构建
+pnpm build
+
+# 启动生产服务器
+pnpm start
+```
+
+### 环境配置
+
+前端环境变量在 `frontend/.env.local` 中配置：
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8080
+```
+
 ## 运行 Agent
 
 ### 交互式命令行（推荐快速测试）
@@ -290,13 +371,13 @@ uv run python scripts/process_layer1.py
 ## 项目结构
 
 ### 核心智能体系统
-- `app/graph_multi.py` — 多智能体 LangGraph（Quant + News 并行，CIO 汇总）
-- `app/state.py` — 多智能体图使用的 `AgentState`
-- `app/llm_config.py` — LLM 配置（Claude/OpenAI）
-- `app/embedding_config.py` — Embedding 配置
+- `app/graph_multi.py` — 多智能体 LangGraph 编排（Fan-out/Fan-in）
+- `app/state.py` — 多智能体通信的 AgentState 定义
+- `app/llm_config.py` — LLM 配置（Claude/OpenAI 提供商选择）
+- `app/embedding_config.py` — Embedding 模型配置
 
 ### 工具与数据源
-- `app/tools/finance_tools.py` — LangChain 工具（均经 MCP）：报价、历史数据、新闻搜索
+- `app/tools/finance_tools.py` — LangChain 工具（均经 MCP）：报价、历史数据、新闻
 - `app/tools/enhanced_tools.py` — 增强工具，提供额外功能
 - `app/tools/quant_tool.py` — 量化分析工具
 - `app/mcp_client/finance_client.py` — MCP 客户端，调用 MCP 服务器
@@ -310,12 +391,19 @@ uv run python scripts/process_layer1.py
   - `duckduckgo_impl.py` — DuckDuckGo 搜索实现
   - `tavily_impl.py` — Tavily 搜索实现
 
-### 社交情绪分析
-- `app/social/graph_social.py` — Social Agent 的 LangGraph：Reddit 抓取 → NLP → 报告导出
-- `app/social/entrypoint.py` — 对外入口 `invoke_social_agent(asset)`，供 CIO 调用
-- `app/social/nlp_tools.py` — 基于 LLM 的 NLP 工具，用于情绪分析
-- `app/social/generate_report.py` — 社交情绪报告生成
-- `app/social/export_tools.py` — JSON 报告持久化
+### FastAPI 后端
+- `app/api/main.py` — FastAPI 应用程序入口，带生命周期管理
+- `app/api/routes/` — API 路由处理器
+  - `analyze.py` — 分析端点
+  - `stocks.py` — 股票数据端点
+  - `crypto.py` — 加密货币端点
+  - `history.py` — 智能体执行历史
+  - `okx.py` — OKX 交易所集成
+- `app/database/` — 数据库层
+  - `schema.py` — SQLite 模式，用于新闻/事件
+  - `agent_history.py` — 智能体执行跟踪
+  - `ohlc.py` — OHLC 数据存储
+  - `crypto_ohlc.py` — 加密货币 OHLC 数据
 
 ### 机器学习与量化分析
 - `app/ml/model_trainer.py` — LightGBM 模型训练，支持时间序列交叉验证
@@ -329,41 +417,18 @@ uv run python scripts/process_layer1.py
 - `app/rag/rag_tools.py` — RAG 查询工具
 - `app/database/schema.py` — SQLite 数据库模式，用于新闻存储
 
-### 新闻情报管道
-- `app/pipeline/layer0.py` — 基于规则的新闻过滤（25-35% 拒绝率）
-- `app/pipeline/layer1.py` — 基于 LLM 的相关性评分
-- `app/pipeline/alignment.py` — 新闻-事件对齐
-- `app/news/generate_report.py` — 新闻情绪报告生成
-
-### 外部数据源
-- `app/polygon/client.py` — Polygon.io API 客户端
-- `app/polymarket/client.py` — Polymarket API 客户端
-- `app/polymarket/tools.py` — Polymarket 预测市场工具
-
-### 报告与输出
+### 报告生成
 - `app/reporting/run_context.py` — 报告运行上下文管理
 - `app/reporting/writer.py` — JSON/Markdown 报告写入器
 - `app/quant/generate_report.py` — 量化分析报告生成
-- `data/reports/` — 生成的报告目录
-- `data/finance_data.db` — SQLite 数据库，存储新闻和事件
+- `app/news/generate_report.py` — 新闻情绪报告生成
+- `app/social/generate_report.py` — 社交情绪报告生成
 
-### 脚本与工具
-- `scripts/manual_run.py` — 交互式 CLI
-- `scripts/batch_process.py` — 批量股票处理
-- `scripts/daily_harvester.py` — 自动化每日新闻收集
-- `scripts/build_event_memory_batch.py` — 批量事件记忆构建器
-- `scripts/query_event_memory.py` — 事件记忆查询工具
-- `scripts/run_ml_quant_metrics.py` — 机器学习模型评估
-- `scripts/explore_polymarket.py` — Polymarket 数据探索器
-- `scripts/process_layer1.py` — 新闻过滤管道
-- `scripts/start_mcp_servers.sh` — 启动所有 MCP 服务器
-- `scripts/stop_mcp_servers.sh` — 停止所有 MCP 服务器
-
-### 测试
-- `tests/test_multi_agent_graph.py` — 多智能体图测试
-- `tests/test_social_reddit_ingest.py` — Reddit 抓取测试
-- `tests/test_rag_memory.py` — RAG 记忆测试
-- `tests/test_polymarket_integration.py` — Polymarket 集成测试
+### 前端（Next.js）
+- `frontend/src/app/` — Next.js 应用目录
+- `frontend/src/components/` — React 组件
+- `frontend/CLAUDE.md` — 前端特定说明
+- `frontend/AGENTS.md` — Next.js 版本警告
 
 ## 架构概览
 

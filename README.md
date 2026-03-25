@@ -157,12 +157,22 @@ Automated daily news collection and analysis:
 uv run python scripts/daily_harvester.py
 ```
 
-## Web Frontend (NEW)
+## Web Frontend & API
 
-The project now includes a modern web interface built with Next.js 15, React 18, and TypeScript.
+The project includes a complete web application stack:
 
-### Frontend Features
+### Backend (FastAPI)
 
+A REST API server providing:
+- **Analysis Endpoints**: Submit queries and retrieve reports
+- **Stock Data**: Real-time quotes and historical data
+- **Cryptocurrency**: Crypto market data and OKX exchange integration
+- **Agent History**: Query past analysis runs and tool usage
+- **Health Monitoring**: Check system and MCP server status
+
+### Frontend (Next.js)
+
+Modern web interface with:
 - **Interactive Query Interface**: Submit stock analysis requests through a web UI
 - **Report Dashboard**: Browse and view generated analysis reports
 - **System Monitoring**: Check the health of backend services and MCP servers
@@ -191,7 +201,7 @@ bash scripts/start_mcp_servers.sh
 bash scripts/start_api.sh
 
 # Terminal 3: Frontend
-bash scripts/start_frontend.sh
+cd frontend && pnpm dev
 ```
 
 ### Access the Application
@@ -208,16 +218,16 @@ The frontend is located in the `frontend/` directory:
 cd frontend
 
 # Install dependencies (first time only)
-npm install
+pnpm install
 
 # Start development server
-npm run dev
+pnpm dev
 
 # Build for production
-npm run build
+pnpm build
 
 # Start production server
-npm start
+pnpm start
 ```
 
 ### Environment Configuration
@@ -392,16 +402,16 @@ PYTHONPATH=/home/wcqqq21/finance-agent uv run python scripts/test_agent_history.
 ## Project layout
 
 ### Core Agent System
-- `app/graph_multi.py` — Multi-agent LangGraph (Quant + News parallel, then CIO synthesis)
-- `app/state.py` — `AgentState` for the multi-agent graph
-- `app/llm_config.py` — LLM configuration (Claude/OpenAI)
-- `app/embedding_config.py` — Embedding configuration
+- `app/graph_multi.py` — Multi-agent LangGraph orchestration (Fan-out/Fan-in)
+- `app/state.py` — AgentState definition for multi-agent communication
+- `app/llm_config.py` — LLM configuration (Claude/OpenAI provider selection)
+- `app/embedding_config.py` — Embedding model configuration
 
 ### Tools & Data Sources
-- `app/tools/finance_tools.py` — LangChain tools (all via MCP): quotes, historical data, news search
-- `app/tools/enhanced_tools.py` — Enhanced tools with additional features
+- `app/tools/finance_tools.py` — LangChain tools (all via MCP): quotes, historical data, news
+- `app/tools/enhanced_tools.py` — Enhanced tools with additional functionality
 - `app/tools/quant_tool.py` — Quantitative analysis tools
-- `app/mcp_client/finance_client.py` — MCP client that calls the MCP servers
+- `app/mcp_client/finance_client.py` — MCP client for calling MCP servers
 
 ### MCP Servers
 - `mcp_servers/market_data/` — Market data MCP server (yfinance wrapper)
@@ -412,14 +422,27 @@ PYTHONPATH=/home/wcqqq21/finance-agent uv run python scripts/test_agent_history.
   - `duckduckgo_impl.py` — DuckDuckGo search implementation
   - `tavily_impl.py` — Tavily search implementation
 
-### Social Sentiment Analysis
-- `app/social/graph_social.py` — Social Agent LangGraph: Reddit ingestion → NLP → report export
-- `app/social/entrypoint.py` — `invoke_social_agent(asset)` entrypoint for CIO
-- `app/social/nlp_tools.py` — LLM-driven NLP tools for sentiment analysis
-- `app/social/generate_report.py` — Social sentiment report generation
-- `app/social/export_tools.py` — JSON report persistence
+### FastAPI Backend
+- `app/api/main.py` — FastAPI application entry point with lifespan management
+- `app/api/routes/` — API route handlers
+  - `analyze.py` — Analysis endpoints
+  - `stocks.py` — Stock data endpoints
+  - `crypto.py` — Cryptocurrency endpoints
+  - `history.py` — Agent execution history
+  - `okx.py` — OKX exchange integration
+- `app/database/` — Database layer
+  - `schema.py` — SQLite schema for news/events
+  - `agent_history.py` — Agent execution tracking
+  - `ohlc.py` — OHLC data storage
+  - `crypto_ohlc.py` — Crypto OHLC data
 
-### Machine Learning & Quantitative Analysis
+### Frontend (Next.js)
+- `frontend/src/app/` — Next.js app directory
+- `frontend/src/components/` — React components
+- `frontend/CLAUDE.md` — Frontend-specific instructions
+- `frontend/AGENTS.md` — Next.js version warnings
+
+### Machine Learning & Quant
 - `app/ml/model_trainer.py` — LightGBM model training with time-series CV
 - `app/ml/feature_engine.py` — Feature engineering pipeline
 - `app/ml/features.py` — Technical indicator features
@@ -429,43 +452,20 @@ PYTHONPATH=/home/wcqqq21/finance-agent uv run python scripts/test_agent_history.
 ### RAG & Event Memory
 - `app/rag/build_event_memory.py` — Build ChromaDB event memory
 - `app/rag/rag_tools.py` — RAG query tools
-- `app/database/schema.py` — SQLite database schema for news storage
+- `app/database/schema.py` — SQLite schema for news storage
 
-### News Intelligence Pipeline
-- `app/pipeline/layer0.py` — Rule-based news filter (25-35% rejection)
-- `app/pipeline/layer1.py` — LLM-based relevance scoring
-- `app/pipeline/alignment.py` — News-event alignment
-- `app/news/generate_report.py` — News sentiment report generation
-
-### External Data Sources
-- `app/polygon/client.py` — Polygon.io API client
-- `app/polymarket/client.py` — Polymarket API client
-- `app/polymarket/tools.py` — Polymarket prediction market tools
-
-### Reporting & Output
+### Report Generation
 - `app/reporting/run_context.py` — Report run context management
-- `app/reporting/writer.py` — JSON/Markdown report writer
-- `app/quant/generate_report.py` — Quantitative analysis report generation
-- `data/reports/` — Generated reports directory
-- `data/finance_data.db` — SQLite database for news and events
+- `app/reporting/writer.py` — JSON/Markdown report writers
+- `app/quant/generate_report.py` — Quantitative analysis reports
+- `app/news/generate_report.py` — News sentiment reports
+- `app/social/generate_report.py` — Social sentiment reports
 
-### Scripts & Utilities
-- `scripts/manual_run.py` — Interactive CLI
-- `scripts/batch_process.py` — Batch ticker processing
-- `scripts/daily_harvester.py` — Automated daily news collection
-- `scripts/build_event_memory_batch.py` — Batch event memory builder
-- `scripts/query_event_memory.py` — Event memory query tool
-- `scripts/run_ml_quant_metrics.py` — ML model evaluation
-- `scripts/explore_polymarket.py` — Polymarket data explorer
-- `scripts/process_layer1.py` — News filtering pipeline
-- `scripts/start_mcp_servers.sh` — Start all MCP servers
-- `scripts/stop_mcp_servers.sh` — Stop all MCP servers
-
-### Tests
-- `tests/test_multi_agent_graph.py` — Multi-agent graph tests
-- `tests/test_social_reddit_ingest.py` — Reddit ingestion tests
-- `tests/test_rag_memory.py` — RAG memory tests
-- `tests/test_polymarket_integration.py` — Polymarket integration tests
+### Frontend (Next.js)
+- `frontend/src/app/` — Next.js app directory
+- `frontend/src/components/` — React components
+- `frontend/CLAUDE.md` — Frontend-specific instructions
+- `frontend/AGENTS.md` — Next.js version warnings
 
 ## Architecture Overview
 

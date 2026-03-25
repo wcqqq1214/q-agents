@@ -171,22 +171,9 @@ CLOSED (正常) → OPEN (故障) → HALF_OPEN (探测) → CLOSED
 
 **K 线数据（DataFrame）- 高性能方案**：
 ```python
-# 方案 1: MessagePack（推荐，速度快 10 倍于 JSON）
-import msgpack
-import pandas as pd
-
-# 写入 Redis
-data_dict = df.to_dict(orient='records')
-serialized = msgpack.packb(data_dict, use_bin_type=True)
-await redis.set(key, serialized)
-
-# 从 Redis 读取
-data = await redis.get(key)
-data_dict = msgpack.unpackb(data, raw=False)
-df = pd.DataFrame(data_dict)
-
-# 方案 2: Parquet（最高压缩率，适合大数据集）
+# 方案 1: Parquet（强烈推荐，完美支持 Pandas 数据类型）
 import io
+import pandas as pd
 
 # 写入 Redis
 buffer = io.BytesIO()
@@ -196,14 +183,31 @@ await redis.set(key, buffer.getvalue())
 # 从 Redis 读取
 data = await redis.get(key)
 df = pd.read_parquet(io.BytesIO(data))
+
+# 方案 2: MessagePack（需要处理 NaN/NaT）
+import msgpack
+
+# 写入 Redis（⚠️ 需要处理空值）
+data_dict = df.fillna(None).to_dict(orient='records')  # 将 NaN 转为 None
+serialized = msgpack.packb(data_dict, use_bin_type=True)
+await redis.set(key, serialized)
+
+# 从 Redis 读取
+data = await redis.get(key)
+data_dict = msgpack.unpackb(data, raw=False)
+df = pd.DataFrame(data_dict)
 ```
 
 **性能对比**（1000 行 K 线数据）：
-| 方案 | 序列化时间 | 反序列化时间 | 存储大小 |
-|------|-----------|-------------|---------|
-| JSON | ~15ms | ~20ms | 150KB |
-| MessagePack | ~2ms | ~3ms | 120KB |
-| Parquet | ~5ms | ~4ms | 80KB |
+| 方案 | 序列化时间 | 反序列化时间 | 存储大小 | NaN/NaT 支持 |
+|------|-----------|-------------|---------|-------------|
+| JSON | ~15ms | ~20ms | 150KB | ⚠️ 需转换 |
+| MessagePack | ~2ms | ~3ms | 120KB | ⚠️ 需 fillna(None) |
+| Parquet | ~5ms | ~4ms | 80KB | ✅ 原生支持 |
+
+**推荐方案**：
+- **首选 Parquet**：列式存储，完美支持 Pandas 所有数据类型（包括 NaN、NaT、时区），压缩率最高
+- **备选 MessagePack**：如果需要极致速度且数据无空值，或愿意预处理 `fillna(None)`
 
 **Pydantic 模型**：
 ```python
@@ -440,14 +444,17 @@ app/tasks/
 └── generate_reports.py  # 报告生成
 ```
 
-**ARQ 任务函数签名（原生异步）**：
+**ARQ 任务函数签名（原生异步 + 连接池复用）**：
 ```python
 # app/tasks/update_ohlc.py
 async def update_daily_ohlc(ctx) -> dict:
     """ARQ 任务：更新每日 OHLC 数据
 
     Args:
-        ctx: ARQ 上下文（包含 Redis 连接等）
+        ctx: ARQ 上下文字典
+            - ctx['redis']: ARQ 自动注入的 Redis 连接池（可直接使用）
+            - ctx['job_id']: 当前任务 ID
+            - ctx['job_try']: 当前重试次数
 
     Returns:
         dict: {"success": int, "failed": int, "total_records": int}
@@ -456,8 +463,18 @@ async def update_daily_ohlc(ctx) -> dict:
     data = await call_get_stock_history(...)
     await upsert_ohlc(symbol, data)
 
+    # 🚀 复用 ARQ 的 Redis 连接池（高性能）
+    # 如果需要更新缓存，直接使用 ctx['redis']
+    cache_key = f"cache:ohlc:{symbol}:latest"
+    await ctx['redis'].set(cache_key, serialize_data(data), ex=3600)
+
     return {"success": 7, "failed": 0, "total_records": 1234}
 ```
+
+**连接池复用优势**：
+- ✅ 无需在任务内部重新初始化 Redis 客户端
+- ✅ 复用 ARQ Worker 维护的高性能连接池
+- ✅ 避免连接泄漏和资源浪费
 
 ### 重试策略
 
@@ -719,24 +736,19 @@ def rate_limit(exchange: str, identifier_key: str = "symbol"):
     return decorator
 ```
 
-### Circuit Breaker 状态持久化
+### Circuit Breaker 本地状态机实现
 
-**多实例部署方案**：
-- Circuit Breaker 状态存储在 Redis 中（共享状态）
-- Key: `circuit_breaker:{service}:state`
-- 值: `{"state": "OPEN", "failures": 5, "last_failure": 1234567890}`
-- TTL: 300 秒（5 分钟）
-
-### Circuit Breaker 状态持久化（修正版）
-
-**⚠️ 关键修正：本地状态机，避免逻辑悖论**
+**⚠️ 关键设计：本地状态机，避免逻辑悖论**
 
 熔断器状态必须维护在进程本地内存，不能存储在 Redis 中（否则 Redis 宕机时无法读取状态）。
 
-**实现**：
+**实现（含 HALF_OPEN 状态优化）**：
 ```python
 from enum import Enum
 from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CircuitState(Enum):
     CLOSED = "closed"
@@ -753,9 +765,17 @@ class CircuitBreaker:
 
     def record_failure(self):
         """记录失败"""
-        self.failure_count += 1
         self.last_failure_time = datetime.now()
 
+        # ⚠️ 关键优化：半开状态下失败，立即重新熔断
+        if self.state == CircuitState.HALF_OPEN:
+            self.state = CircuitState.OPEN
+            self.next_retry_time = datetime.now() + timedelta(seconds=30)
+            logger.warning("Circuit breaker re-OPENED: Probe failed")
+            return
+
+        # 正常累加错误
+        self.failure_count += 1
         if self.failure_count >= 5:
             self.state = CircuitState.OPEN
             self.next_retry_time = datetime.now() + timedelta(seconds=30)
@@ -774,9 +794,12 @@ class CircuitBreaker:
         elif self.state == CircuitState.OPEN:
             if datetime.now() >= self.next_retry_time:
                 self.state = CircuitState.HALF_OPEN
+                logger.info("Circuit breaker HALF_OPEN: Probing Redis")
                 return True
             return False
         else:  # HALF_OPEN
+            return True
+```
             return True
 ```
 

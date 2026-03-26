@@ -162,6 +162,88 @@ async def _fetch_with_rate_limit(
     return result
 
 
+async def catchup_historical_stocks(days: int) -> dict:
+    """Catch up missing historical stock data on startup.
+
+    Args:
+        days: Maximum number of days to look back
+
+    Returns:
+        Statistics dict with keys:
+            - symbols_updated: int
+            - records_added: int
+            - date_range: tuple (start_date, end_date) or None
+            - errors: list of error messages
+    """
+    from datetime import date, datetime
+    from app.database.ohlc import get_metadata, upsert_ohlc_overwrite, update_metadata
+    from app.config_manager import get_stock_catchup_config
+
+    logger.info(f"Starting stock catch-up (max {days} days)...")
+
+    # Check last update date from metadata
+    # Use AAPL as sentinel - assumes all symbols are updated together
+    # Trade-off: Fast startup vs. handling symbols added at different times
+    metadata = get_metadata("AAPL")
+
+    if metadata is None:
+        logger.info(f"No metadata found, fetching last {days} days")
+        fetch_days = days
+    else:
+        last_date = datetime.fromisoformat(metadata["data_end"]).date()
+        today = date.today()
+        gap_days = (today - last_date).days
+
+        if gap_days <= 1:
+            logger.info(f"Stock data is up to date (last: {last_date})")
+            return {
+                "symbols_updated": 0,
+                "records_added": 0,
+                "date_range": None,
+                "errors": []
+            }
+
+        fetch_days = min(gap_days, days)
+        logger.info(f"Gap detected: {gap_days} days, fetching last {fetch_days} days")
+
+    # Fetch with rate limiting
+    config = get_stock_catchup_config()
+    data_by_symbol = await _fetch_with_rate_limit(
+        SYMBOLS,
+        fetch_days,
+        config["rate_limit_delay"]
+    )
+
+    # Save to database
+    stats = {
+        "symbols_updated": 0,
+        "records_added": 0,
+        "date_range": None,
+        "errors": []
+    }
+
+    for symbol, records in data_by_symbol.items():
+        try:
+            if records:
+                upsert_ohlc_overwrite(symbol, records)
+                dates = [r["date"] for r in records]
+                update_metadata(symbol, min(dates), max(dates))
+                stats["symbols_updated"] += 1
+                stats["records_added"] += len(records)
+
+                if stats["date_range"] is None:
+                    stats["date_range"] = (min(dates), max(dates))
+
+                logger.info(f"✓ {symbol}: {len(records)} records | Latest: {records[-1]['date']}")
+        except Exception as exc:
+            error_msg = f"{symbol}: {exc}"
+            stats["errors"].append(error_msg)
+            logger.error(f"Failed to save {symbol}: {exc}")
+
+    logger.info(f"✓ Catch-up completed: {stats['symbols_updated']}/{len(SYMBOLS)} symbols updated")
+    return stats
+
+
 def update_stocks_intraday_sync() -> None:
     """Blocking intraday update routine meant to run in a worker thread."""
     if not should_update_stocks():

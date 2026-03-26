@@ -209,5 +209,21 @@ class ConfigManager:
         return self.get_redis_settings()
 
 
+def get_stock_catchup_config() -> dict:
+    """Get stock catch-up configuration from environment variables.
+
+    Returns:
+        dict with keys:
+            - catchup_days: int - Maximum days to look back
+            - rate_limit_delay: float - Delay between requests in seconds
+            - enabled: bool - Whether catch-up is enabled
+    """
+    return {
+        "catchup_days": int(os.getenv("STOCK_CATCHUP_DAYS", "5")),
+        "rate_limit_delay": float(os.getenv("STOCK_RATE_LIMIT_DELAY", "1.5")),
+        "enabled": os.getenv("STOCK_CATCHUP_ENABLED", "true").lower() == "true"
+    }
+
+
 # Global instance
 config_manager = ConfigManager()

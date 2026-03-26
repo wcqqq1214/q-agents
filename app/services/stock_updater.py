@@ -179,6 +179,17 @@ async def catchup_historical_stocks(days: int) -> dict:
     from app.database.ohlc import get_metadata, upsert_ohlc_overwrite, update_metadata
     from app.config_manager import get_stock_catchup_config
 
+    # Validate AAPL is in SYMBOLS list (used as sentinel)
+    if "AAPL" not in SYMBOLS:
+        error_msg = "AAPL sentinel symbol not in SYMBOLS list"
+        logger.error(error_msg)
+        return {
+            "symbols_updated": 0,
+            "records_added": 0,
+            "date_range": None,
+            "errors": [error_msg]
+        }
+
     logger.info(f"Starting stock catch-up (max {days} days)...")
 
     # Check last update date from metadata

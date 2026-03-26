@@ -1,7 +1,7 @@
 """Configuration manager for handling .env file updates."""
 import os
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 
 class ConfigManager:
@@ -176,6 +176,37 @@ class ConfigManager:
                 os.environ[key] = value
 
         return self.get_okx_settings(mode)
+
+    def get_redis_settings(self) -> Dict[str, Any]:
+        """获取 Redis 配置"""
+        return {
+            "redis_url": os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+            "redis_enabled": os.getenv("REDIS_ENABLED", "true").lower() == "true",
+            "max_connections": int(os.getenv("REDIS_MAX_CONNECTIONS", "100")),
+            "socket_timeout": int(os.getenv("REDIS_SOCKET_TIMEOUT", "2")),
+            "socket_connect_timeout": int(os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT", "2")),
+            "pool_timeout": int(os.getenv("REDIS_POOL_TIMEOUT", "1")),
+            "health_check_interval": int(os.getenv("REDIS_HEALTH_CHECK_INTERVAL", "30")),
+        }
+
+    def update_redis_settings(
+        self,
+        redis_url: Optional[str] = None,
+        redis_enabled: Optional[bool] = None
+    ) -> Dict[str, Any]:
+        """更新 Redis 配置"""
+        updates = {}
+        if redis_url:
+            updates["REDIS_URL"] = redis_url
+        if redis_enabled is not None:
+            updates["REDIS_ENABLED"] = "true" if redis_enabled else "false"
+
+        if updates:
+            self._update_env_file(updates)
+            for key, value in updates.items():
+                os.environ[key] = value
+
+        return self.get_redis_settings()
 
 
 # Global instance

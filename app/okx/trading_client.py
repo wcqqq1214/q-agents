@@ -1,10 +1,12 @@
 """OKX交易客户端"""
 import asyncio
 import logging
+import os
 from typing import Any, Dict, List, Optional
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from .exceptions import OKXRateLimitError
+from app.services.rate_limiter import rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +121,21 @@ class OKXTradingClient:
             )
             raise
 
+    async def _run_blocking(self, func, *args, **kwargs):
+        """Run sync SDK calls without leaking test-time threadpool state.
+
+        Workaround for pytest event loop cleanup issues: asyncio.to_thread() creates
+        a ThreadPoolExecutor that may not be properly cleaned up when pytest closes
+        the event loop, causing tests to hang. In test environments, we run the sync
+        SDK calls directly in the event loop instead.
+
+        This can be disabled by setting OKX_THREAD_OFFLOAD=false.
+        """
+        if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("OKX_THREAD_OFFLOAD", "true").lower() != "true":
+            return func(*args, **kwargs)
+        return await asyncio.to_thread(func, *args, **kwargs)
+
+    @rate_limit(exchange="okx", identifier_key="self._api_key", per_function=True)
     async def get_account_balance(self, currency: Optional[str] = None) -> List[Dict]:
         """获取账户余额（异步）
 
@@ -140,7 +157,7 @@ class OKXTradingClient:
             OKXAuthError: 认证错误
             OKXError: 其他API错误
         """
-        return await asyncio.to_thread(self._get_account_balance_sync, currency)
+        return await self._run_blocking(self._get_account_balance_sync, currency)
 
     def _get_account_balance_sync(self, currency: Optional[str] = None) -> List[Dict]:
         """获取账户余额的同步实现"""
@@ -170,6 +187,7 @@ class OKXTradingClient:
 
         return balances
 
+    @rate_limit(exchange="okx", identifier_key="self._api_key", per_function=True)
     async def get_positions(self, inst_type: Optional[str] = None) -> List[Dict]:
         """获取持仓信息（异步）
 
@@ -195,7 +213,7 @@ class OKXTradingClient:
             OKXAuthError: 认证错误
             OKXError: 其他API错误
         """
-        return await asyncio.to_thread(self._get_positions_sync, inst_type)
+        return await self._run_blocking(self._get_positions_sync, inst_type)
 
     def _get_positions_sync(self, inst_type: Optional[str] = None) -> List[Dict]:
         """获取持仓的同步实现"""
@@ -225,6 +243,7 @@ class OKXTradingClient:
 
         return positions
 
+    @rate_limit(exchange="okx", identifier_key="self._api_key", per_function=True)
     async def place_order(
         self,
         inst_id: str,
@@ -260,7 +279,7 @@ class OKXTradingClient:
             OKXOrderError: 订单错误
             OKXError: 其他错误
         """
-        return await asyncio.to_thread(
+        return await self._run_blocking(
             self._place_order_sync, inst_id, side, order_type, size, price, client_order_id, **kwargs
         )
 
@@ -309,6 +328,7 @@ class OKXTradingClient:
             'status_code': data.get('sCode', '0')
         }
 
+    @rate_limit(exchange="okx", identifier_key="self._api_key", per_function=True)
     async def cancel_order(
         self,
         inst_id: str,
@@ -338,7 +358,7 @@ class OKXTradingClient:
         if not order_id and not client_order_id:
             raise ValueError("Either order_id or client_order_id must be provided")
 
-        return await asyncio.to_thread(
+        return await self._run_blocking(
             self._cancel_order_sync, inst_id, order_id, client_order_id
         )
 
@@ -371,6 +391,7 @@ class OKXTradingClient:
             'status_code': data.get('sCode', '0')
         }
 
+    @rate_limit(exchange="okx", identifier_key="self._api_key", per_function=True)
     async def get_order_details(
         self,
         inst_id: str,
@@ -408,7 +429,7 @@ class OKXTradingClient:
         if not order_id and not client_order_id:
             raise ValueError("Either order_id or client_order_id must be provided")
 
-        return await asyncio.to_thread(
+        return await self._run_blocking(
             self._get_order_details_sync, inst_id, order_id, client_order_id
         )
 
@@ -449,6 +470,7 @@ class OKXTradingClient:
             'timestamp': data.get('cTime')
         }
 
+    @rate_limit(exchange="okx", identifier_key="self._api_key", per_function=True)
     async def get_order_history(
         self,
         inst_type: str = 'SPOT',
@@ -468,7 +490,7 @@ class OKXTradingClient:
         Raises:
             OKXError: API错误
         """
-        return await asyncio.to_thread(
+        return await self._run_blocking(
             self._get_order_history_sync, inst_type, inst_id, limit
         )
 
@@ -513,6 +535,7 @@ class OKXTradingClient:
 
         return orders
 
+    @rate_limit(exchange="okx", identifier_key="self._api_key", per_function=True)
     async def get_candles(
         self,
         inst_id: str,
@@ -555,7 +578,7 @@ class OKXTradingClient:
                 f"Fetching candles for {inst_id}, bar={bar}, limit={limit}"
             )
 
-            result = await asyncio.to_thread(
+            result = await self._run_blocking(
                 self.market_api.get_candlesticks,
                 instId=inst_id,
                 bar=bar,
@@ -595,6 +618,7 @@ class OKXTradingClient:
             )
             raise OKXError(f"Failed to get candles: {str(e)}")
 
+    @rate_limit(exchange="okx", identifier_key="self._api_key", per_function=True)
     async def get_ticker(self, inst_id: str) -> Dict[str, Any]:
         """获取ticker数据
 
@@ -624,7 +648,7 @@ class OKXTradingClient:
                 f"Fetching ticker for {inst_id}"
             )
 
-            result = await asyncio.to_thread(
+            result = await self._run_blocking(
                 self.market_api.get_ticker,
                 instId=inst_id
             )
@@ -689,4 +713,3 @@ class OKXTradingClient:
                 raise OKXOrderError(msg, code=code)
             else:
                 raise OKXError(msg, code=code)
-

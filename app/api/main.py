@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from datetime import datetime, date, timedelta
 import asyncio
+import inspect
 import logging
 import os
 from dotenv import load_dotenv
@@ -18,6 +19,9 @@ load_dotenv()
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from arq import create_pool
+from arq.connections import RedisSettings
+from app.config_manager import config_manager
 from app.tasks.update_ohlc import update_daily_ohlc
 from app.database.agent_history import init_db as init_agent_history_db
 from app.services.realtime_agent import warmup_hot_cache, update_hot_cache_loop
@@ -36,6 +40,47 @@ scheduler = AsyncIOScheduler(timezone="America/New_York")
 # Symbols and intervals for batch downloads
 CRYPTO_SYMBOLS = ["BTCUSDT", "ETHUSDT"]
 CRYPTO_INTERVALS = ["1m", "1d"]
+
+
+async def create_arq_pool():
+    """Create the shared ARQ pool when Redis is enabled."""
+    redis_settings = config_manager.get_redis_settings()
+    if not redis_settings["redis_enabled"]:
+        logger.info("Redis disabled, skipping ARQ pool initialization")
+        return None
+
+    try:
+        pool = await create_pool(
+            RedisSettings.from_dsn(redis_settings["redis_url"])
+        )
+        await pool.ping()
+        logger.info("✓ ARQ pool initialized")
+        return pool
+    except Exception as exc:
+        logger.warning("Failed to initialize ARQ pool, background jobs will fall back to local execution: %s", exc)
+        return None
+
+
+async def close_arq_pool(pool) -> None:
+    """Close the shared ARQ pool if present."""
+    if pool is None:
+        return
+
+    close_result = pool.aclose()
+    if inspect.isawaitable(close_result):
+        await close_result
+
+
+async def enqueue_daily_ohlc_job(app: FastAPI) -> None:
+    """Enqueue the OHLC update job or fall back to local execution."""
+    arq_pool = getattr(app.state, "arq_pool", None)
+    if arq_pool is not None:
+        await arq_pool.enqueue_job("update_daily_ohlc")
+        logger.info("Enqueued daily OHLC update task to ARQ")
+        return
+
+    logger.warning("ARQ pool unavailable, running daily OHLC update in-process")
+    await update_daily_ohlc()
 
 
 def daily_crypto_download():
@@ -98,6 +143,7 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     # Startup
     logger.info("Starting Finance Agent API...")
+    app.state.arq_pool = await create_arq_pool()
 
     # Initialize agent history database
     db_path = os.getenv("AGENT_HISTORY_DB_PATH", "data/agent_history.db")
@@ -125,10 +171,11 @@ async def lifespan(app: FastAPI):
 
     # Update daily after US market close (UTC 21:30 = EST 16:30)
     scheduler.add_job(
-        update_daily_ohlc,
+        enqueue_daily_ohlc_job,
         'cron',
         hour=21,
         minute=30,
+        args=[app],
         id='daily_ohlc_update'
     )
 
@@ -159,6 +206,7 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
     scheduler.shutdown()
+    await close_arq_pool(getattr(app.state, "arq_pool", None))
     logger.info("✓ Scheduler stopped")
 
 

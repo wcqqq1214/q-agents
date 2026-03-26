@@ -35,6 +35,11 @@ dependencies = [
     "apscheduler>=3.10.4",
     "python-okx>=0.4.1",
     "tenacity>=9.1.4",
+    "redis>=5.0.0",
+    "arq>=0.26.0",
+    "hiredis>=2.3.0",
+    "msgpack>=1.0.0",
+    "pyarrow>=15.0.0",
 ]
 
 [tool.pyright]

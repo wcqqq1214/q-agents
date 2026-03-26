@@ -5,6 +5,7 @@ import httpx
 import logging
 
 from app.config.network import PROXY_URL
+from app.services.rate_limiter import rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ def parse_kline_response(raw_klines: List[List[Any]]) -> List[Dict[str, Any]]:
     return result
 
 
+@rate_limit(exchange="binance")
 async def fetch_binance_klines(
     symbol: str,
     interval: str,
@@ -74,8 +76,6 @@ async def fetch_binance_klines(
         "limit": min(limit, 1000)  # Binance max is 1000
     }
 
-    # Create client with proxy support (if configured)
-    # PROXY_URL will be None if proxy is disabled
     async with httpx.AsyncClient(proxy=PROXY_URL, timeout=30.0) as client:
         response = await client.get(url, params=params)
         response.raise_for_status()

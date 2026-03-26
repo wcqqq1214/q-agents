@@ -103,3 +103,28 @@ def test_empty_strings_ignored(config_manager):
     assert updated["secret_key"] == "test_demo_secret"
     assert updated["passphrase"] == "test_demo_pass"
 
+
+def test_get_redis_settings(config_manager, monkeypatch):
+    """测试获取 Redis 配置"""
+    monkeypatch.setenv("REDIS_URL", "redis://redis:6379/1")
+    monkeypatch.setenv("REDIS_ENABLED", "false")
+    monkeypatch.setenv("REDIS_MAX_CONNECTIONS", "42")
+
+    settings = config_manager.get_redis_settings()
+
+    assert settings["redis_url"] == "redis://redis:6379/1"
+    assert settings["redis_enabled"] is False
+    assert settings["max_connections"] == 42
+
+
+def test_update_redis_settings(config_manager):
+    """测试更新 Redis 配置"""
+    updated = config_manager.update_redis_settings(
+        redis_url="redis://localhost:6380/2",
+        redis_enabled=False,
+    )
+
+    assert updated["redis_url"] == "redis://localhost:6380/2"
+    assert updated["redis_enabled"] is False
+    assert os.getenv("REDIS_URL") == "redis://localhost:6380/2"
+    assert os.getenv("REDIS_ENABLED") == "false"

@@ -16,14 +16,11 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from app.services.rate_limiter import rate_limit
+
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.polygon.io"
-
-# Rate limiting state (module-level)
-_REQUEST_TIMES: List[float] = []
-MAX_REQUESTS_PER_MINUTE = 5
-SAFETY_BUFFER_SECONDS = 0.5
 
 
 def _get_api_key() -> str:
@@ -42,33 +39,6 @@ def _get_api_key() -> str:
             "Please add it to your .env file."
         )
     return api_key
-
-
-def rate_limit() -> None:
-    """Block execution until we can safely make another API request.
-
-    This function implements a sliding window rate limiter that ensures
-    we never exceed MAX_REQUESTS_PER_MINUTE requests in any 60-second window.
-    It adds a safety buffer to prevent edge cases.
-    """
-    global _REQUEST_TIMES
-
-    now = time.time()
-
-    # Remove timestamps older than 60 seconds
-    _REQUEST_TIMES = [t for t in _REQUEST_TIMES if now - t < 60]
-
-    # If we've hit the limit, wait until the oldest request is 60+ seconds old
-    if len(_REQUEST_TIMES) >= MAX_REQUESTS_PER_MINUTE:
-        oldest_request = _REQUEST_TIMES[0]
-        wait_time = 60 - (now - oldest_request) + SAFETY_BUFFER_SECONDS
-
-        if wait_time > 0:
-            logger.info(f"Rate limit reached. Waiting {wait_time:.1f}s...")
-            time.sleep(wait_time)
-
-    # Record this request
-    _REQUEST_TIMES.append(time.time())
 
 
 def _http_get(
@@ -141,6 +111,7 @@ def _http_get(
     raise RuntimeError("Unreachable code path")
 
 
+@rate_limit(exchange="polygon")
 def fetch_ohlc(ticker: str, start_date: str, end_date: str) -> List[Dict[str, Any]]:
     """Fetch daily OHLC data from Polygon for a given ticker and date range.
 
@@ -158,8 +129,6 @@ def fetch_ohlc(ticker: str, start_date: str, end_date: str) -> List[Dict[str, An
     Raises:
         requests.RequestException: If the API request fails.
     """
-    rate_limit()
-
     url = f"{BASE_URL}/v2/aggs/ticker/{ticker}/range/1/day/{start_date}/{end_date}"
     params = {
         "adjusted": "true",
@@ -195,6 +164,7 @@ def fetch_ohlc(ticker: str, start_date: str, end_date: str) -> List[Dict[str, An
     return rows
 
 
+@rate_limit(exchange="polygon")
 def fetch_news(
     ticker: str,
     start_date: str,
@@ -244,8 +214,6 @@ def fetch_news(
     logger.info(f"Fetching news for {ticker} from {start_date} to {end_date}")
 
     while True:
-        rate_limit()
-
         try:
             resp = _http_get(next_url or url, params=None if next_url else params)
         except requests.RequestException as exc:

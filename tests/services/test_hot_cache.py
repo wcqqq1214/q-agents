@@ -1,6 +1,7 @@
 """
 Tests for hot cache infrastructure for crypto K-line data.
 """
+import asyncio
 import pytest
 import pandas as pd
 from datetime import datetime, timezone
@@ -10,7 +11,20 @@ from app.services.hot_cache import (
     cleanup_hot_cache,
     get_cache_size,
     HOT_CACHE,
+    clear_memory_cache,
 )
+from app.services.redis_client import reset_redis_state
+
+
+@pytest.fixture(autouse=True)
+def reset_hot_cache_state(monkeypatch):
+    """Reset local cache and Redis state before each test."""
+    monkeypatch.setenv("REDIS_ENABLED", "false")
+    clear_memory_cache()
+    asyncio.run(reset_redis_state())
+    yield
+    clear_memory_cache()
+    asyncio.run(reset_redis_state())
 
 
 class TestHotCacheInitialization:

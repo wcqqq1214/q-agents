@@ -330,8 +330,14 @@ class DataCache:
         hash_suffix = hashlib.md5(params_str.encode()).hexdigest()[:8]
         return f"dataflow:{prefix}:{hash_suffix}"
     
-    async def get(self, prefix: str, **kwargs) -> Optional[List[BaseModel]]:
-        """从缓存获取数据"""
+    async def get(self, prefix: str, **kwargs) -> Optional[List[dict]]:
+        """
+        从缓存获取数据
+
+        Returns:
+            List[dict]: 返回 dict 列表（非 Pydantic 模型）
+                       调用方需要手动重建模型：[Model(**item) for item in cached]
+        """
         key = self._make_key(prefix, **kwargs)
         data = await self.redis.get(key)
         if data:
@@ -388,18 +394,38 @@ _PROVIDER_REGISTRY = {
     "polygon": PolygonProvider,
 }
 
+def validate_config(config: dict) -> None:
+    """验证配置有效性"""
+    # 验证数据提供商配置
+    for category, vendor in config.get("data_vendors", {}).items():
+        if vendor not in _PROVIDER_REGISTRY:
+            raise ValueError(
+                f"Invalid vendor '{vendor}' for category '{category}'. "
+                f"Available vendors: {list(_PROVIDER_REGISTRY.keys())}"
+            )
+
+    # 验证工具级配置
+    for tool_name, vendor in config.get("tool_vendors", {}).items():
+        if vendor not in _PROVIDER_REGISTRY:
+            raise ValueError(
+                f"Invalid vendor '{vendor}' for tool '{tool_name}'. "
+                f"Available vendors: {list(_PROVIDER_REGISTRY.keys())}"
+            )
+
 class DataFlowRouter:
     """
     带自动降级和缓存的数据路由器
-    
+
     特性：
     1. 运行时异常自动降级到备用数据源
     2. Redis 缓存层（历史数据长 TTL）
     3. 异步接口支持高并发
     """
-    
+
     def __init__(self, config: dict = None, enable_cache: bool = True):
         self.config = config or DEFAULT_CONFIG
+        # 验证配置
+        validate_config(self.config)
         self._providers = {}
         self.cache = DataCache(self.config.get("redis_url")) if enable_cache else None
     
@@ -923,6 +949,23 @@ class LLMConfig:
 - **Social Agent**: Gemini 3.1 Flash（速度优先，社交情绪分析不需要深度推理）
 - **CIO Agent**: Claude Opus 4.6（最强综合能力，extended thinking 20000 tokens）
 
+**Agent 类型映射**：
+
+| Agent 类型字符串 | graph_multi.py 中的实际使用 | 说明 |
+|----------------|---------------------------|------|
+| `"quant"` | 在 Quant Agent 节点中调用 `create_llm(agent_type="quant")` | 量化技术分析 |
+| `"news"` | 在 News Agent 节点中调用 `create_llm(agent_type="news")` | 新闻情绪分析 |
+| `"social"` | 在 Social Agent 节点中调用 `create_llm(agent_type="social")` | 社交媒体情绪 |
+| `"cio"` | 在 CIO Agent 节点中调用 `create_llm(agent_type="cio")` | 最终投资决策 |
+
+**集成示例**：
+```python
+# 在 app/graph_multi.py 中
+def quant_agent_node(state: AgentState):
+    llm = create_llm(agent_type="quant")  # 自动使用 o1 模型
+    # ... agent 逻辑
+```
+
 ### 4.7 工厂函数
 
 **`app/llm_clients/factory.py`**：
@@ -1096,18 +1139,25 @@ class MemorySearchResult(BaseModel):
     metadata: Dict[str, Any] = {}
 
 class BaseMemory(ABC):
-    """记忆系统抽象基类"""
-    
+    """
+    记忆系统抽象基类
+
+    注意：
+    - BM25Memory 使用同步方法（无需 I/O）
+    - HybridMemory 需要异步方法（ChromaDB 调用）
+    - 子类可以选择实现同步或异步版本
+    """
+
     @abstractmethod
     def add(self, entries: List[MemoryEntry]):
-        """添加记忆"""
+        """添加记忆（同步）"""
         pass
-    
+
     @abstractmethod
     def search(self, query: str, top_k: int = 3) -> List[MemorySearchResult]:
-        """检索相关记忆"""
+        """检索相关记忆（同步）"""
         pass
-    
+
     @abstractmethod
     def clear(self):
         """清空记忆"""
@@ -1217,18 +1267,23 @@ from app.rag.build_event_memory import get_chroma_client
 class HybridMemory(BaseMemory):
     """
     BM25 + ChromaDB 混合检索
-    
+
     策略：
     1. BM25 检索：精确匹配关键词（股票代码、指标名称）
     2. ChromaDB 检索：语义相似度（模糊概念、情绪描述）
     3. 结果融合：RRF (Reciprocal Rank Fusion)
-    
+
     适用场景：
     - 需要同时匹配精确关键词和语义相似度
     - 例如："AAPL 的 MACD 金叉" 既要匹配 "AAPL" 和 "MACD"，
       也要理解 "金叉" 的语义
+
+    注意：
+    - 实现了同步 search() 方法（继承自 BaseMemory）
+    - ChromaDB 查询在同步上下文中执行
+    - 如需异步，可添加 search_async() 方法
     """
-    
+
     def __init__(self, name: str, chroma_collection_name: str):
         self.name = name
         self.bm25_memory = BM25Memory(f"{name}_bm25")
@@ -1305,20 +1360,39 @@ class HybridMemory(BaseMemory):
         
         # 排序并返回 top-k
         sorted_keys = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)[:top_k]
-        
-        # 构建结果
+
+        # 构建结果映射（从两个来源）
+        result_map = {r.situation: r for r in bm25_results}
+        chroma_map = {
+            doc: metadata
+            for doc, metadata in zip(
+                chroma_results['documents'][0],
+                chroma_results['metadatas'][0]
+            )
+        }
+
+        # 构建最终结果
         results = []
         for key in sorted_keys:
-            for result in bm25_results:
-                if result.situation == key:
-                    results.append(MemorySearchResult(
-                        situation=result.situation,
-                        recommendation=result.recommendation,
-                        score=scores[key],
-                        metadata=result.metadata
-                    ))
-                    break
-        
+            if key in result_map:
+                # 从 BM25 结果中获取
+                result = result_map[key]
+                results.append(MemorySearchResult(
+                    situation=result.situation,
+                    recommendation=result.recommendation,
+                    score=scores[key],
+                    metadata=result.metadata
+                ))
+            elif key in chroma_map:
+                # 从 ChromaDB 结果中获取
+                metadata = chroma_map[key]
+                results.append(MemorySearchResult(
+                    situation=key,
+                    recommendation=metadata.get('recommendation', ''),
+                    score=scores[key],
+                    metadata=metadata
+                ))
+
         return results
     
     def clear(self):

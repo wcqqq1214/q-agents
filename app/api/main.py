@@ -148,6 +148,33 @@ async def background_cache_warmup():
         logger.error(f"✗ Hot cache warmup failed: {exc}", exc_info=True)
 
 
+async def background_stock_catchup():
+    """Background task for stock data catch-up on startup."""
+    from app.config_manager import get_stock_catchup_config
+    from app.services.stock_updater import catchup_historical_stocks
+
+    try:
+        config = get_stock_catchup_config()
+        if not config["enabled"]:
+            logger.info("Stock catchup disabled by config")
+            return
+
+        logger.info(f"Starting stock catchup (max {config['catchup_days']} days)...")
+        stats = await catchup_historical_stocks(days=config["catchup_days"])
+
+        if stats["symbols_updated"] > 0:
+            logger.info(
+                f"✓ Stock catchup completed: {stats['symbols_updated']} symbols, "
+                f"{stats['records_added']} records, range: {stats['date_range']}"
+            )
+
+        if stats["errors"]:
+            logger.warning(f"Catchup errors: {stats['errors']}")
+
+    except Exception as exc:
+        logger.error(f"✗ Stock catchup failed: {exc}", exc_info=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
@@ -167,6 +194,10 @@ async def lifespan(app: FastAPI):
     # Start hot cache update loop as background task
     update_task = asyncio.create_task(update_hot_cache_loop())
     logger.info("✓ Hot cache update loop started")
+
+    # Start stock catchup as non-blocking background task
+    catchup_task = asyncio.create_task(background_stock_catchup())
+    logger.info("✓ Stock catchup started in background (non-blocking)")
 
     # Schedule daily crypto data download at 08:00 UTC
     scheduler.add_job(
@@ -225,6 +256,15 @@ async def lifespan(app: FastAPI):
         await update_task
     except asyncio.CancelledError:
         pass
+
+    # Cancel catchup task if still running
+    if not catchup_task.done():
+        logger.info("Cancelling stock catchup task...")
+        catchup_task.cancel()
+        try:
+            await catchup_task
+        except asyncio.CancelledError:
+            logger.info("✓ Stock catchup task cancelled")
 
     scheduler.shutdown()
     await close_arq_pool(getattr(app.state, "arq_pool", None))

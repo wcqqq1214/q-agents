@@ -103,6 +103,7 @@ from datetime import datetime
 
 class StockCandle(BaseModel):
     """标准化的 OHLCV 数据"""
+    symbol: str
     timestamp: datetime
     open: float
     high: float
@@ -128,21 +129,20 @@ class StockCandle(BaseModel):
         return self
 ```
 
-- [ ] **Step 4: Create package __init__.py**
+- [ ] **Step 4: Create package __init__.py (models only)**
 
 ```python
 # app/dataflows/__init__.py
 """Data provider abstraction layer"""
 from app.dataflows.models import StockCandle, TechnicalIndicator, NewsArticle, FundamentalsData
-from app.dataflows.interface import DataFlowRouter
 
 __all__ = [
     "StockCandle",
-    "TechnicalIndicator", 
+    "TechnicalIndicator",
     "NewsArticle",
     "FundamentalsData",
-    "DataFlowRouter",
 ]
+# Note: DataFlowRouter will be added in Task 7
 ```
 
 - [ ] **Step 5: Run test to verify StockCandle passes**
@@ -347,7 +347,7 @@ git commit -m "feat(dataflows): add abstract base class and exceptions
 ```python
 # tests/test_dataflows_config.py
 import pytest
-from app.dataflows.config import DEFAULT_CONFIG, validate_config
+from app.dataflows.config import DEFAULT_CONFIG
 
 def test_default_config_structure():
     """Test default config has required keys"""
@@ -356,23 +356,7 @@ def test_default_config_structure():
     assert "mcp_servers" in DEFAULT_CONFIG
     assert "redis_url" in DEFAULT_CONFIG
 
-def test_validate_config_valid():
-    """Test valid config passes"""
-    config = {
-        "data_vendors": {"stock_data": "mcp"},
-        "tool_vendors": {},
-    }
-    # Should not raise
-    validate_config(config)
-
-def test_validate_config_invalid_vendor():
-    """Test invalid vendor raises error"""
-    config = {
-        "data_vendors": {"stock_data": "invalid_vendor"},
-        "tool_vendors": {},
-    }
-    with pytest.raises(ValueError, match="Invalid vendor"):
-        validate_config(config)
+# Note: validate_config() tests will be in Task 7 after interface.py is created
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -417,28 +401,7 @@ DEFAULT_CONFIG = {
         "alpha_vantage": os.getenv("ALPHA_VANTAGE_API_KEY"),
     }
 }
-
-# 将在 interface.py 中定义 _PROVIDER_REGISTRY 后导入
-def validate_config(config: dict) -> None:
-    """验证配置有效性"""
-    # 延迟导入避免循环依赖
-    from app.dataflows.interface import _PROVIDER_REGISTRY
-
-    # 验证数据提供商配置
-    for category, vendor in config.get("data_vendors", {}).items():
-        if vendor not in _PROVIDER_REGISTRY:
-            raise ValueError(
-                f"Invalid vendor '{vendor}' for category '{category}'. "
-                f"Available vendors: {list(_PROVIDER_REGISTRY.keys())}"
-            )
-
-    # 验证工具级配置
-    for tool_name, vendor in config.get("tool_vendors", {}).items():
-        if vendor not in _PROVIDER_REGISTRY:
-            raise ValueError(
-                f"Invalid vendor '{vendor}' for tool '{tool_name}'. "
-                f"Available vendors: {list(_PROVIDER_REGISTRY.keys())}"
-            )
+# Note: validate_config() will be defined in interface.py (Task 7) to avoid circular imports
 ```
 
 - [ ] **Step 4: Run tests**

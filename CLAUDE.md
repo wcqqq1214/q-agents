@@ -104,6 +104,44 @@ User Query
 - **FastAPI Backend**: REST API for frontend integration (`app/api/main.py`)
 - **Next.js Frontend**: React-based UI with real-time updates
 
+### Data Provider Abstraction Layer
+
+**Location**: `app/dataflows/`
+
+**Purpose**: Provider-agnostic data interface with caching and automatic fallback.
+
+**Key Components**:
+- `models.py`: Pydantic data contracts (StockCandle, NewsArticle, etc.)
+- `interface.py`: DataFlowRouter with fallback logic
+- `cache.py`: Redis cache layer (7d TTL for stock data, 1h for news)
+- `providers/`: MCP and yfinance adapters
+
+**Usage**:
+```python
+from app.dataflows.interface import DataFlowRouter
+from datetime import datetime
+
+router = DataFlowRouter()
+candles = await router.get_stock_data(
+    "AAPL",
+    datetime(2024, 1, 1),
+    datetime(2024, 12, 31)
+)
+```
+
+**Configuration**:
+Edit `app/dataflows/config.py` to change data vendors:
+```python
+"data_vendors": {
+    "stock_data": "yfinance",  # Switch from MCP to yfinance
+}
+```
+
+**Fallback Strategy**:
+- Primary: MCP servers (localhost:8000, localhost:8001)
+- Fallback: yfinance (automatic on MCP timeout/error)
+- Cache: Redis (reduces API calls)
+
 
 ## Project Structure
 

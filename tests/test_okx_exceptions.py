@@ -1,11 +1,12 @@
 """测试OKX错误类型"""
+
 from app.okx.exceptions import (
-    OKXError,
     OKXAuthError,
-    OKXRateLimitError,
+    OKXConfigError,
+    OKXError,
     OKXInsufficientBalanceError,
     OKXOrderError,
-    OKXConfigError,
+    OKXRateLimitError,
 )
 
 

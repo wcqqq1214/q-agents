@@ -10,7 +10,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -97,7 +97,9 @@ def _compile_ticker_regex(asset: str) -> Optional[re.Pattern]:
         ticker_config = aliases_config.get(asset_upper, {})
         aliases = ticker_config.get("aliases", [asset_upper])
     except Exception as e:
-        logger.warning(f"Failed to load ticker aliases for {asset_upper}: {e}, falling back to simple matching")
+        logger.warning(
+            f"Failed to load ticker aliases for {asset_upper}: {e}, falling back to simple matching"
+        )
         aliases = [asset_upper]
 
     # 验证别名列表非空
@@ -107,7 +109,7 @@ def _compile_ticker_regex(asset: str) -> Optional[re.Pattern]:
 
     # 构建正则表达式：\$?\b(NVDA|Nvidia|Nvidia Corp)\b
     escaped_aliases = [re.escape(alias) for alias in aliases]
-    pattern = r'\$?\b(' + '|'.join(escaped_aliases) + r')\b'
+    pattern = r"\$?\b(" + "|".join(escaped_aliases) + r")\b"
     return re.compile(pattern, re.IGNORECASE)
 
 
@@ -125,10 +127,7 @@ def _asset_to_subreddits(asset: str, config: RedditIngestConfig) -> Sequence[str
     return ["stocks", "investing", "StockMarket", "wallstreetbets", "options"]
 
 
-def _filter_posts_by_asset(
-    posts: List[RedditPost],
-    asset: str
-) -> List[RedditPost]:
+def _filter_posts_by_asset(posts: List[RedditPost], asset: str) -> List[RedditPost]:
     """使用别名字典和正则词边界过滤帖子。
 
     匹配规则：
@@ -170,10 +169,7 @@ def _filter_posts_by_asset(
     return filtered
 
 
-def _select_top_posts_globally(
-    posts: List[RedditPost],
-    limit: int
-) -> List[RedditPost]:
+def _select_top_posts_globally(posts: List[RedditPost], limit: int) -> List[RedditPost]:
     """Select top N posts by score across all subreddits.
 
     Args:
@@ -183,11 +179,7 @@ def _select_top_posts_globally(
     Returns:
         Top N posts sorted by score (descending)
     """
-    sorted_posts = sorted(
-        posts,
-        key=lambda p: int(p.get("score") or 0),
-        reverse=True
-    )
+    sorted_posts = sorted(posts, key=lambda p: int(p.get("score") or 0), reverse=True)
     return sorted_posts[:limit]
 
 
@@ -267,7 +259,10 @@ def _get_reddit_discussion_via_json(
     for sr in subreddits:
         try:
             posts = fetch_subreddit_top_posts_json(
-                sr, time_filter=time_filter, limit=top_posts_limit, user_agent=user_agent
+                sr,
+                time_filter=time_filter,
+                limit=top_posts_limit,
+                user_agent=user_agent,
             )
             all_posts.extend(posts)
         except Exception as exc:
@@ -331,7 +326,7 @@ def _get_reddit_discussion_via_json(
         "posts_selected": posts_selected,
         "post_count": post_count,
         "comment_count": comment_count,
-        "post_urls": post_urls[:min(len(post_urls), top_posts_limit)],
+        "post_urls": post_urls[: min(len(post_urls), top_posts_limit)],
         "errors": errors,
     }
     return text, meta
@@ -415,7 +410,9 @@ def get_reddit_discussion(
             "post_count": 0,
             "comment_count": 0,
             "errors": [
-                f"json_all_attempts_failed:{type(last_exc).__name__}" if last_exc else "json_all_attempts_failed"
+                f"json_all_attempts_failed:{type(last_exc).__name__}"
+                if last_exc
+                else "json_all_attempts_failed"
             ],
         }
 
@@ -433,9 +430,11 @@ def get_reddit_discussion(
     if not combined.strip():
         combined = _clean_text(
             "\n".join(
-                [header, "", "No posts fetched from Reddit for the given asset and subreddits."]
+                [
+                    header,
+                    "",
+                    "No posts fetched from Reddit for the given asset and subreddits.",
+                ]
             )
         )
     return _truncate(combined, config.max_chars)
-
-

@@ -23,6 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from langchain_chroma import Chroma
+
 from app.embedding_config import create_embeddings
 
 PERSIST_DIR = "./data/chroma_event_db_stocks"
@@ -48,11 +49,11 @@ def export_events(output_file="events.txt", ticker=None, limit=None, latest=Fals
     where = {"ticker": ticker} if ticker else None
     results = db.get(where=where, limit=limit or 50000)
 
-    events = list(zip(results['ids'], results['documents'], results['metadatas']))
+    events = list(zip(results["ids"], results["documents"], results["metadatas"]))
 
     # Sort by date if latest mode
     if latest:
-        events = sorted(events, key=lambda x: x[2]['date'], reverse=True)
+        events = sorted(events, key=lambda x: x[2]["date"], reverse=True)
         if limit:
             events = events[:limit]
 
@@ -60,17 +61,17 @@ def export_events(output_file="events.txt", ticker=None, limit=None, latest=Fals
     print(f"导出 {total} 个事件到 {output_file}...")
 
     # Write to file
-    with open(output_file, 'w', encoding='utf-8') as f:
+    with open(output_file, "w", encoding="utf-8") as f:
         # Header
         title = "最新事件记忆数据库导出" if latest else "事件记忆数据库导出"
         f.write(f"{title}\n")
-        f.write(f"=" * 80 + "\n")
+        f.write("=" * 80 + "\n")
         f.write(f"导出事件数: {total}\n")
         if ticker:
             f.write(f"股票代码: {ticker}\n")
         if latest:
-            f.write(f"按日期降序排列（最新在前）\n")
-        f.write(f"=" * 80 + "\n\n")
+            f.write("按日期降序排列（最新在前）\n")
+        f.write("=" * 80 + "\n\n")
 
         # Events
         for i, (doc_id, doc, meta) in enumerate(events, 1):
@@ -83,7 +84,7 @@ def export_events(output_file="events.txt", ticker=None, limit=None, latest=Fals
             f.write(f"标题: {meta['source_title']}\n")
             f.write(f"链接: {meta['source_url']}\n")
             f.write(f"发布者: {meta.get('publisher', 'N/A')}\n")
-            f.write(f"\n完整内容:\n")
+            f.write("\n完整内容:\n")
             f.write(f"{'-' * 80}\n")
             f.write(doc)
             f.write(f"\n{'-' * 80}\n")
@@ -99,8 +100,12 @@ def main():
     parser.add_argument("--output", default="events.txt", help="Output file path")
     parser.add_argument("--ticker", help="Filter by ticker (e.g., NVDA)")
     parser.add_argument("--limit", type=int, help="Maximum number of events to export")
-    parser.add_argument("--latest", type=int, metavar="N",
-                        help="Export N latest events sorted by date (newest first)")
+    parser.add_argument(
+        "--latest",
+        type=int,
+        metavar="N",
+        help="Export N latest events sorted by date (newest first)",
+    )
 
     args = parser.parse_args()
 

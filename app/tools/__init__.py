@@ -1,26 +1,25 @@
 """Tool collection package for the finance agent."""
 
 # Local database tools (preferred for Magnificent Seven)
-from app.tools.local_tools import (
-    get_local_stock_data,
-    search_local_historical_news,
-    search_realtime_news,
+# Polymarket prediction market tools
+from app.polymarket.tools import (
+    search_polymarket_by_category,
+    search_polymarket_predictions,
 )
 
 # Legacy MCP-based tools (for backward compatibility)
 from app.tools.finance_tools import (
     get_stock_data,
-    search_financial_news,
-    search_news_with_duckduckgo,
     get_us_stock_quote,
-    search_news_with_tavily,
+    search_financial_news,
     search_financial_news_tavily,
+    search_news_with_duckduckgo,
+    search_news_with_tavily,
 )
-
-# Polymarket prediction market tools
-from app.polymarket.tools import (
-    search_polymarket_predictions,
-    search_polymarket_by_category,
+from app.tools.local_tools import (
+    get_local_stock_data,
+    search_local_historical_news,
+    search_realtime_news,
 )
 
 # Quant agent: use local database for historical data

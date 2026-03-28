@@ -18,8 +18,8 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, cast
 
-import yfinance as yf
 import pandas as pd
+import yfinance as yf
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
@@ -119,9 +119,7 @@ def _fetch_quote_impl(ticker: str) -> dict[str, Any]:
 
             if len(history.index) > 1:
                 prev = history.iloc[-2]
-                previous_close = (
-                    float(prev.get("Close")) if "Close" in prev else None
-                )
+                previous_close = float(prev.get("Close")) if "Close" in prev else None
 
         def _get_fast(field_name: str, attr_name: str) -> Optional[float]:
             if fast_info is None:
@@ -157,7 +155,7 @@ def _fetch_quote_impl(ticker: str) -> dict[str, Any]:
 
         if fast_info is not None:
             if hasattr(fast_info, "currency"):
-                quote["currency"] = getattr(fast_info, "currency")
+                quote["currency"] = fast_info.currency
             elif isinstance(fast_info, dict):
                 quote["currency"] = fast_info.get("currency")
 
@@ -177,15 +175,19 @@ def _fetch_quote_impl(ticker: str) -> dict[str, Any]:
                     except (TypeError, ValueError):
                         pass
             if isinstance(fast_info, dict):
-                fifty_two_week_high = fifty_two_week_high or _get_fast(
-                    "fiftyTwoWeekHigh", "fifty_two_week_high"
-                ) or _get_fast("yearHigh", "year_high")
-                fifty_two_week_low = fifty_two_week_low or _get_fast(
-                    "fiftyTwoWeekLow", "fifty_two_week_low"
-                ) or _get_fast("yearLow", "year_low")
+                fifty_two_week_high = (
+                    fifty_two_week_high
+                    or _get_fast("fiftyTwoWeekHigh", "fifty_two_week_high")
+                    or _get_fast("yearHigh", "year_high")
+                )
+                fifty_two_week_low = (
+                    fifty_two_week_low
+                    or _get_fast("fiftyTwoWeekLow", "fifty_two_week_low")
+                    or _get_fast("yearLow", "year_low")
+                )
             if hasattr(fast_info, "market_cap"):
                 try:
-                    mc = getattr(fast_info, "market_cap")
+                    mc = fast_info.market_cap
                     if mc is not None:
                         market_cap = int(mc)
                 except (TypeError, ValueError):
@@ -197,22 +199,14 @@ def _fetch_quote_impl(ticker: str) -> dict[str, Any]:
                     pass
 
         # Fallback: full info dict (slower) for 52w / market cap if still missing
-        if (
-            fifty_two_week_high is None
-            or fifty_two_week_low is None
-            or market_cap is None
-        ):
+        if fifty_two_week_high is None or fifty_two_week_low is None or market_cap is None:
             try:
                 info = getattr(yf_ticker, "info", None) or {}
                 if info:
                     if fifty_two_week_high is None and info.get("fiftyTwoWeekHigh") is not None:
-                        fifty_two_week_high = _round_or_none(
-                            float(info["fiftyTwoWeekHigh"]), 3
-                        )
+                        fifty_two_week_high = _round_or_none(float(info["fiftyTwoWeekHigh"]), 3)
                     if fifty_two_week_low is None and info.get("fiftyTwoWeekLow") is not None:
-                        fifty_two_week_low = _round_or_none(
-                            float(info["fiftyTwoWeekLow"]), 3
-                        )
+                        fifty_two_week_low = _round_or_none(float(info["fiftyTwoWeekLow"]), 3)
                     if market_cap is None and info.get("marketCap") is not None:
                         try:
                             market_cap = int(info["marketCap"])
@@ -246,20 +240,22 @@ def _fetch_quote_impl(ticker: str) -> dict[str, Any]:
             except (TypeError, ValueError):
                 volume = None
 
-        quote.update({
-            "price": price,
-            "previous_close": previous_close,
-            "open": open_price,
-            "day_high": day_high,
-            "day_low": day_low,
-            "volume": volume,
-            "change": change,
-            "change_percent": change_percent,
-            "fifty_two_week_high": fifty_two_week_high,
-            "fifty_two_week_low": fifty_two_week_low,
-            "market_cap": market_cap,
-            "timestamp": _now_iso_utc8(),
-        })
+        quote.update(
+            {
+                "price": price,
+                "previous_close": previous_close,
+                "open": open_price,
+                "day_high": day_high,
+                "day_low": day_low,
+                "volume": volume,
+                "change": change,
+                "change_percent": change_percent,
+                "fifty_two_week_high": fifty_two_week_high,
+                "fifty_two_week_low": fifty_two_week_low,
+                "market_cap": market_cap,
+                "timestamp": _now_iso_utc8(),
+            }
+        )
 
         if (
             quote["price"] is None
@@ -273,8 +269,7 @@ def _fetch_quote_impl(ticker: str) -> dict[str, Any]:
 
     except Exception as exc:
         quote["error"] = (
-            f"Failed to fetch quote data from Yahoo Finance: "
-            f"{type(exc).__name__}: {exc}"
+            f"Failed to fetch quote data from Yahoo Finance: {type(exc).__name__}: {exc}"
         )
         quote["timestamp"] = _now_iso_utc8()
 
@@ -360,9 +355,7 @@ def get_stock_data(ticker: str, period: str = "3mo") -> dict[str, Any]:
     return _get_stock_data_impl(ticker, period)
 
 
-def _get_stock_history_impl(
-    ticker: str, start_date: str, end_date: str
-) -> dict[str, Any]:
+def _get_stock_history_impl(ticker: str, start_date: str, end_date: str) -> dict[str, Any]:
     """Fetch historical OHLC data via yfinance."""
     normalized = (ticker or "").strip().upper()
     if not normalized:
@@ -382,14 +375,22 @@ def _get_stock_history_impl(
         # Convert DataFrame to list of dicts
         data = []
         for date_idx, row in hist.iterrows():
-            data.append({
-                "date": date_idx.strftime("%Y-%m-%d"),
-                "open": _round_or_none(float(row["Open"]), 3) if pd.notna(row["Open"]) else None,
-                "high": _round_or_none(float(row["High"]), 3) if pd.notna(row["High"]) else None,
-                "low": _round_or_none(float(row["Low"]), 3) if pd.notna(row["Low"]) else None,
-                "close": _round_or_none(float(row["Close"]), 3) if pd.notna(row["Close"]) else None,
-                "volume": int(row["Volume"]) if pd.notna(row["Volume"]) else 0,
-            })
+            data.append(
+                {
+                    "date": date_idx.strftime("%Y-%m-%d"),
+                    "open": _round_or_none(float(row["Open"]), 3)
+                    if pd.notna(row["Open"])
+                    else None,
+                    "high": _round_or_none(float(row["High"]), 3)
+                    if pd.notna(row["High"])
+                    else None,
+                    "low": _round_or_none(float(row["Low"]), 3) if pd.notna(row["Low"]) else None,
+                    "close": _round_or_none(float(row["Close"]), 3)
+                    if pd.notna(row["Close"])
+                    else None,
+                    "volume": int(row["Volume"]) if pd.notna(row["Volume"]) else 0,
+                }
+            )
 
         return {
             "ticker": normalized,
@@ -404,9 +405,7 @@ def _get_stock_history_impl(
 
 
 @mcp.tool()
-def get_stock_history(
-    ticker: str, start_date: str, end_date: str
-) -> dict[str, Any]:
+def get_stock_history(ticker: str, start_date: str, end_date: str) -> dict[str, Any]:
     """Fetch historical OHLC data for a ticker over a date range.
 
     Use this to retrieve daily open, high, low, close, and volume data

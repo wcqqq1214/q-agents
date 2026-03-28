@@ -1,7 +1,9 @@
-import pytest
 from datetime import datetime
+
+import pytest
+
 from app.dataflows.interface import DataFlowRouter
-from app.dataflows.models import StockCandle
+
 
 @pytest.mark.asyncio
 async def test_router_primary_success():
@@ -11,19 +13,16 @@ async def test_router_primary_success():
         "tool_vendors": {},
         "mcp_servers": {
             "market_data": "http://localhost:8000",
-            "news_search": "http://localhost:8001"
+            "news_search": "http://localhost:8001",
         },
-        "redis_url": "redis://localhost:6379"
+        "redis_url": "redis://localhost:6379",
     }
     router = DataFlowRouter(config, enable_cache=False)
 
-    result = await router.get_stock_data(
-        "AAPL",
-        datetime(2024, 1, 1),
-        datetime(2024, 1, 31)
-    )
+    result = await router.get_stock_data("AAPL", datetime(2024, 1, 1), datetime(2024, 1, 31))
 
     assert isinstance(result, list)
+
 
 @pytest.mark.asyncio
 async def test_router_fallback_on_error():
@@ -33,19 +32,15 @@ async def test_router_fallback_on_error():
         "tool_vendors": {},
         "mcp_servers": {
             "market_data": "http://invalid:9999",  # Invalid URL
-            "news_search": "http://localhost:8001"
+            "news_search": "http://localhost:8001",
         },
         "fallback_vendor": "yfinance",
-        "redis_url": "redis://localhost:6379"
+        "redis_url": "redis://localhost:6379",
     }
     router = DataFlowRouter(config, enable_cache=False)
 
     # Should fallback to yfinance
-    result = await router.get_stock_data(
-        "AAPL",
-        datetime(2024, 1, 1),
-        datetime(2024, 1, 31)
-    )
+    result = await router.get_stock_data("AAPL", datetime(2024, 1, 1), datetime(2024, 1, 31))
 
     assert isinstance(result, list)
     assert len(result) > 0

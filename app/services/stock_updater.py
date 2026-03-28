@@ -1,10 +1,10 @@
 """Stock data updater with intraday support."""
 
 import asyncio
-import os
 import logging
-from typing import Dict, List
+import os
 from pathlib import Path
+from typing import Dict, List
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -22,7 +22,14 @@ US_EASTERN = ZoneInfo("America/New_York")
 # yfinance reads proxy/cache settings from process environment. The default
 # sandbox profile points to a local proxy and a non-writable cache directory,
 # so we normalize those settings here to make the updater usable by default.
-for _proxy_var in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+for _proxy_var in (
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+):
     os.environ.pop(_proxy_var, None)
 
 _YFINANCE_CACHE_DIR = Path("/tmp/codex-yfinance-cache")
@@ -120,9 +127,7 @@ def fetch_recent_ohlc(symbols: List[str], days: int = 5) -> Dict[str, List[Dict]
 
 
 async def _fetch_with_rate_limit(
-    symbols: List[str],
-    days: int,
-    delay: float
+    symbols: List[str], days: int, delay: float
 ) -> Dict[str, List[Dict]]:
     """Fetch stock data with rate limiting to avoid Yahoo Finance ban.
 
@@ -143,11 +148,7 @@ async def _fetch_with_rate_limit(
                 await asyncio.sleep(delay)
 
             # Fetch data for single symbol
-            data = await asyncio.to_thread(
-                fetch_recent_ohlc,
-                [symbol],
-                days
-            )
+            data = await asyncio.to_thread(fetch_recent_ohlc, [symbol], days)
 
             if symbol in data:
                 result[symbol] = data[symbol]
@@ -176,8 +177,9 @@ async def catchup_historical_stocks(days: int) -> dict:
             - errors: list of error messages
     """
     from datetime import date, datetime
-    from app.database.ohlc import get_metadata, upsert_ohlc_overwrite, update_metadata
+
     from app.config_manager import get_stock_catchup_config
+    from app.database.ohlc import get_metadata, update_metadata, upsert_ohlc_overwrite
 
     # Validate AAPL is in SYMBOLS list (used as sentinel)
     if "AAPL" not in SYMBOLS:
@@ -187,7 +189,7 @@ async def catchup_historical_stocks(days: int) -> dict:
             "symbols_updated": 0,
             "records_added": 0,
             "date_range": None,
-            "errors": [error_msg]
+            "errors": [error_msg],
         }
 
     logger.info(f"Starting stock catch-up (max {days} days)...")
@@ -211,7 +213,7 @@ async def catchup_historical_stocks(days: int) -> dict:
                 "symbols_updated": 0,
                 "records_added": 0,
                 "date_range": None,
-                "errors": []
+                "errors": [],
             }
 
         fetch_days = min(gap_days, days)
@@ -219,19 +221,10 @@ async def catchup_historical_stocks(days: int) -> dict:
 
     # Fetch with rate limiting
     config = get_stock_catchup_config()
-    data_by_symbol = await _fetch_with_rate_limit(
-        SYMBOLS,
-        fetch_days,
-        config["rate_limit_delay"]
-    )
+    data_by_symbol = await _fetch_with_rate_limit(SYMBOLS, fetch_days, config["rate_limit_delay"])
 
     # Save to database
-    stats = {
-        "symbols_updated": 0,
-        "records_added": 0,
-        "date_range": None,
-        "errors": []
-    }
+    stats = {"symbols_updated": 0, "records_added": 0, "date_range": None, "errors": []}
 
     for symbol, records in data_by_symbol.items():
         try:

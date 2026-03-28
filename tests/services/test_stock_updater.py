@@ -1,10 +1,10 @@
 """Tests for stock updater helpers."""
 
-import pandas as pd
 from unittest.mock import patch
 
-from app.services.stock_updater import _extract_symbol_frame
-from app.services.stock_updater import fetch_recent_ohlc
+import pandas as pd
+
+from app.services.stock_updater import _extract_symbol_frame, fetch_recent_ohlc
 
 
 def test_extract_symbol_frame_single_symbol_multiindex():

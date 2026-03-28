@@ -11,10 +11,12 @@ Configuration priority:
 3. WSL2 detected -> Auto-detect Windows host IP
 4. Fallback -> Use localhost:7890
 """
+
+import logging
 import os
 import platform
-import logging
 from typing import Optional
+
 from dotenv import load_dotenv
 
 # Load .env file before reading environment variables
@@ -46,9 +48,9 @@ def get_wsl2_host_ip() -> Optional[str]:
         Host IP address or None if detection fails
     """
     try:
-        with open('/etc/resolv.conf', 'r') as f:
+        with open("/etc/resolv.conf", "r") as f:
             for line in f:
-                if line.strip().startswith('nameserver'):
+                if line.strip().startswith("nameserver"):
                     host_ip = line.split()[1]
                     logger.info(f"Detected WSL2 host IP: {host_ip}")
                     return host_ip

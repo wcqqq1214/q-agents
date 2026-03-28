@@ -57,12 +57,12 @@ def main() -> None:
 
     symbols = [args.symbol.upper()] if args.symbol else MAGNIFICENT_SEVEN
 
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("Layer 1 Semantic Extraction")
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info(f"Tickers: {', '.join(symbols)}")
     logger.info(f"Max articles per ticker: {args.limit}")
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("")
 
     total_processed = 0
@@ -96,14 +96,14 @@ def main() -> None:
         logger.info("")
 
     # Summary
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("LAYER 1 COMPLETE")
     logger.info(f"Total processed: {total_processed}")
     logger.info(f"Total relevant: {total_relevant}")
     logger.info(f"Total API calls: {total_api_calls}")
     if total_retries > 0:
         logger.info(f"Total retries: {total_retries}")
-    logger.info("="*60)
+    logger.info("=" * 60)
 
 
 if __name__ == "__main__":

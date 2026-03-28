@@ -1,9 +1,9 @@
 """Tests for history API endpoints."""
 
-from datetime import datetime, timezone, timedelta
 import uuid
+from datetime import datetime, timedelta, timezone
 
-from app.database.agent_history import init_db, save_analysis_run, save_agent_execution
+from app.database.agent_history import init_db, save_agent_execution, save_analysis_run
 
 
 def test_get_analysis_runs(tmp_path, monkeypatch):
@@ -14,12 +14,21 @@ def test_get_analysis_runs(tmp_path, monkeypatch):
 
     # Create client AFTER setting environment variable
     from fastapi.testclient import TestClient
+
     from app.api.main import app
+
     client = TestClient(app)
 
     # Insert test data
     tz = timezone(timedelta(hours=8))
-    save_analysis_run("20260321_100000", "AAPL", "test query", datetime.now(tz), "decision", str(db_path))
+    save_analysis_run(
+        "20260321_100000",
+        "AAPL",
+        "test query",
+        datetime.now(tz),
+        "decision",
+        str(db_path),
+    )
 
     response = client.get("/api/analysis-runs")
     assert response.status_code == 200
@@ -36,7 +45,9 @@ def test_get_analysis_runs_with_filters(tmp_path, monkeypatch):
     monkeypatch.setenv("AGENT_HISTORY_DB_PATH", str(db_path))
 
     from fastapi.testclient import TestClient
+
     from app.api.main import app
+
     client = TestClient(app)
 
     tz = timezone(timedelta(hours=8))
@@ -56,7 +67,9 @@ def test_get_run_detail(tmp_path, monkeypatch):
     monkeypatch.setenv("AGENT_HISTORY_DB_PATH", str(db_path))
 
     from fastapi.testclient import TestClient
+
     from app.api.main import app
+
     client = TestClient(app)
 
     run_id = "20260321_143052"
@@ -64,7 +77,14 @@ def test_get_run_detail(tmp_path, monkeypatch):
     save_analysis_run(run_id, "AAPL", "test", datetime.now(tz), "decision", str(db_path))
 
     exec_id = str(uuid.uuid4())
-    save_agent_execution(exec_id, run_id, "quant", [{"role": "system", "content": "test"}], datetime.now(tz), db_path=str(db_path))
+    save_agent_execution(
+        exec_id,
+        run_id,
+        "quant",
+        [{"role": "system", "content": "test"}],
+        datetime.now(tz),
+        db_path=str(db_path),
+    )
 
     response = client.get(f"/api/analysis-runs/{run_id}")
     assert response.status_code == 200
@@ -81,7 +101,9 @@ def test_get_run_detail_not_found(tmp_path, monkeypatch):
     monkeypatch.setenv("AGENT_HISTORY_DB_PATH", str(db_path))
 
     from fastapi.testclient import TestClient
+
     from app.api.main import app
+
     client = TestClient(app)
 
     response = client.get("/api/analysis-runs/nonexistent")

@@ -1,9 +1,8 @@
 """OHLC data operations for the database."""
 
-import sqlite3
 import logging
-from typing import List, Dict, Optional
 from datetime import datetime
+from typing import Dict, List, Optional
 
 from app.database.schema import get_conn
 
@@ -47,7 +46,7 @@ def get_ohlc_aggregated(symbol: str, start: str, end: str, interval: str) -> Lis
     """
     conn = get_conn()
 
-    if interval == 'day':
+    if interval == "day":
         # Direct query, no aggregation needed
         query = """
             SELECT date, open, high, low, close, volume
@@ -56,7 +55,7 @@ def get_ohlc_aggregated(symbol: str, start: str, end: str, interval: str) -> Lis
             ORDER BY date ASC
         """
         params = (symbol.upper(), start, end)
-    elif interval == 'week':
+    elif interval == "week":
         # Aggregate by ISO week (Monday to Sunday)
         query = """
             SELECT
@@ -78,7 +77,7 @@ def get_ohlc_aggregated(symbol: str, start: str, end: str, interval: str) -> Lis
             ORDER BY date ASC
         """
         params = (symbol.upper(), start, end)
-    elif interval == 'month':
+    elif interval == "month":
         # Aggregate by calendar month
         query = """
             SELECT
@@ -100,7 +99,7 @@ def get_ohlc_aggregated(symbol: str, start: str, end: str, interval: str) -> Lis
             ORDER BY date ASC
         """
         params = (symbol.upper(), start, end)
-    elif interval == 'year':
+    elif interval == "year":
         # Aggregate by calendar year
         query = """
             SELECT
@@ -142,12 +141,25 @@ def upsert_ohlc(symbol: str, data: List[Dict]):
         return
 
     conn = get_conn()
-    conn.executemany("""
+    conn.executemany(
+        """
         INSERT INTO ohlc (symbol, date, open, high, low, close, volume)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(symbol, date) DO NOTHING
-    """, [(symbol.upper(), d['date'], d['open'], d['high'], d['low'], d['close'], d['volume'])
-          for d in data])
+    """,
+        [
+            (
+                symbol.upper(),
+                d["date"],
+                d["open"],
+                d["high"],
+                d["low"],
+                d["close"],
+                d["volume"],
+            )
+            for d in data
+        ],
+    )
     conn.commit()
     conn.close()
     logger.info(f"Upserted {len(data)} records for {symbol}")
@@ -175,7 +187,15 @@ def upsert_ohlc_overwrite(symbol: str, data: List[Dict]):
             volume = excluded.volume
         """,
         [
-            (symbol.upper(), d["date"], d["open"], d["high"], d["low"], d["close"], d["volume"])
+            (
+                symbol.upper(),
+                d["date"],
+                d["open"],
+                d["high"],
+                d["low"],
+                d["close"],
+                d["volume"],
+            )
             for d in data
         ],
     )
@@ -204,13 +224,16 @@ def update_metadata(symbol: str, start: str, end: str):
         )
     """)
 
-    conn.execute("""
+    conn.execute(
+        """
         INSERT INTO data_metadata (symbol, last_update, data_start, data_end)
         VALUES (?, ?, ?, ?)
         ON CONFLICT(symbol) DO UPDATE SET
             last_update = excluded.last_update,
             data_end = excluded.data_end
-    """, (symbol.upper(), datetime.now().isoformat(), start, end))
+    """,
+        (symbol.upper(), datetime.now().isoformat(), start, end),
+    )
     conn.commit()
     conn.close()
 
@@ -229,9 +252,6 @@ def get_metadata(symbol: str) -> Optional[Dict]:
         conn.close()
         return None
 
-    row = conn.execute(
-        "SELECT * FROM data_metadata WHERE symbol = ?",
-        (symbol.upper(),)
-    ).fetchone()
+    row = conn.execute("SELECT * FROM data_metadata WHERE symbol = ?", (symbol.upper(),)).fetchone()
     conn.close()
     return dict(row) if row else None

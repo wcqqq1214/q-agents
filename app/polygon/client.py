@@ -7,7 +7,6 @@ NOTE: As of 2026-03-20, only fetch_news() is actively used.
 OHLC data fetching has been migrated to yfinance via MCP server.
 """
 
-import json
 import logging
 import os
 import time
@@ -35,8 +34,7 @@ def _get_api_key() -> str:
     api_key = os.environ.get("POLYGON_API_KEY")
     if not api_key:
         raise RuntimeError(
-            "POLYGON_API_KEY environment variable is not set. "
-            "Please add it to your .env file."
+            "POLYGON_API_KEY environment variable is not set. Please add it to your .env file."
         )
     return api_key
 
@@ -74,7 +72,7 @@ def _http_get(
         except requests.RequestException as exc:
             if attempt == max_retries - 1:
                 raise
-            wait = (backoff ** attempt) + 0.5
+            wait = (backoff**attempt) + 0.5
             logger.warning(f"Request failed: {exc}. Retrying in {wait:.1f}s...")
             time.sleep(wait)
             continue
@@ -85,7 +83,7 @@ def _http_get(
             wait = (
                 float(retry_after)
                 if retry_after and retry_after.isdigit()
-                else min((backoff ** attempt) + 1.0, 60.0)
+                else min((backoff**attempt) + 1.0, 60.0)
             )
             logger.warning(f"Rate limited (429). Waiting {wait:.1f}s...")
             time.sleep(wait)
@@ -95,10 +93,8 @@ def _http_get(
 
         # Handle server errors (5xx)
         if 500 <= resp.status_code < 600:
-            wait = min((backoff ** attempt) + 1.0, 60.0)
-            logger.warning(
-                f"Server error {resp.status_code}. Retrying in {wait:.1f}s..."
-            )
+            wait = min((backoff**attempt) + 1.0, 60.0)
+            logger.warning(f"Server error {resp.status_code}. Retrying in {wait:.1f}s...")
             time.sleep(wait)
             if attempt == max_retries - 1:
                 resp.raise_for_status()
@@ -145,20 +141,18 @@ def fetch_ohlc(ticker: str, start_date: str, end_date: str) -> List[Dict[str, An
 
     for r in results:
         timestamp_ms = int(r["t"])
-        date_str = (
-            datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
-            .date()
-            .isoformat()
-        )
+        date_str = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc).date().isoformat()
 
-        rows.append({
-            "date": date_str,
-            "open": r.get("o"),
-            "high": r.get("h"),
-            "low": r.get("l"),
-            "close": r.get("c"),
-            "volume": r.get("v"),
-        })
+        rows.append(
+            {
+                "date": date_str,
+                "open": r.get("o"),
+                "high": r.get("h"),
+                "low": r.get("l"),
+                "close": r.get("c"),
+                "volume": r.get("v"),
+            }
+        )
 
     logger.info(f"Fetched {len(rows)} OHLC rows for {ticker}")
     return rows
@@ -261,7 +255,7 @@ def fetch_news(
             break
 
         if not next_url:
-            logger.info(f"No more pages available")
+            logger.info("No more pages available")
             break
 
     logger.info(f"Fetched {len(all_articles)} news articles for {ticker} across {pages} pages")

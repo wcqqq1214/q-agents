@@ -91,6 +91,7 @@ def _parse_news_published_time(raw: Optional[str]) -> Optional[datetime]:
     except Exception:
         return None
 
+
 class StockQuote(TypedDict, total=False):
     """Typed dictionary representing a single stock quote.
 
@@ -645,4 +646,3 @@ def search_financial_news_tavily(query: str, limit: int = 5) -> List[NewsItem]:
             exc_info=True,
         )
         return []
-

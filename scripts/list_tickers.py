@@ -5,7 +5,6 @@ import sys
 
 from langchain_chroma import Chroma
 
-
 DEFAULT_PERSIST_DIR = "./data/chroma_event_db_stocks"
 DEFAULT_COLLECTION_NAME = "event_memory"
 
@@ -55,4 +54,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -139,9 +139,7 @@ def load_ohlcv(ticker: str, period_years: int = 5) -> pd.DataFrame:
     required_cols = ["Open", "High", "Low", "Close", "Volume"]
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
-        raise ValueError(
-            f"Downloaded data for {normalized!r} is missing columns: {missing}."
-        )
+        raise ValueError(f"Downloaded data for {normalized!r} is missing columns: {missing}.")
 
     df = df.sort_index()
     df = df.dropna(subset=required_cols)
@@ -293,9 +291,18 @@ def _compute_momentum_features(df: pd.DataFrame, cfg: FeatureConfig) -> pd.DataF
     macd_df = ta.macd(close)
     if not macd_df.empty:
         # The default MACD column names follow the pattern MACD_{fast}_{slow}_{signal}
-        macd_col = next((c for c in macd_df.columns if "MACD_" in c and "_signal" not in c and "_histogram" not in c), None)
+        macd_col = next(
+            (
+                c
+                for c in macd_df.columns
+                if "MACD_" in c and "_signal" not in c and "_histogram" not in c
+            ),
+            None,
+        )
         signal_col = next((c for c in macd_df.columns if "MACDs_" in c or "MACD_signal" in c), None)
-        hist_col = next((c for c in macd_df.columns if "MACDh_" in c or "MACD_histogram" in c), None)
+        hist_col = next(
+            (c for c in macd_df.columns if "MACDh_" in c or "MACD_histogram" in c), None
+        )
 
         if macd_col is None:
             macd_col = macd_df.columns[0]
@@ -492,10 +499,11 @@ def build_dataset(
     # Remove any absolute price columns from the feature matrix to stay close
     # to the design philosophy of using relative/indicator features. We keep
     # volume only through ``Volume_Ratio``.
-    drop_cols = [c for c in ["Open", "High", "Low", "Close", "Adj Close", "Volume"] if c in data.columns]
+    drop_cols = [
+        c for c in ["Open", "High", "Low", "Close", "Adj Close", "Volume"] if c in data.columns
+    ]
     data = data.drop(columns=drop_cols)
 
     y = data["label"].astype(int)
     X = data.drop(columns=["label"])
     return X, y
-

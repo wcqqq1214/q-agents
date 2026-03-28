@@ -13,14 +13,12 @@ from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.tools import BaseTool
-from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from app.social.export_tools import build_social_report, save_social_report
 from app.social.nlp_tools import analyze_reddit_text
 from app.social.reddit.tools import get_reddit_discussion
-
 
 load_dotenv()
 
@@ -94,7 +92,9 @@ def build_social_graph():
     return graph.compile()
 
 
-def run_social_messages(asset: str, *, config: Optional[RunnableConfig] = None) -> List[BaseMessage]:
+def run_social_messages(
+    asset: str, *, config: Optional[RunnableConfig] = None
+) -> List[BaseMessage]:
     """Run the Social Agent graph and return full message history.
 
     Args:
@@ -140,4 +140,3 @@ def parse_social_final_json(text: str) -> dict:
     if not raw:
         raise ValueError("Empty Social Agent final output.")
     return cast(dict, json.loads(raw))
-

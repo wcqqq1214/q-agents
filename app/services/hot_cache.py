@@ -26,7 +26,7 @@ HOT_CACHE: Dict[str, Dict[str, pd.DataFrame]] = {
 }
 
 # Expected DataFrame columns
-CACHE_COLUMNS = ['timestamp', 'date', 'open', 'high', 'low', 'close', 'volume']
+CACHE_COLUMNS = ["timestamp", "date", "open", "high", "low", "close", "volume"]
 CACHE_TTLS = {
     "1m": 60,
     "5m": 300,
@@ -69,9 +69,9 @@ def _merge_frames(current: pd.DataFrame, new_data: Any) -> pd.DataFrame:
     new_df = _normalize_dataframe(new_data)
     combined = pd.concat([current, new_df], ignore_index=True)
 
-    if 'timestamp' in combined.columns and len(combined) > 0:
-        combined = combined.drop_duplicates(subset=['timestamp'], keep='last')
-        combined = combined.sort_values('timestamp').reset_index(drop=True)
+    if "timestamp" in combined.columns and len(combined) > 0:
+        combined = combined.drop_duplicates(subset=["timestamp"], keep="last")
+        combined = combined.sort_values("timestamp").reset_index(drop=True)
 
     if len(combined) > 2880:
         combined = combined.tail(2880).reset_index(drop=True)
@@ -82,7 +82,7 @@ def _merge_frames(current: pd.DataFrame, new_data: Any) -> pd.DataFrame:
 def _serialize_dataframe(df: pd.DataFrame) -> bytes:
     buffer = io.BytesIO()
     normalized = _normalize_dataframe(df)
-    normalized.to_parquet(buffer, engine='pyarrow', compression='snappy', index=False)
+    normalized.to_parquet(buffer, engine="pyarrow", compression="snappy", index=False)
     return buffer.getvalue()
 
 
@@ -128,7 +128,7 @@ def _cleanup_memory_cache(symbol: str, interval: str, cutoff_date: datetime) -> 
         return
 
     cutoff_timestamp = int(cutoff_date.timestamp() * 1000)
-    HOT_CACHE[symbol][interval] = df[df['timestamp'] >= cutoff_timestamp].reset_index(drop=True)
+    HOT_CACHE[symbol][interval] = df[df["timestamp"] >= cutoff_timestamp].reset_index(drop=True)
 
 
 def _should_attempt_redis() -> bool:
@@ -164,11 +164,7 @@ def get_hot_cache(symbol: str, interval: str) -> pd.DataFrame:
     return _read_memory_cache(symbol, interval)
 
 
-def append_to_hot_cache(
-    symbol: str,
-    interval: str,
-    new_data: List[Dict[str, Any]]
-) -> None:
+def append_to_hot_cache(symbol: str, interval: str, new_data: List[Dict[str, Any]]) -> None:
     """
     Append new data to hot cache with deduplication.
 
@@ -192,7 +188,12 @@ def append_to_hot_cache(
                 recovered = redis_circuit_breaker.record_success()
                 if recovered:
                     clear_memory_cache()
-                logger.info("Appended data to Redis hot cache for %s %s, now %s records", symbol, interval, len(combined))
+                logger.info(
+                    "Appended data to Redis hot cache for %s %s, now %s records",
+                    symbol,
+                    interval,
+                    len(combined),
+                )
                 return
         except (redis.RedisError, OSError, ValueError) as exc:
             redis_circuit_breaker.record_failure()
@@ -222,7 +223,7 @@ def cleanup_hot_cache(symbol: str, interval: str, cutoff_date: datetime) -> None
 
                 df = _deserialize_dataframe(payload)
                 cutoff_timestamp = int(cutoff_date.timestamp() * 1000)
-                df_filtered = df[df['timestamp'] >= cutoff_timestamp].reset_index(drop=True)
+                df_filtered = df[df["timestamp"] >= cutoff_timestamp].reset_index(drop=True)
                 if df_filtered.empty:
                     client.delete(_cache_key(symbol, interval))
                 else:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from typing import List
+
 import requests
 from dotenv import load_dotenv
 from langchain_core.embeddings import Embeddings
@@ -25,13 +26,9 @@ class MinimaxEmbeddings(Embeddings):
             f"{self.base_url}/embeddings",
             headers={
                 "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             },
-            json={
-                "model": self.model,
-                "texts": texts,
-                "type": "db"
-            }
+            json={"model": self.model, "texts": texts, "type": "db"},
         )
         response.raise_for_status()
         data = response.json()
@@ -43,13 +40,9 @@ class MinimaxEmbeddings(Embeddings):
             f"{self.base_url}/embeddings",
             headers={
                 "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             },
-            json={
-                "model": self.model,
-                "texts": [text],
-                "type": "query"
-            }
+            json={"model": self.model, "texts": [text], "type": "query"},
         )
         response.raise_for_status()
         data = response.json()

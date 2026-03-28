@@ -64,9 +64,7 @@ def call_get_us_stock_quote(ticker: str) -> dict[str, Any]:
     return asyncio.run(_call_get_us_stock_quote_async(ticker, url))
 
 
-async def _call_get_stock_data_async(
-    ticker: str, period: str, url: str
-) -> dict[str, Any]:
+async def _call_get_stock_data_async(ticker: str, period: str, url: str) -> dict[str, Any]:
     """Call the get_stock_data tool on the MCP server."""
     async with streamable_http_client(url) as (read, write, _):
         async with ClientSession(read, write) as session:
@@ -95,9 +93,7 @@ async def _call_get_stock_data_async(
             return json.loads(text)
 
 
-def call_get_stock_data(
-    ticker: str, period: str = "3mo"
-) -> dict[str, Any]:
+def call_get_stock_data(ticker: str, period: str = "3mo") -> dict[str, Any]:
     """Call the MCP server's get_stock_data tool.
 
     Args:
@@ -116,9 +112,7 @@ def call_get_stock_data(
     return asyncio.run(_call_get_stock_data_async(ticker, period, url))
 
 
-async def _call_search_news_async(
-    query: str, limit: int, url: str
-) -> List[dict[str, Any]]:
+async def _call_search_news_async(query: str, limit: int, url: str) -> List[dict[str, Any]]:
     """Call the search_news_with_duckduckgo tool on the MCP server."""
     async with streamable_http_client(url) as (read, write, _):
         async with ClientSession(read, write) as session:
@@ -167,9 +161,7 @@ def call_search_news(query: str, limit: int = 5) -> List[dict[str, Any]]:
     return asyncio.run(_call_search_news_async(query, limit, url))
 
 
-async def _call_search_news_tavily_async(
-    query: str, limit: int, url: str
-) -> List[dict[str, Any]]:
+async def _call_search_news_tavily_async(query: str, limit: int, url: str) -> List[dict[str, Any]]:
     """Call the search_news_with_tavily tool on the MCP server."""
     async with streamable_http_client(url) as (read, write, _):
         async with ClientSession(read, write) as session:
@@ -219,10 +211,7 @@ def call_search_news_tavily(query: str, limit: int = 5) -> List[dict[str, Any]]:
 
 
 async def _call_get_stock_history_async(
-    ticker: str,
-    start_date: str,
-    end_date: str,
-    url: str
+    ticker: str, start_date: str, end_date: str, url: str
 ) -> List[dict[str, Any]]:
     """Call the get_stock_history tool on the MCP server."""
     async with streamable_http_client(url) as (read, write, _):
@@ -258,11 +247,7 @@ async def _call_get_stock_history_async(
             return data.get("data", [])
 
 
-def call_get_stock_history(
-    ticker: str,
-    start_date: str,
-    end_date: str
-) -> List[dict[str, Any]]:
+def call_get_stock_history(ticker: str, start_date: str, end_date: str) -> List[dict[str, Any]]:
     """Call the MCP server's get_stock_history tool.
 
     Args:

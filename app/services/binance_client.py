@@ -1,8 +1,10 @@
 """Binance REST API client for fetching K-line data."""
-from typing import List, Dict, Any
-from datetime import datetime, timezone
-import httpx
+
 import logging
+from datetime import datetime, timezone
+from typing import Any, Dict, List
+
+import httpx
 
 from app.config.network import PROXY_URL
 from app.services.rate_limiter import rate_limit
@@ -30,26 +32,24 @@ def parse_kline_response(raw_klines: List[List[Any]]) -> List[Dict[str, Any]]:
         timestamp_ms = kline[0]
         dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
 
-        result.append({
-            'timestamp': timestamp_ms,
-            'date': dt.isoformat(),
-            'open': float(kline[1]),
-            'high': float(kline[2]),
-            'low': float(kline[3]),
-            'close': float(kline[4]),
-            'volume': float(kline[5])
-        })
+        result.append(
+            {
+                "timestamp": timestamp_ms,
+                "date": dt.isoformat(),
+                "open": float(kline[1]),
+                "high": float(kline[2]),
+                "low": float(kline[3]),
+                "close": float(kline[4]),
+                "volume": float(kline[5]),
+            }
+        )
 
     return result
 
 
 @rate_limit(exchange="binance")
 async def fetch_binance_klines(
-    symbol: str,
-    interval: str,
-    start_time: int,
-    end_time: int,
-    limit: int = 1000
+    symbol: str, interval: str, start_time: int, end_time: int, limit: int = 1000
 ) -> List[Dict[str, Any]]:
     """
     Fetch K-line data from Binance REST API.
@@ -73,7 +73,7 @@ async def fetch_binance_klines(
         "interval": interval,
         "startTime": start_time,
         "endTime": end_time,
-        "limit": min(limit, 1000)  # Binance max is 1000
+        "limit": min(limit, 1000),  # Binance max is 1000
     }
 
     async with httpx.AsyncClient(proxy=PROXY_URL, timeout=30.0) as client:
@@ -85,10 +85,7 @@ async def fetch_binance_klines(
 
 
 async def fetch_klines_with_pagination(
-    symbol: str,
-    interval: str,
-    start_time: int,
-    end_time: int
+    symbol: str, interval: str, start_time: int, end_time: int
 ) -> List[Dict[str, Any]]:
     """
     Fetch K-line data from Binance with automatic pagination.
@@ -117,7 +114,7 @@ async def fetch_klines_with_pagination(
             interval=interval,
             start_time=current_start,
             end_time=end_time,
-            limit=1000
+            limit=1000,
         )
 
         if not batch:
@@ -128,7 +125,7 @@ async def fetch_klines_with_pagination(
         if len(batch) < 1000:
             break
 
-        last_timestamp = batch[-1]['timestamp']
+        last_timestamp = batch[-1]["timestamp"]
 
         if last_timestamp >= end_time:
             break

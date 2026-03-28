@@ -1,9 +1,12 @@
 # tests/test_dataflows_cache.py
+from datetime import datetime
+
 import pytest
-from datetime import datetime, timedelta
-from app.dataflows.cache import DataCache, CacheConfig
-from app.dataflows.models import StockCandle
 import redis.exceptions
+
+from app.dataflows.cache import CacheConfig, DataCache
+from app.dataflows.models import StockCandle
+
 
 @pytest.mark.asyncio
 async def test_cache_set_and_get():
@@ -19,7 +22,7 @@ async def test_cache_set_and_get():
             high=105.0,
             low=99.0,
             close=103.0,
-            volume=1000000
+            volume=1000000,
         )
     ]
 
@@ -31,16 +34,11 @@ async def test_cache_set_and_get():
             CacheConfig.STOCK_DATA_TTL,
             symbol="AAPL",
             start="2024-01-01",
-            end="2024-01-31"
+            end="2024-01-31",
         )
 
         # Get cache
-        cached = await cache.get(
-            "stock_data",
-            symbol="AAPL",
-            start="2024-01-01",
-            end="2024-01-31"
-        )
+        cached = await cache.get("stock_data", symbol="AAPL", start="2024-01-01", end="2024-01-31")
 
         assert cached is not None
         assert len(cached) == 1
@@ -48,17 +46,14 @@ async def test_cache_set_and_get():
     except redis.exceptions.ConnectionError:
         pytest.skip("Redis not running")
 
+
 @pytest.mark.asyncio
 async def test_cache_miss():
     """Test cache miss returns None"""
     cache = DataCache("redis://localhost:6379")
 
     try:
-        result = await cache.get(
-            "stock_data",
-            symbol="NONEXISTENT",
-            start="2024-01-01"
-        )
+        result = await cache.get("stock_data", symbol="NONEXISTENT", start="2024-01-01")
 
         assert result is None
     except redis.exceptions.ConnectionError:

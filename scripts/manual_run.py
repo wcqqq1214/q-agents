@@ -15,7 +15,7 @@ def main() -> None:
     输入 exit 退出。
     """
 
-    print("=== Multi-Agent Finance（Quant | News -> CIO）===" )
+    print("=== Multi-Agent Finance（Quant | News -> CIO）===")
     print("输入问题，例如：分析一下 NVDA 或 BTC-USD 的走势与情绪")
     print("输入 'exit' 退出。\n")
 
@@ -28,7 +28,11 @@ def main() -> None:
                 print("再见！")
                 return
 
-            print("Agent 运行中（Quant + News 并行，随后 CIO 综合）...", end="", flush=True)
+            print(
+                "Agent 运行中（Quant + News 并行，随后 CIO 综合）...",
+                end="",
+                flush=True,
+            )
             try:
                 final_state = run_once(user_input)
             except Exception as exc:  # noqa: BLE001

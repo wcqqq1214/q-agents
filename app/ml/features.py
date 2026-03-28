@@ -5,7 +5,6 @@ All features use shift(1) or past windows to prevent look-ahead leakage.
 """
 
 import logging
-from typing import Optional
 
 import pandas as pd
 
@@ -86,15 +85,33 @@ def build_features(symbol: str) -> pd.DataFrame:
     if not news.empty:
         df = df.merge(news, on="trade_date", how="left")
     else:
-        for col in ["n_articles", "n_relevant", "n_positive", "n_negative",
-                     "n_neutral", "sentiment_score", "relevance_ratio",
-                     "positive_ratio", "negative_ratio", "has_news"]:
+        for col in [
+            "n_articles",
+            "n_relevant",
+            "n_positive",
+            "n_negative",
+            "n_neutral",
+            "sentiment_score",
+            "relevance_ratio",
+            "positive_ratio",
+            "negative_ratio",
+            "has_news",
+        ]:
             df[col] = 0
 
     # Fill missing news days
-    news_cols = ["n_articles", "n_relevant", "n_positive", "n_negative",
-                 "n_neutral", "sentiment_score", "relevance_ratio",
-                 "positive_ratio", "negative_ratio", "has_news"]
+    news_cols = [
+        "n_articles",
+        "n_relevant",
+        "n_positive",
+        "n_negative",
+        "n_neutral",
+        "sentiment_score",
+        "relevance_ratio",
+        "positive_ratio",
+        "negative_ratio",
+        "has_news",
+    ]
     df[news_cols] = df[news_cols].fillna(0)
 
     # --- Rolling news features (use current + past, no shift needed since news is pre-market/same day) ---
@@ -118,13 +135,13 @@ def build_features(symbol: str) -> pd.DataFrame:
     df["volatility_10d"] = close.pct_change().rolling(10).std().shift(1)
 
     avg_vol_5 = df["volume"].rolling(5).mean().shift(1)
-    df["volume_ratio_5d"] = (df["volume"].shift(1) / avg_vol_5.clip(lower=1))
+    df["volume_ratio_5d"] = df["volume"].shift(1) / avg_vol_5.clip(lower=1)
 
     df["gap"] = (df["open"] / close.shift(1) - 1).shift(1)
 
     ma5 = close.rolling(5).mean().shift(1)
     ma20 = close.rolling(20).mean().shift(1)
-    df["ma5_vs_ma20"] = (ma5 / ma20.clip(lower=0.01) - 1)
+    df["ma5_vs_ma20"] = ma5 / ma20.clip(lower=0.01) - 1
 
     # RSI 14
     delta = close.diff().shift(1)
@@ -150,16 +167,40 @@ def build_features(symbol: str) -> pd.DataFrame:
 # Feature columns for ML models
 FEATURE_COLS = [
     # News
-    "n_articles", "n_relevant", "n_positive", "n_negative", "n_neutral",
-    "sentiment_score", "relevance_ratio", "positive_ratio", "negative_ratio", "has_news",
+    "n_articles",
+    "n_relevant",
+    "n_positive",
+    "n_negative",
+    "n_neutral",
+    "sentiment_score",
+    "relevance_ratio",
+    "positive_ratio",
+    "negative_ratio",
+    "has_news",
     # Rolling news
-    "sentiment_score_3d", "sentiment_score_5d", "sentiment_score_10d",
-    "positive_ratio_3d", "positive_ratio_5d", "positive_ratio_10d",
-    "negative_ratio_3d", "negative_ratio_5d", "negative_ratio_10d",
-    "news_count_3d", "news_count_5d", "news_count_10d",
+    "sentiment_score_3d",
+    "sentiment_score_5d",
+    "sentiment_score_10d",
+    "positive_ratio_3d",
+    "positive_ratio_5d",
+    "positive_ratio_10d",
+    "negative_ratio_3d",
+    "negative_ratio_5d",
+    "negative_ratio_10d",
+    "news_count_3d",
+    "news_count_5d",
+    "news_count_10d",
     "sentiment_momentum_3d",
     # Price / tech
-    "ret_1d", "ret_3d", "ret_5d", "ret_10d",
-    "volatility_5d", "volatility_10d",
-    "volume_ratio_5d", "gap", "ma5_vs_ma20", "rsi_14", "day_of_week",
+    "ret_1d",
+    "ret_3d",
+    "ret_5d",
+    "ret_10d",
+    "volatility_5d",
+    "volatility_10d",
+    "volume_ratio_5d",
+    "gap",
+    "ma5_vs_ma20",
+    "rsi_14",
+    "day_of_week",
 ]

@@ -1,7 +1,6 @@
 """Polymarket API client for fetching prediction market data."""
 
 import logging
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -149,9 +148,7 @@ class PolymarketClient:
 
         return relevant_markets[:limit]
 
-    def _filter_by_query(
-        self, markets: List[Dict[str, Any]], query: str
-    ) -> List[Dict[str, Any]]:
+    def _filter_by_query(self, markets: List[Dict[str, Any]], query: str) -> List[Dict[str, Any]]:
         """Filter markets by query relevance.
 
         Args:
@@ -407,6 +404,7 @@ class PolymarketClient:
         try:
             if isinstance(outcome_prices_raw, str):
                 import json
+
                 outcome_prices = json.loads(outcome_prices_raw)
             else:
                 outcome_prices = outcome_prices_raw

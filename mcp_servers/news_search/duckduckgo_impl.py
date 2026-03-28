@@ -33,20 +33,19 @@ def search_news_impl(query: str, limit: int) -> List[dict[str, Any]]:
                             else published_time
                         )
                         dt = datetime.fromisoformat(iso_candidate)
-                        dt_utc8 = (
-                            dt.astimezone(timezone(timedelta(hours=8)))
-                            .replace(microsecond=0)
-                        )
+                        dt_utc8 = dt.astimezone(timezone(timedelta(hours=8))).replace(microsecond=0)
                         published_time = dt_utc8.isoformat()
                     except ValueError:
                         pass
-                items.append({
-                    "title": title,
-                    "url": url,
-                    "source": source,
-                    "published_time": published_time,
-                    "snippet": snippet,
-                })
+                items.append(
+                    {
+                        "title": title,
+                        "url": url,
+                        "source": source,
+                        "published_time": published_time,
+                        "snippet": snippet,
+                    }
+                )
     except Exception as exc:
         logger.warning("DuckDuckGo news search failed for %r: %s", query, exc)
     return items

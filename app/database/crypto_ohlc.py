@@ -4,17 +4,14 @@ This module provides functions for storing and retrieving cryptocurrency OHLC
 (Open, High, Low, Close) data with support for multiple timeframes (bars).
 """
 
-from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime, date
-import sqlite3
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional
+
 from .schema import get_conn
 
 
 def get_crypto_ohlc(
-    symbol: str,
-    bar: str,
-    start: Optional[str] = None,
-    end: Optional[str] = None
+    symbol: str, bar: str, start: Optional[str] = None, end: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """Query crypto OHLC data from database.
 
@@ -84,14 +81,14 @@ def upsert_crypto_ohlc(symbol: str, bar: str, data: List[Dict[str, Any]]) -> int
     records = [
         (
             symbol,
-            record['timestamp'],
-            record['date'],
-            record['open'],
-            record['high'],
-            record['low'],
-            record['close'],
-            record['volume'],
-            bar
+            record["timestamp"],
+            record["date"],
+            record["open"],
+            record["high"],
+            record["low"],
+            record["close"],
+            record["volume"],
+            bar,
         )
         for record in data
     ]
@@ -104,13 +101,7 @@ def upsert_crypto_ohlc(symbol: str, bar: str, data: List[Dict[str, Any]]) -> int
     return count
 
 
-def update_crypto_metadata(
-    symbol: str,
-    bar: str,
-    start: str,
-    end: str,
-    total_records: int
-) -> None:
+def update_crypto_metadata(symbol: str, bar: str, start: str, end: str, total_records: int) -> None:
     """Update crypto metadata for a symbol and timeframe.
 
     Args:
@@ -186,7 +177,7 @@ def get_max_timestamp(symbol: str, bar: str) -> Optional[int]:
     row = cursor.fetchone()
     conn.close()
 
-    return row['max_ts'] if row and row['max_ts'] is not None else None
+    return row["max_ts"] if row and row["max_ts"] is not None else None
 
 
 def get_max_date(symbol: str, bar: str) -> Optional[date]:
@@ -211,6 +202,6 @@ def get_max_date(symbol: str, bar: str) -> Optional[date]:
     row = cursor.fetchone()
     conn.close()
 
-    if row and row['max_date']:
-        return date.fromisoformat(row['max_date'])
+    if row and row["max_date"]:
+        return date.fromisoformat(row["max_date"])
     return None

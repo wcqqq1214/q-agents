@@ -6,10 +6,8 @@ news sentiment, technical indicators, and historical return data.
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from datetime import datetime
 
-import pandas as pd
 from langchain_core.tools import tool
 
 from app.database import get_conn
@@ -53,29 +51,35 @@ def get_stock_data_with_sentiment(ticker: str, days: int = 90) -> str:
 
     mag_seven = {"AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"}
     if ticker not in mag_seven:
-        return json.dumps({
-            "ticker": ticker,
-            "error": f"Ticker {ticker} not supported. Only Magnificent Seven available."
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "ticker": ticker,
+                "error": f"Ticker {ticker} not supported. Only Magnificent Seven available.",
+            },
+            ensure_ascii=False,
+        )
 
     try:
         # Build full feature matrix
         df = build_features(ticker)
 
         if df.empty:
-            return json.dumps({
-                "ticker": ticker,
-                "error": "No data available. Run scripts/daily_harvester.py and scripts/process_layer1.py first."
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "ticker": ticker,
+                    "error": "No data available. Run scripts/daily_harvester.py and scripts/process_layer1.py first.",
+                },
+                ensure_ascii=False,
+            )
 
         # Get last N days
         df_recent = df.tail(days)
 
         if len(df_recent) == 0:
-            return json.dumps({
-                "ticker": ticker,
-                "error": "Insufficient data for analysis."
-            }, ensure_ascii=False)
+            return json.dumps(
+                {"ticker": ticker, "error": "Insufficient data for analysis."},
+                ensure_ascii=False,
+            )
 
         # Get latest row
         latest = df_recent.iloc[-1]
@@ -85,18 +89,15 @@ def get_stock_data_with_sentiment(ticker: str, days: int = 90) -> str:
             "last_date": str(latest["trade_date"].date()),
             "last_close": float(latest["close"]),
             "period_days": len(df_recent),
-
             # Technical indicators
             "sma_20": float(latest.get("ma5_vs_ma20", 0)),  # MA5 vs MA20 ratio
             "macd_line": float(latest.get("ret_1d", 0)),  # Using ret_1d as proxy
             "rsi_14": float(latest.get("rsi_14", 50)),
             "volatility_5d": float(latest.get("volatility_5d", 0)),
-
             # Sentiment features
             "sentiment_score_3d": float(latest.get("sentiment_score_3d", 0)),
             "sentiment_score_10d": float(latest.get("sentiment_score_10d", 0)),
             "sentiment_momentum_3d": float(latest.get("sentiment_momentum_3d", 0)),
-
             # News activity
             "news_count_3d": int(latest.get("news_count_3d", 0)),
             "positive_ratio_3d": float(latest.get("positive_ratio_3d", 0)),
@@ -107,19 +108,14 @@ def get_stock_data_with_sentiment(ticker: str, days: int = 90) -> str:
 
     except Exception as exc:
         logger.error(f"Failed to fetch data for {ticker}: {exc}", exc_info=True)
-        return json.dumps({
-            "ticker": ticker,
-            "error": f"Database error: {type(exc).__name__}: {exc}"
-        }, ensure_ascii=False)
+        return json.dumps(
+            {"ticker": ticker, "error": f"Database error: {type(exc).__name__}: {exc}"},
+            ensure_ascii=False,
+        )
 
 
 @tool("search_news_with_returns")
-def search_news_with_returns(
-    ticker: str,
-    start_date: str,
-    end_date: str,
-    limit: int = 20
-) -> str:
+def search_news_with_returns(ticker: str, start_date: str, end_date: str, limit: int = 20) -> str:
     """Search historical news WITH forward returns (T+0/1/3/5/10).
 
     This tool is CRITICAL for event-driven analysis. It returns news articles
@@ -161,19 +157,22 @@ def search_news_with_returns(
 
     mag_seven = {"AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"}
     if ticker not in mag_seven:
-        return json.dumps({
-            "ticker": ticker,
-            "error": f"Ticker {ticker} not supported."
-        }, ensure_ascii=False)
+        return json.dumps(
+            {"ticker": ticker, "error": f"Ticker {ticker} not supported."},
+            ensure_ascii=False,
+        )
 
     try:
         datetime.fromisoformat(start_date)
         datetime.fromisoformat(end_date)
     except ValueError as exc:
-        return json.dumps({
-            "ticker": ticker,
-            "error": f"Invalid date format. Use YYYY-MM-DD. Error: {exc}"
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "ticker": ticker,
+                "error": f"Invalid date format. Use YYYY-MM-DD. Error: {exc}",
+            },
+            ensure_ascii=False,
+        )
 
     try:
         conn = get_conn()
@@ -207,20 +206,22 @@ def search_news_with_returns(
 
         articles = []
         for row in rows:
-            articles.append({
-                "trade_date": row["trade_date"],
-                "published_utc": row["published_utc"],
-                "title": row["title"],
-                "sentiment": row["sentiment"] or "unknown",
-                "key_discussion": row["key_discussion"] or "",
-                "reason_growth": row["reason_growth"] or "",
-                "reason_decrease": row["reason_decrease"] or "",
-                "ret_t0": round(row["ret_t0"] * 100, 2) if row["ret_t0"] else None,
-                "ret_t1": round(row["ret_t1"] * 100, 2) if row["ret_t1"] else None,
-                "ret_t3": round(row["ret_t3"] * 100, 2) if row["ret_t3"] else None,
-                "ret_t5": round(row["ret_t5"] * 100, 2) if row["ret_t5"] else None,
-                "ret_t10": round(row["ret_t10"] * 100, 2) if row["ret_t10"] else None,
-            })
+            articles.append(
+                {
+                    "trade_date": row["trade_date"],
+                    "published_utc": row["published_utc"],
+                    "title": row["title"],
+                    "sentiment": row["sentiment"] or "unknown",
+                    "key_discussion": row["key_discussion"] or "",
+                    "reason_growth": row["reason_growth"] or "",
+                    "reason_decrease": row["reason_decrease"] or "",
+                    "ret_t0": round(row["ret_t0"] * 100, 2) if row["ret_t0"] else None,
+                    "ret_t1": round(row["ret_t1"] * 100, 2) if row["ret_t1"] else None,
+                    "ret_t3": round(row["ret_t3"] * 100, 2) if row["ret_t3"] else None,
+                    "ret_t5": round(row["ret_t5"] * 100, 2) if row["ret_t5"] else None,
+                    "ret_t10": round(row["ret_t10"] * 100, 2) if row["ret_t10"] else None,
+                }
+            )
 
         result = {
             "ticker": ticker,
@@ -235,12 +236,12 @@ def search_news_with_returns(
     except Exception as exc:
         logger.error(
             f"Failed to search news for {ticker} ({start_date} to {end_date}): {exc}",
-            exc_info=True
+            exc_info=True,
         )
-        return json.dumps({
-            "ticker": ticker,
-            "error": f"Database error: {type(exc).__name__}: {exc}"
-        }, ensure_ascii=False)
+        return json.dumps(
+            {"ticker": ticker, "error": f"Database error: {type(exc).__name__}: {exc}"},
+            ensure_ascii=False,
+        )
 
 
 @tool("search_realtime_news")
@@ -270,26 +271,31 @@ def search_realtime_news(query: str, limit: int = 5) -> str:
 
         articles = []
         for item in results:
-            articles.append({
-                "title": item.get("title"),
-                "url": item.get("url"),
-                "source": item.get("source"),
-                "published_time": item.get("published_time"),
-                "snippet": item.get("snippet"),
-            })
+            articles.append(
+                {
+                    "title": item.get("title"),
+                    "url": item.get("url"),
+                    "source": item.get("source"),
+                    "published_time": item.get("published_time"),
+                    "snippet": item.get("snippet"),
+                }
+            )
 
-        return json.dumps({
-            "query": query,
-            "count": len(articles),
-            "articles": articles,
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "query": query,
+                "count": len(articles),
+                "articles": articles,
+            },
+            ensure_ascii=False,
+        )
 
     except Exception as exc:
         logger.error(f"Failed to search realtime news for '{query}': {exc}", exc_info=True)
-        return json.dumps({
-            "query": query,
-            "error": f"Search failed: {type(exc).__name__}: {exc}"
-        }, ensure_ascii=False)
+        return json.dumps(
+            {"query": query, "error": f"Search failed: {type(exc).__name__}: {exc}"},
+            ensure_ascii=False,
+        )
 
 
 # Export enhanced tools

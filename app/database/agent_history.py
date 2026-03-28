@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import sqlite3
 import json
-from pathlib import Path
-from typing import Optional, Any, Dict, List
+import sqlite3
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 DEFAULT_DB_PATH = "data/agent_history.db"
 
@@ -102,16 +102,19 @@ def save_analysis_run(
     query: str,
     timestamp: datetime,
     final_decision: Optional[str] = None,
-    db_path: str = DEFAULT_DB_PATH
+    db_path: str = DEFAULT_DB_PATH,
 ) -> None:
     """Save an analysis run to the database."""
     conn = get_connection(db_path)
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO analysis_runs (run_id, asset, query, timestamp, final_decision)
         VALUES (?, ?, ?, ?, ?)
-    """, (run_id, asset, query, timestamp.isoformat(), final_decision))
+    """,
+        (run_id, asset, query, timestamp.isoformat(), final_decision),
+    )
 
     conn.commit()
     conn.close()
@@ -125,7 +128,7 @@ def save_agent_execution(
     start_time: datetime,
     output_text: Optional[str] = None,
     end_time: Optional[datetime] = None,
-    db_path: str = DEFAULT_DB_PATH
+    db_path: str = DEFAULT_DB_PATH,
 ) -> None:
     """Save an agent execution to the database."""
     conn = get_connection(db_path)
@@ -139,20 +142,23 @@ def save_agent_execution(
     # Serialize messages to JSON
     messages_json = json.dumps(messages, ensure_ascii=False)
 
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO agent_executions
         (execution_id, run_id, agent_type, messages_json, output_text, start_time, end_time, duration_seconds)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        execution_id,
-        run_id,
-        agent_type,
-        messages_json,
-        output_text,
-        start_time.isoformat(),
-        end_time.isoformat() if end_time else None,
-        duration_seconds
-    ))
+    """,
+        (
+            execution_id,
+            run_id,
+            agent_type,
+            messages_json,
+            output_text,
+            start_time.isoformat(),
+            end_time.isoformat() if end_time else None,
+            duration_seconds,
+        ),
+    )
 
     conn.commit()
     conn.close()
@@ -167,7 +173,7 @@ def save_tool_call(
     timestamp: datetime,
     result: Optional[Dict[str, Any]] = None,
     error_message: Optional[str] = None,
-    db_path: str = DEFAULT_DB_PATH
+    db_path: str = DEFAULT_DB_PATH,
 ) -> None:
     """Save a tool call to the database."""
     conn = get_connection(db_path)
@@ -177,20 +183,23 @@ def save_tool_call(
     arguments_json = json.dumps(arguments, ensure_ascii=False)
     result_json = json.dumps(result, ensure_ascii=False) if result else None
 
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO tool_calls
         (call_id, execution_id, tool_name, arguments_json, result_json, status, error_message, timestamp)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        call_id,
-        execution_id,
-        tool_name,
-        arguments_json,
-        result_json,
-        status,
-        error_message,
-        timestamp.isoformat()
-    ))
+    """,
+        (
+            call_id,
+            execution_id,
+            tool_name,
+            arguments_json,
+            result_json,
+            status,
+            error_message,
+            timestamp.isoformat(),
+        ),
+    )
 
     conn.commit()
     conn.close()
@@ -202,7 +211,7 @@ def query_analysis_runs(
     date_to: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
-    db_path: str = DEFAULT_DB_PATH
+    db_path: str = DEFAULT_DB_PATH,
 ) -> List[Dict[str, Any]]:
     """Query analysis runs with optional filters.
 
@@ -243,10 +252,7 @@ def query_analysis_runs(
     return [dict(row) for row in rows]
 
 
-def query_run_detail(
-    run_id: str,
-    db_path: str = DEFAULT_DB_PATH
-) -> Optional[Dict[str, Any]]:
+def query_run_detail(run_id: str, db_path: str = DEFAULT_DB_PATH) -> Optional[Dict[str, Any]]:
     """Query detailed information for a single run.
 
     Returns:
@@ -266,12 +272,15 @@ def query_run_detail(
     run_dict = dict(run_row)
 
     # Get agent executions
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT execution_id, agent_type, output_text, start_time, end_time, duration_seconds
         FROM agent_executions
         WHERE run_id = ?
         ORDER BY start_time
-    """, (run_id,))
+    """,
+        (run_id,),
+    )
 
     agent_rows = cursor.fetchall()
     run_dict["agents"] = [dict(row) for row in agent_rows]
@@ -281,8 +290,7 @@ def query_run_detail(
 
 
 def query_agent_messages(
-    execution_id: str,
-    db_path: str = DEFAULT_DB_PATH
+    execution_id: str, db_path: str = DEFAULT_DB_PATH
 ) -> Optional[Dict[str, Any]]:
     """Query complete message history for an agent execution.
 
@@ -292,11 +300,14 @@ def query_agent_messages(
     conn = get_connection(db_path)
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT execution_id, agent_type, messages_json
         FROM agent_executions
         WHERE execution_id = ?
-    """, (execution_id,))
+    """,
+        (execution_id,),
+    )
 
     row = cursor.fetchone()
     conn.close()
@@ -307,7 +318,7 @@ def query_agent_messages(
     result = {
         "execution_id": row["execution_id"],
         "agent_type": row["agent_type"],
-        "messages": json.loads(row["messages_json"])
+        "messages": json.loads(row["messages_json"]),
     }
 
     return result
@@ -319,7 +330,7 @@ def query_tool_calls(
     date_from: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
-    db_path: str = DEFAULT_DB_PATH
+    db_path: str = DEFAULT_DB_PATH,
 ) -> List[Dict[str, Any]]:
     """Query tool calls with optional filters.
 
@@ -361,19 +372,20 @@ def query_tool_calls(
 
 
 def update_analysis_run_decision(
-    run_id: str,
-    final_decision: str,
-    db_path: str = DEFAULT_DB_PATH
+    run_id: str, final_decision: str, db_path: str = DEFAULT_DB_PATH
 ) -> None:
     """Update the final_decision field for an analysis run."""
     conn = get_connection(db_path)
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         UPDATE analysis_runs
         SET final_decision = ?
         WHERE run_id = ?
-    """, (final_decision, run_id))
+    """,
+        (final_decision, run_id),
+    )
 
     conn.commit()
     conn.close()

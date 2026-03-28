@@ -1,12 +1,14 @@
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
 import asyncio
 import json
 from datetime import datetime
 from typing import AsyncGenerator
 
-from ..models import AnalyzeRequest, AnalyzeResponse
+from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
+
 from app.graph_multi import run_once
+
+from ..models import AnalyzeRequest, AnalyzeResponse
 
 router = APIRouter()
 
@@ -23,16 +25,18 @@ async def run_analysis_stream(query: str) -> AsyncGenerator[str, None]:
         result = await asyncio.to_thread(run_once, query)
 
         # Extract report ID from result
-        report_id = result.get('run_id', f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{query.upper()}")
+        report_id = result.get(
+            "run_id", f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{query.upper()}"
+        )
 
         # Build response with full report content
         response_data = {
-            'report_id': report_id,
-            'status': 'completed',
-            'final_decision': result.get('final_decision', ''),
-            'quant_analysis': result.get('quant_report_obj', {}),
-            'news_sentiment': result.get('news_report_obj', {}),
-            'social_sentiment': result.get('social_report_obj', {}),
+            "report_id": report_id,
+            "status": "completed",
+            "final_decision": result.get("final_decision", ""),
+            "quant_analysis": result.get("quant_report_obj", {}),
+            "news_sentiment": result.get("news_report_obj", {}),
+            "social_sentiment": result.get("social_report_obj", {}),
         }
 
         # Send completion event
@@ -53,10 +57,7 @@ async def analyze(request: AnalyzeRequest):
     # For now, return a placeholder response
     report_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{request.query.upper()}"
 
-    return AnalyzeResponse(
-        report_id=report_id,
-        status="pending"
-    )
+    return AnalyzeResponse(report_id=report_id, status="pending")
 
 
 @router.get("/analyze/stream")

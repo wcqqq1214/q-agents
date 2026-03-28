@@ -1,6 +1,6 @@
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List
-from datetime import datetime
 
 
 class AnalyzeRequest(BaseModel):
@@ -77,8 +77,10 @@ class StockQuotesResponse(BaseModel):
 
 # OKX相关模型
 
+
 class OKXOrderRequest(BaseModel):
     """OKX下单请求"""
+
     inst_id: str
     side: str  # buy/sell
     order_type: str  # market/limit/post_only/fok/ioc
@@ -90,6 +92,7 @@ class OKXOrderRequest(BaseModel):
 
 class OKXBalance(BaseModel):
     """OKX账户余额"""
+
     currency: str
     available: str
     frozen: str
@@ -98,6 +101,7 @@ class OKXBalance(BaseModel):
 
 class OKXPosition(BaseModel):
     """OKX持仓信息"""
+
     inst_id: str
     position_side: str  # long/short/net
     position: str
@@ -109,6 +113,7 @@ class OKXPosition(BaseModel):
 
 class OKXOrderResponse(BaseModel):
     """OKX订单响应"""
+
     order_id: str
     client_order_id: str
     inst_id: str
@@ -124,6 +129,7 @@ class OKXOrderResponse(BaseModel):
 
 class OKXTicker(BaseModel):
     """OKX Ticker数据"""
+
     inst_id: str
     last: str
     bid: str

@@ -40,7 +40,7 @@ def build_memory_from_database() -> None:
       AND na.ret_t1 IS NOT NULL
       AND l1.symbol IN ({})
     ORDER BY l1.symbol, na.trade_date
-    """.format(','.join('?' * len(TICKERS)))
+    """.format(",".join("?" * len(TICKERS)))
 
     cursor = conn.cursor()
     cursor.execute(query, TICKERS)
@@ -58,13 +58,13 @@ def build_memory_from_database() -> None:
     metadatas = []
 
     for row in rows:
-        ticker = row['symbol']
-        date = row['trade_date']
+        ticker = row["symbol"]
+        date = row["trade_date"]
 
         # Build news summary from key_discussion and description
-        key_disc = row['key_discussion'] or ''
-        desc = row['description'] or ''
-        title = row['title'] or ''
+        key_disc = row["key_discussion"] or ""
+        desc = row["description"] or ""
+        title = row["title"] or ""
 
         news_summary = f"{title} — {key_disc}"
         if desc and desc not in news_summary:
@@ -72,8 +72,8 @@ def build_memory_from_database() -> None:
 
         # Create memory document (T+5 may be None for recent events)
         returns = {
-            "t1_return": row['ret_t1'],
-            "t5_return": row['ret_t5'] if row['ret_t5'] is not None else 0.0,
+            "t1_return": row["ret_t1"],
+            "t5_return": row["ret_t5"] if row["ret_t5"] is not None else 0.0,
         }
 
         doc = create_memory_document(
@@ -94,10 +94,10 @@ def build_memory_from_database() -> None:
             "ticker": ticker,
             "date": date,
             "event_type": "news",
-            "source_url": row['article_url'],
+            "source_url": row["article_url"],
             "source_title": title,
-            "publisher": row['publisher'],
-            "sentiment": row['sentiment'] or 'neutral',
+            "publisher": row["publisher"],
+            "sentiment": row["sentiment"] or "neutral",
         }
 
         docs.append(doc)
@@ -116,7 +116,8 @@ def build_memory_from_database() -> None:
 
     # Print summary by ticker
     from collections import Counter
-    ticker_counts = Counter(m['ticker'] for m in metadatas)
+
+    ticker_counts = Counter(m["ticker"] for m in metadatas)
     print("\nEvents per ticker:")
     for ticker in TICKERS:
         count = ticker_counts.get(ticker, 0)
@@ -128,7 +129,7 @@ def main() -> None:
     print("=" * 60)
     print("Building Event Memory from Polygon Database")
     print("=" * 60)
-    print(f"Source: data/finance_data.db")
+    print("Source: data/finance_data.db")
     print(f"Output: {PERSIST_DIR}")
     print(f"Tickers: {', '.join(TICKERS)}")
     print("=" * 60)

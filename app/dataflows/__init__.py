@@ -1,5 +1,11 @@
 """Data provider abstraction layer"""
-from app.dataflows.models import StockCandle, TechnicalIndicator, NewsArticle, FundamentalsData
+
+from app.dataflows.models import (
+    FundamentalsData,
+    NewsArticle,
+    StockCandle,
+    TechnicalIndicator,
+)
 
 __all__ = [
     "StockCandle",

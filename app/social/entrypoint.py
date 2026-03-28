@@ -28,7 +28,15 @@ def _extract_ingest_meta_from_text(text: str) -> Dict[str, Any]:
         k, v = line.split(":", 1)
         key = k.strip()
         val = v.strip()
-        if key in {"Asset", "Window", "Subreddits", "Source", "PostCount", "CommentCount", "GeneratedAt(UTC)"}:
+        if key in {
+            "Asset",
+            "Window",
+            "Subreddits",
+            "Source",
+            "PostCount",
+            "CommentCount",
+            "GeneratedAt(UTC)",
+        }:
             meta_raw[key] = val
 
     def _to_int(s: str) -> int:
@@ -82,4 +90,3 @@ def invoke_social_agent(asset: str, *, config: Optional[RunnableConfig] = None) 
     )
     report_obj["report_path"] = report_path
     return cast(SocialReport, report_obj)
-

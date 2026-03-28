@@ -1,12 +1,20 @@
 """OKX交易客户端"""
+
 import asyncio
 import logging
 import os
 from typing import Any, Dict, List, Optional
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
+from app.services.rate_limiter import rate_limit
 
 from .exceptions import OKXRateLimitError
-from app.services.rate_limiter import rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +26,7 @@ class OKXTradingClient:
     This is necessary for SDK operations but should be handled with care.
     """
 
-    def __init__(
-        self,
-        api_key: str,
-        secret_key: str,
-        passphrase: str,
-        is_demo: bool = False
-    ):
+    def __init__(self, api_key: str, secret_key: str, passphrase: str, is_demo: bool = False):
         """初始化客户端
 
         Args:
@@ -58,8 +60,8 @@ class OKXTradingClient:
     def _init_sdk_clients(self):
         """初始化OKX SDK客户端"""
         from okx.Account import AccountAPI
-        from okx.Trade import TradeAPI
         from okx.MarketData import MarketAPI
+        from okx.Trade import TradeAPI
 
         # flag: "1" = demo, "0" = live
         flag = "1" if self.is_demo else "0"
@@ -70,7 +72,7 @@ class OKXTradingClient:
             api_secret_key=self._secret_key,
             passphrase=self._passphrase,
             flag=flag,
-            debug=False
+            debug=False,
         )
 
         # 初始化交易API
@@ -79,7 +81,7 @@ class OKXTradingClient:
             api_secret_key=self._secret_key,
             passphrase=self._passphrase,
             flag=flag,
-            debug=False
+            debug=False,
         )
 
         # 初始化市场数据API
@@ -88,7 +90,7 @@ class OKXTradingClient:
             api_secret_key=self._secret_key,
             passphrase=self._passphrase,
             flag=flag,
-            debug=False
+            debug=False,
         )
 
         logger.info(
@@ -100,7 +102,7 @@ class OKXTradingClient:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
         retry=retry_if_exception_type(OKXRateLimitError),
-        reraise=True
+        reraise=True,
     )
     async def _call_with_retry(self, func, *args, **kwargs):
         """带重试的API调用
@@ -116,8 +118,7 @@ class OKXTradingClient:
             return await func(*args, **kwargs)
         except OKXRateLimitError as e:
             logger.warning(
-                f"[OKX-{'DEMO' if self.is_demo else 'LIVE'}] "
-                f"Rate limit hit, retrying... {e}"
+                f"[OKX-{'DEMO' if self.is_demo else 'LIVE'}] Rate limit hit, retrying... {e}"
             )
             raise
 
@@ -131,7 +132,10 @@ class OKXTradingClient:
 
         This can be disabled by setting OKX_THREAD_OFFLOAD=false.
         """
-        if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("OKX_THREAD_OFFLOAD", "true").lower() != "true":
+        if (
+            os.getenv("PYTEST_CURRENT_TEST")
+            or os.getenv("OKX_THREAD_OFFLOAD", "true").lower() != "true"
+        ):
             return func(*args, **kwargs)
         return await asyncio.to_thread(func, *args, **kwargs)
 
@@ -164,7 +168,7 @@ class OKXTradingClient:
         # 构建请求参数
         params = {}
         if currency:
-            params['ccy'] = currency
+            params["ccy"] = currency
 
         # 调用SDK
         response = self.account_api.get_account_balance(**params)
@@ -174,16 +178,18 @@ class OKXTradingClient:
 
         # 解析余额数据
         balances = []
-        data = response.get('data', [])
+        data = response.get("data", [])
         if data and len(data) > 0:
-            details = data[0].get('details', [])
+            details = data[0].get("details", [])
             for detail in details:
-                balances.append({
-                    'currency': detail.get('ccy'),
-                    'available': detail.get('availBal'),
-                    'frozen': detail.get('frozenBal'),
-                    'total': detail.get('bal')
-                })
+                balances.append(
+                    {
+                        "currency": detail.get("ccy"),
+                        "available": detail.get("availBal"),
+                        "frozen": detail.get("frozenBal"),
+                        "total": detail.get("bal"),
+                    }
+                )
 
         return balances
 
@@ -220,7 +226,7 @@ class OKXTradingClient:
         # 构建请求参数
         params = {}
         if inst_type:
-            params['instType'] = inst_type
+            params["instType"] = inst_type
 
         # 调用SDK
         response = self.account_api.get_positions(**params)
@@ -230,16 +236,18 @@ class OKXTradingClient:
 
         # 解析持仓数据
         positions = []
-        for pos in response.get('data', []):
-            positions.append({
-                'inst_id': pos.get('instId'),
-                'position_side': pos.get('posSide'),
-                'position': pos.get('pos'),
-                'available_position': pos.get('availPos'),
-                'average_price': pos.get('avgPx'),
-                'unrealized_pnl': pos.get('upl'),
-                'leverage': pos.get('lever')
-            })
+        for pos in response.get("data", []):
+            positions.append(
+                {
+                    "inst_id": pos.get("instId"),
+                    "position_side": pos.get("posSide"),
+                    "position": pos.get("pos"),
+                    "available_position": pos.get("availPos"),
+                    "average_price": pos.get("avgPx"),
+                    "unrealized_pnl": pos.get("upl"),
+                    "leverage": pos.get("lever"),
+                }
+            )
 
         return positions
 
@@ -252,7 +260,7 @@ class OKXTradingClient:
         size: str,
         price: Optional[str] = None,
         client_order_id: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> Dict:
         """下单（异步）
 
@@ -280,7 +288,14 @@ class OKXTradingClient:
             OKXError: 其他错误
         """
         return await self._run_blocking(
-            self._place_order_sync, inst_id, side, order_type, size, price, client_order_id, **kwargs
+            self._place_order_sync,
+            inst_id,
+            side,
+            order_type,
+            size,
+            price,
+            client_order_id,
+            **kwargs,
         )
 
     def _place_order_sync(
@@ -291,25 +306,25 @@ class OKXTradingClient:
         size: str,
         price: Optional[str] = None,
         client_order_id: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> Dict:
         """下单的同步实现"""
         # 构建请求参数
         params = {
-            'instId': inst_id,
-            'tdMode': 'cash',  # 现货交易模式
-            'side': side,
-            'ordType': order_type,
-            'sz': size
+            "instId": inst_id,
+            "tdMode": "cash",  # 现货交易模式
+            "side": side,
+            "ordType": order_type,
+            "sz": size,
         }
 
         # 限价单需要价格
         if price:
-            params['px'] = price
+            params["px"] = price
 
         # 客户端订单ID
         if client_order_id:
-            params['clOrdId'] = client_order_id
+            params["clOrdId"] = client_order_id
 
         # 其他参数
         params.update(kwargs)
@@ -321,11 +336,11 @@ class OKXTradingClient:
         self._validate_response(response)
 
         # 解析订单数据
-        data = response.get('data', [{}])[0]
+        data = response.get("data", [{}])[0]
         return {
-            'order_id': data.get('ordId'),
-            'client_order_id': data.get('clOrdId', ''),
-            'status_code': data.get('sCode', '0')
+            "order_id": data.get("ordId"),
+            "client_order_id": data.get("clOrdId", ""),
+            "status_code": data.get("sCode", "0"),
         }
 
     @rate_limit(exchange="okx", identifier_key="self._api_key", per_function=True)
@@ -333,7 +348,7 @@ class OKXTradingClient:
         self,
         inst_id: str,
         order_id: Optional[str] = None,
-        client_order_id: Optional[str] = None
+        client_order_id: Optional[str] = None,
     ) -> Dict:
         """撤单（异步）
 
@@ -358,24 +373,22 @@ class OKXTradingClient:
         if not order_id and not client_order_id:
             raise ValueError("Either order_id or client_order_id must be provided")
 
-        return await self._run_blocking(
-            self._cancel_order_sync, inst_id, order_id, client_order_id
-        )
+        return await self._run_blocking(self._cancel_order_sync, inst_id, order_id, client_order_id)
 
     def _cancel_order_sync(
         self,
         inst_id: str,
         order_id: Optional[str] = None,
-        client_order_id: Optional[str] = None
+        client_order_id: Optional[str] = None,
     ) -> Dict:
         """撤单的同步实现"""
         # 构建请求参数
-        params = {'instId': inst_id}
+        params = {"instId": inst_id}
 
         if order_id:
-            params['ordId'] = order_id
+            params["ordId"] = order_id
         if client_order_id:
-            params['clOrdId'] = client_order_id
+            params["clOrdId"] = client_order_id
 
         # 调用SDK
         response = self.trade_api.cancel_order(**params)
@@ -384,11 +397,11 @@ class OKXTradingClient:
         self._validate_response(response)
 
         # 解析结果
-        data = response.get('data', [{}])[0]
+        data = response.get("data", [{}])[0]
         return {
-            'order_id': data.get('ordId'),
-            'client_order_id': data.get('clOrdId', ''),
-            'status_code': data.get('sCode', '0')
+            "order_id": data.get("ordId"),
+            "client_order_id": data.get("clOrdId", ""),
+            "status_code": data.get("sCode", "0"),
         }
 
     @rate_limit(exchange="okx", identifier_key="self._api_key", per_function=True)
@@ -396,7 +409,7 @@ class OKXTradingClient:
         self,
         inst_id: str,
         order_id: Optional[str] = None,
-        client_order_id: Optional[str] = None
+        client_order_id: Optional[str] = None,
     ) -> Dict:
         """查询订单详情（异步）
 
@@ -437,16 +450,16 @@ class OKXTradingClient:
         self,
         inst_id: str,
         order_id: Optional[str] = None,
-        client_order_id: Optional[str] = None
+        client_order_id: Optional[str] = None,
     ) -> Dict:
         """查询订单详情的同步实现"""
         # 构建请求参数
-        params = {'instId': inst_id}
+        params = {"instId": inst_id}
 
         if order_id:
-            params['ordId'] = order_id
+            params["ordId"] = order_id
         if client_order_id:
-            params['clOrdId'] = client_order_id
+            params["clOrdId"] = client_order_id
 
         # 调用SDK
         response = self.trade_api.get_order(**params)
@@ -455,27 +468,24 @@ class OKXTradingClient:
         self._validate_response(response)
 
         # 解析订单数据
-        data = response.get('data', [{}])[0]
+        data = response.get("data", [{}])[0]
         return {
-            'order_id': data.get('ordId'),
-            'client_order_id': data.get('clOrdId', ''),
-            'inst_id': data.get('instId'),
-            'status': data.get('state'),
-            'side': data.get('side'),
-            'order_type': data.get('ordType'),
-            'size': data.get('sz'),
-            'filled_size': data.get('fillSz'),
-            'price': data.get('px') or None,
-            'average_price': data.get('avgPx') or None,
-            'timestamp': data.get('cTime')
+            "order_id": data.get("ordId"),
+            "client_order_id": data.get("clOrdId", ""),
+            "inst_id": data.get("instId"),
+            "status": data.get("state"),
+            "side": data.get("side"),
+            "order_type": data.get("ordType"),
+            "size": data.get("sz"),
+            "filled_size": data.get("fillSz"),
+            "price": data.get("px") or None,
+            "average_price": data.get("avgPx") or None,
+            "timestamp": data.get("cTime"),
         }
 
     @rate_limit(exchange="okx", identifier_key="self._api_key", per_function=True)
     async def get_order_history(
-        self,
-        inst_type: str = 'SPOT',
-        inst_id: Optional[str] = None,
-        limit: int = 100
+        self, inst_type: str = "SPOT", inst_id: Optional[str] = None, limit: int = 100
     ) -> List[Dict]:
         """查询历史订单（异步）
 
@@ -490,25 +500,17 @@ class OKXTradingClient:
         Raises:
             OKXError: API错误
         """
-        return await self._run_blocking(
-            self._get_order_history_sync, inst_type, inst_id, limit
-        )
+        return await self._run_blocking(self._get_order_history_sync, inst_type, inst_id, limit)
 
     def _get_order_history_sync(
-        self,
-        inst_type: str = 'SPOT',
-        inst_id: Optional[str] = None,
-        limit: int = 100
+        self, inst_type: str = "SPOT", inst_id: Optional[str] = None, limit: int = 100
     ) -> List[Dict]:
         """查询历史订单的同步实现"""
         # 构建请求参数
-        params = {
-            'instType': inst_type,
-            'limit': str(limit)
-        }
+        params = {"instType": inst_type, "limit": str(limit)}
 
         if inst_id:
-            params['instId'] = inst_id
+            params["instId"] = inst_id
 
         # 调用SDK
         response = self.trade_api.get_orders_history(**params)
@@ -518,20 +520,22 @@ class OKXTradingClient:
 
         # 解析订单列表
         orders = []
-        for order in response.get('data', []):
-            orders.append({
-                'order_id': order.get('ordId'),
-                'client_order_id': order.get('clOrdId', ''),
-                'inst_id': order.get('instId'),
-                'status': order.get('state'),
-                'side': order.get('side'),
-                'order_type': order.get('ordType'),
-                'size': order.get('sz'),
-                'filled_size': order.get('fillSz'),
-                'price': order.get('px') or None,
-                'average_price': order.get('avgPx') or None,
-                'timestamp': order.get('cTime')
-            })
+        for order in response.get("data", []):
+            orders.append(
+                {
+                    "order_id": order.get("ordId"),
+                    "client_order_id": order.get("clOrdId", ""),
+                    "inst_id": order.get("instId"),
+                    "status": order.get("state"),
+                    "side": order.get("side"),
+                    "order_type": order.get("ordType"),
+                    "size": order.get("sz"),
+                    "filled_size": order.get("fillSz"),
+                    "price": order.get("px") or None,
+                    "average_price": order.get("avgPx") or None,
+                    "timestamp": order.get("cTime"),
+                }
+            )
 
         return orders
 
@@ -542,7 +546,7 @@ class OKXTradingClient:
         bar: str = "15m",
         limit: int = 300,
         after: str = "",
-        before: str = ""
+        before: str = "",
     ) -> List[Dict[str, Any]]:
         """获取K线数据
 
@@ -584,7 +588,7 @@ class OKXTradingClient:
                 bar=bar,
                 limit=str(limit),
                 after=after,
-                before=before
+                before=before,
             )
 
             # Validate response
@@ -593,14 +597,16 @@ class OKXTradingClient:
             # 转换数据格式
             candles = []
             for item in result.get("data", []):
-                candles.append({
-                    "ts": item[0],
-                    "o": item[1],
-                    "h": item[2],
-                    "l": item[3],
-                    "c": item[4],
-                    "vol": item[5]
-                })
+                candles.append(
+                    {
+                        "ts": item[0],
+                        "o": item[1],
+                        "h": item[2],
+                        "l": item[3],
+                        "c": item[4],
+                        "vol": item[5],
+                    }
+                )
 
             logger.info(
                 f"[OKX-{'DEMO' if self.is_demo else 'LIVE'}] "
@@ -613,8 +619,7 @@ class OKXTradingClient:
             raise
         except Exception as e:
             logger.error(
-                f"[OKX-{'DEMO' if self.is_demo else 'LIVE'}] "
-                f"Unexpected error getting candles: {e}"
+                f"[OKX-{'DEMO' if self.is_demo else 'LIVE'}] Unexpected error getting candles: {e}"
             )
             raise OKXError(f"Failed to get candles: {str(e)}")
 
@@ -643,15 +648,9 @@ class OKXTradingClient:
         from .exceptions import OKXError
 
         try:
-            logger.info(
-                f"[OKX-{'DEMO' if self.is_demo else 'LIVE'}] "
-                f"Fetching ticker for {inst_id}"
-            )
+            logger.info(f"[OKX-{'DEMO' if self.is_demo else 'LIVE'}] Fetching ticker for {inst_id}")
 
-            result = await self._run_blocking(
-                self.market_api.get_ticker,
-                instId=inst_id
-            )
+            result = await self._run_blocking(self.market_api.get_ticker, instId=inst_id)
 
             # Validate response
             self._validate_response(result)
@@ -674,8 +673,7 @@ class OKXTradingClient:
             raise
         except Exception as e:
             logger.error(
-                f"[OKX-{'DEMO' if self.is_demo else 'LIVE'}] "
-                f"Unexpected error getting ticker: {e}"
+                f"[OKX-{'DEMO' if self.is_demo else 'LIVE'}] Unexpected error getting ticker: {e}"
             )
             raise OKXError(f"Failed to get ticker: {str(e)}")
 
@@ -691,25 +689,28 @@ class OKXTradingClient:
             OKXError: 其他错误
         """
         from .exceptions import (
-            OKXError, OKXAuthError, OKXRateLimitError,
-            OKXInsufficientBalanceError, OKXOrderError
+            OKXAuthError,
+            OKXError,
+            OKXInsufficientBalanceError,
+            OKXOrderError,
+            OKXRateLimitError,
         )
 
-        code = response.get('code')
-        if code != '0':
-            msg = response.get('msg', 'Unknown error')
+        code = response.get("code")
+        if code != "0":
+            msg = response.get("msg", "Unknown error")
 
             # 认证错误
-            if code in ['50113', '50101', '50102', '50103']:
+            if code in ["50113", "50101", "50102", "50103"]:
                 raise OKXAuthError(msg, code=code)
             # 频率限制
-            elif code == '50011':
+            elif code == "50011":
                 raise OKXRateLimitError(msg, code=code)
             # 余额不足错误（特定错误码或消息包含关键词）
-            elif code == '51008' or '余额不足' in msg or 'insufficient' in msg.lower():
+            elif code == "51008" or "余额不足" in msg or "insufficient" in msg.lower():
                 raise OKXInsufficientBalanceError(msg, code=code)
             # 其他业务错误
-            elif code and code.startswith('51'):
+            elif code and code.startswith("51"):
                 raise OKXOrderError(msg, code=code)
             else:
                 raise OKXError(msg, code=code)

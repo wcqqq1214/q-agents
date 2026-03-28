@@ -13,14 +13,14 @@
 """
 
 import asyncio
-import sys
-import sqlite3
-import zipfile
 import io
 import logging
+import sys
+import zipfile
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Set, Tuple, Optional
+from typing import Optional, Set, Tuple
+
 import pandas as pd
 import requests
 from tqdm import tqdm
@@ -29,24 +29,29 @@ from tqdm import tqdm
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from app.services.batch_downloader_raw import download_daily_data_raw
-from app.database.schema import init_db, get_conn
 from app.database.batch_operations import BatchInserter
-from app.database.crypto_ohlc import get_max_date
+from app.database.schema import get_conn, init_db
+from app.services.batch_downloader_raw import download_daily_data_raw
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Binance Vision configuration
 BINANCE_VISION_MONTHLY_BASE = "https://data.binance.vision/data/spot/monthly/klines"
 BINANCE_COLUMNS = [
-    "open_time", "open", "high", "low", "close", "volume",
-    "close_time", "quote_asset_volume", "number_of_trades",
-    "taker_buy_base_asset_volume", "taker_buy_quote_asset_volume", "ignore"
+    "open_time",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "close_time",
+    "quote_asset_volume",
+    "number_of_trades",
+    "taker_buy_base_asset_volume",
+    "taker_buy_quote_asset_volume",
+    "ignore",
 ]
 
 
@@ -55,8 +60,8 @@ def enable_wal_mode():
     conn = get_conn()
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")  # Faster writes
-    conn.execute("PRAGMA cache_size=-64000")   # 64MB cache
-    conn.execute("PRAGMA temp_store=MEMORY")   # Use memory for temp tables
+    conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
+    conn.execute("PRAGMA temp_store=MEMORY")  # Use memory for temp tables
     conn.close()
     print("✓ 启用 WAL 模式和性能优化")
 
@@ -64,18 +69,19 @@ def enable_wal_mode():
 def check_disk_space(required_gb: float = 2.0):
     """Check if there's enough disk space."""
     import shutil
+
     stats = shutil.disk_usage(Path.home())
     available_gb = stats.free / (1024**3)
 
-    print(f"\n磁盘空间检查:")
+    print("\n磁盘空间检查:")
     print(f"  可用空间: {available_gb:.1f} GB")
     print(f"  预计需要: {required_gb:.1f} GB")
 
     if available_gb < required_gb:
-        print(f"  ✗ 磁盘空间不足！")
+        print("  ✗ 磁盘空间不足！")
         return False
     else:
-        print(f"  ✓ 磁盘空间充足")
+        print("  ✓ 磁盘空间充足")
         return True
 
 
@@ -91,10 +97,7 @@ def get_downloaded_dates(symbol: str, interval: str) -> Set[date]:
     """
 
     cursor = conn.execute(query, (symbol, interval))
-    dates = {
-        date.fromisoformat(row[0])
-        for row in cursor.fetchall()
-    }
+    dates = {date.fromisoformat(row[0]) for row in cursor.fetchall()}
     conn.close()
 
     return dates
@@ -135,7 +138,9 @@ def get_resume_point(start_date: date, end_date: date) -> Tuple[date, int]:
     return current, already_downloaded
 
 
-def download_monthly_kline(symbol: str, interval: str, year: int, month: int) -> Optional[pd.DataFrame]:
+def download_monthly_kline(
+    symbol: str, interval: str, year: int, month: int
+) -> Optional[pd.DataFrame]:
     """Download and parse a single monthly K-line file from Binance Vision."""
     month_str = str(month).zfill(2)
     file_name = f"{symbol}-{interval}-{year}-{month_str}.zip"
@@ -155,8 +160,10 @@ def download_monthly_kline(symbol: str, interval: str, year: int, month: int) ->
             csv_filename = z.namelist()[0]
             with z.open(csv_filename) as f:
                 df = pd.read_csv(f, names=BINANCE_COLUMNS)
-                df['open_time'] = pd.to_datetime(df['open_time'], unit='ms', utc=True)
-                df = df[['open_time', 'open', 'high', 'low', 'close', 'volume']].rename(columns={'open_time': 'timestamp'})
+                df["open_time"] = pd.to_datetime(df["open_time"], unit="ms", utc=True)
+                df = df[["open_time", "open", "high", "low", "close", "volume"]].rename(
+                    columns={"open_time": "timestamp"}
+                )
                 return df
 
     except Exception as e:
@@ -178,7 +185,9 @@ def get_downloaded_months(symbol: str, interval: str) -> set:
     return months
 
 
-def download_monthly_data(symbol: str, interval: str, start_year: int, end_year: int, inserter) -> int:
+def download_monthly_data(
+    symbol: str, interval: str, start_year: int, end_year: int, inserter
+) -> int:
     """Download monthly data for a symbol and interval."""
     db_symbol = f"{symbol[:3]}-{symbol[3:]}"  # BTCUSDT -> BTC-USDT
     downloaded_months = get_downloaded_months(db_symbol, interval)
@@ -207,17 +216,19 @@ def download_monthly_data(symbol: str, interval: str, start_year: int, end_year:
             records = []
             for _, row in df.iterrows():
                 try:
-                    dt = row['timestamp'].to_pydatetime()
+                    dt = row["timestamp"].to_pydatetime()
                     timestamp_ms = int(dt.timestamp() * 1000)
-                    records.append({
-                        "timestamp": timestamp_ms,
-                        "date": dt.isoformat(),
-                        "open": float(row['open']),
-                        "high": float(row['high']),
-                        "low": float(row['low']),
-                        "close": float(row['close']),
-                        "volume": float(row['volume'])
-                    })
+                    records.append(
+                        {
+                            "timestamp": timestamp_ms,
+                            "date": dt.isoformat(),
+                            "open": float(row["open"]),
+                            "high": float(row["high"]),
+                            "low": float(row["low"]),
+                            "close": float(row["close"]),
+                            "volume": float(row["volume"]),
+                        }
+                    )
                 except (ValueError, OverflowError):
                     continue
 
@@ -228,7 +239,9 @@ def download_monthly_data(symbol: str, interval: str, start_year: int, end_year:
     return total_records
 
 
-def detect_gaps(symbol: str, interval: str, start_date: date, end_date: date) -> list[Tuple[date, date]]:
+def detect_gaps(
+    symbol: str, interval: str, start_date: date, end_date: date
+) -> list[Tuple[date, date]]:
     """Detect gaps in downloaded data.
 
     Args:
@@ -288,9 +301,9 @@ async def fill_gaps(symbols: list[str], intervals: list[str], inserter) -> int:
     Returns:
         Total number of days filled
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("阶段 3: 检测并填补数据gap")
-    print("="*70)
+    print("=" * 70)
 
     start_date = date(2020, 1, 1)
     yesterday = date.today() - timedelta(days=1)
@@ -341,9 +354,9 @@ async def fill_gaps(symbols: list[str], intervals: list[str], inserter) -> int:
 
 async def main():
     """Download data from 2020-01-01 to yesterday with monthly + daily strategy."""
-    print("="*70)
+    print("=" * 70)
     print("加密货币 K 线数据下载（月度+每日混合策略）")
-    print("="*70)
+    print("=" * 70)
 
     # 1. Check disk space
     if not check_disk_space(required_gb=5.0):
@@ -364,11 +377,11 @@ async def main():
     start_year = 2020
     current_date = datetime.now()
 
-    print(f"\n下载配置:")
+    print("\n下载配置:")
     print(f"  币种: {', '.join(symbols)}")
     print(f"  时间粒度: {', '.join(intervals)}")
     print(f"  时间范围: {start_year}-01-01 至 {current_date.date()}")
-    print(f"  策略: 月度压缩包（历史月份）+ 每日文件（当前月份）\n")
+    print("  策略: 月度压缩包（历史月份）+ 每日文件（当前月份）\n")
 
     total_monthly_records = 0
     total_daily_records = 0
@@ -376,9 +389,9 @@ async def main():
 
     with BatchInserter(batch_size=10000) as inserter:
         # ===== 阶段 1: 下载月度数据（2020-01 到上个月）=====
-        print("="*70)
+        print("=" * 70)
         print("阶段 1: 下载月度数据（更快，适合历史数据）")
-        print("="*70)
+        print("=" * 70)
 
         for symbol in symbols:
             for interval in intervals:
@@ -387,15 +400,15 @@ async def main():
                     interval=interval,
                     start_year=start_year,
                     end_year=current_date.year,
-                    inserter=inserter
+                    inserter=inserter,
                 )
                 total_monthly_records += records
                 print(f"✓ {symbol} {interval}: 月度数据 {records:,} 条")
 
         # ===== 阶段 2: 下载每日数据（本月1日到昨天）=====
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("阶段 2: 下载每日数据（当前月份）")
-        print("="*70)
+        print("=" * 70)
 
         # 计算当前月份的日期范围
         first_day_of_month = date(current_date.year, current_date.month, 1)
@@ -434,7 +447,9 @@ async def main():
 
                 current += timedelta(days=1)
 
-            print(f"✓ 每日数据: 成功 {success_count} 天, 失败 {fail_count} 天, 记录 {total_daily_records:,} 条")
+            print(
+                f"✓ 每日数据: 成功 {success_count} 天, 失败 {fail_count} 天, 记录 {total_daily_records:,} 条"
+            )
         else:
             print("当前月份暂无数据需要下载")
 
@@ -442,10 +457,10 @@ async def main():
         total_gap_filled = await fill_gaps(symbols, intervals, inserter)
 
     # ===== 最终统计 =====
-    print(f"\n\n{'='*70}")
-    print(f"下载完成！")
-    print(f"{'='*70}")
-    print(f"本次下载:")
+    print(f"\n\n{'=' * 70}")
+    print("下载完成！")
+    print(f"{'=' * 70}")
+    print("本次下载:")
     print(f"  月度数据: {total_monthly_records:,} 条")
     print(f"  每日数据: {total_daily_records:,} 条")
     print(f"  填补gap: {total_gap_filled} 天")
@@ -456,16 +471,18 @@ async def main():
     cursor = conn.execute("SELECT COUNT(*) FROM crypto_ohlc")
     total_db_records = cursor.fetchone()[0]
 
-    cursor = conn.execute("SELECT page_count * page_size / 1024.0 / 1024.0 FROM pragma_page_count(), pragma_page_size()")
+    cursor = conn.execute(
+        "SELECT page_count * page_size / 1024.0 / 1024.0 FROM pragma_page_count(), pragma_page_size()"
+    )
     db_size_mb = cursor.fetchone()[0]
 
     conn.close()
 
-    print(f"\n数据库统计:")
+    print("\n数据库统计:")
     print(f"  总记录数: {total_db_records:,}")
     print(f"  数据库大小: {db_size_mb:.1f} MB")
 
-    print(f"\n提示：")
+    print("\n提示：")
     print("- 月度数据下载速度更快，适合历史数据")
     print("- 每日数据用于补充当前月份")
     print("- 自动检测并填补数据gap")

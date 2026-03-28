@@ -41,10 +41,15 @@ def generate_report(asset: str, run_dir: str) -> SocialBundle:
     ingest_meta = _extract_ingest_meta_from_text(corpus)
     ingest_meta["generated_at_utc"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
-    nlp_result = cast(Dict[str, Any], analyze_reddit_text.invoke({"asset": asset_norm, "text": corpus}))
+    nlp_result = cast(
+        Dict[str, Any],
+        analyze_reddit_text.invoke({"asset": asset_norm, "text": corpus}),
+    )
     report_obj = cast(
         Dict[str, Any],
-        build_social_report.invoke({"asset": asset_norm, "nlp_result": dict(nlp_result), "meta": ingest_meta}),
+        build_social_report.invoke(
+            {"asset": asset_norm, "nlp_result": dict(nlp_result), "meta": ingest_meta}
+        ),
     )
     report_obj["module"] = "social"
 
@@ -52,4 +57,3 @@ def generate_report(asset: str, run_dir: str) -> SocialBundle:
     write_json(path, report_obj)
     report_obj["report_path"] = str(path)
     return cast(SocialBundle, report_obj)
-

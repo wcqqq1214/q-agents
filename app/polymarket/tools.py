@@ -3,7 +3,7 @@
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from langchain_core.tools import tool
 
@@ -156,4 +156,3 @@ def search_polymarket_by_category(
                 },
             }
         )
-

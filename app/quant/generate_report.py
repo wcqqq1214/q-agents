@@ -9,7 +9,6 @@ The output is structured JSON in English for agent-to-agent consumption.
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Literal, TypedDict, cast
@@ -21,7 +20,6 @@ from app.llm_config import create_llm
 from app.reporting.writer import write_json
 from app.tools.local_tools import get_local_stock_data
 from app.tools.quant_tool import run_ml_quant_analysis
-
 
 load_dotenv()
 
@@ -114,7 +112,9 @@ def generate_report(asset: str, run_dir: str) -> QuantBundle:
         "- summary: one English sentence (<= 25 words)\n"
         "Output ONLY JSON."
     )
-    prompt = f"Asset: {asset_norm}\nIndicators JSON:\n{json.dumps(indicators, ensure_ascii=False)}\n"
+    prompt = (
+        f"Asset: {asset_norm}\nIndicators JSON:\n{json.dumps(indicators, ensure_ascii=False)}\n"
+    )
 
     llm = create_llm()
     resp = llm.invoke([SystemMessage(content=system), HumanMessage(content=prompt)])
@@ -163,4 +163,3 @@ def generate_report(asset: str, run_dir: str) -> QuantBundle:
     write_json(path, report)
     report["report_path"] = str(path)
     return cast(QuantBundle, report)
-

@@ -1,6 +1,9 @@
 """测试ConfigManager的OKX配置功能"""
-import pytest
+
 import os
+
+import pytest
+
 from app.config_manager import ConfigManager
 
 
@@ -45,10 +48,7 @@ def test_get_okx_settings_live(config_manager, monkeypatch):
 def test_update_okx_settings(config_manager):
     """测试更新OKX配置"""
     updated = config_manager.update_okx_settings(
-        mode="demo",
-        api_key="new_key",
-        secret_key="new_secret",
-        passphrase="new_pass"
+        mode="demo", api_key="new_key", secret_key="new_secret", passphrase="new_pass"
     )
 
     assert updated["api_key"] == "new_key"
@@ -68,19 +68,13 @@ def test_invalid_mode_get_raises_error(config_manager):
 def test_invalid_mode_update_raises_error(config_manager):
     """测试update_okx_settings使用无效mode抛出错误"""
     with pytest.raises(ValueError, match="Invalid mode: production. Must be 'live' or 'demo'"):
-        config_manager.update_okx_settings(
-            mode="production",
-            api_key="test_key"
-        )
+        config_manager.update_okx_settings(mode="production", api_key="test_key")
 
 
 def test_partial_update(config_manager):
     """测试部分更新OKX配置"""
     # 只更新api_key
-    updated = config_manager.update_okx_settings(
-        mode="demo",
-        api_key="only_new_key"
-    )
+    updated = config_manager.update_okx_settings(mode="demo", api_key="only_new_key")
 
     assert updated["api_key"] == "only_new_key"
     # 其他字段保持原值
@@ -92,10 +86,7 @@ def test_empty_strings_ignored(config_manager):
     """测试空字符串不会更新配置"""
     # 尝试用空字符串更新
     updated = config_manager.update_okx_settings(
-        mode="demo",
-        api_key="",
-        secret_key="",
-        passphrase=""
+        mode="demo", api_key="", secret_key="", passphrase=""
     )
 
     # 应该保持原值

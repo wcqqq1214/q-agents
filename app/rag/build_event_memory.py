@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List
@@ -61,10 +60,7 @@ def _select_trading_indices(
     # Align event date to the first index >= event_dt (handle holidays/weekends).
     event_idx_candidates = idx[idx >= event_dt]
     if len(event_idx_candidates) == 0:
-        msg = (
-            "No trading session on or after event date; "
-            "cannot compute post-event returns."
-        )
+        msg = "No trading session on or after event date; cannot compute post-event returns."
         raise EventReturnComputationError(msg)
 
     event_idx = event_idx_candidates[0]
@@ -214,9 +210,7 @@ def init_chroma_db(
     """
 
     if len(docs) != len(metadatas):
-        msg = (
-            f"docs and metadatas length mismatch: {len(docs)} vs {len(metadatas)}."
-        )
+        msg = f"docs and metadatas length mismatch: {len(docs)} vs {len(metadatas)}."
         raise ValueError(msg)
 
     if not docs:
@@ -254,10 +248,12 @@ def init_chroma_db(
     # Add documents in batches
     batch_size = 100
     for i in range(0, len(cleaned_docs), batch_size):
-        batch_docs = cleaned_docs[i:i+batch_size]
-        batch_metas = cleaned_metadatas[i:i+batch_size] if cleaned_metadatas else None
+        batch_docs = cleaned_docs[i : i + batch_size]
+        batch_metas = cleaned_metadatas[i : i + batch_size] if cleaned_metadatas else None
         db.add_texts(texts=batch_docs, metadatas=batch_metas)
-        logger.info(f"Added batch {i//batch_size + 1}/{(len(cleaned_docs)-1)//batch_size + 1}")
+        logger.info(
+            f"Added batch {i // batch_size + 1}/{(len(cleaned_docs) - 1) // batch_size + 1}"
+        )
 
 
 def build_sample_memory(
@@ -311,4 +307,3 @@ def build_sample_memory(
         )
 
     init_chroma_db(docs=docs, metadatas=metadatas, persist_directory=persist_directory)
-

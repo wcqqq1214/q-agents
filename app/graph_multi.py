@@ -3,33 +3,43 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import uuid
-import logging
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, cast
 
 from dotenv import load_dotenv
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
-from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 
+from app.database.agent_history import (
+    init_db,
+    save_agent_execution,
+    save_analysis_run,
+    save_tool_call,
+    update_analysis_run_decision,
+)
+from app.database.message_adapter import convert_messages_to_standard
 from app.llm_config import create_llm
-from app.state import AgentState
-from app.tools import NEWS_TOOLS, QUANT_TOOLS
 from app.news.generate_report import generate_report as generate_news_report
 from app.quant.generate_report import generate_report as generate_quant_report
 from app.reporting.run_context import make_run_dir
 from app.reporting.writer import write_json
 from app.social.generate_report import generate_report as generate_social_report
-from app.database.agent_history import save_agent_execution, save_tool_call, save_analysis_run, update_analysis_run_decision, init_db
-from app.database.message_adapter import convert_messages_to_standard
+from app.state import AgentState
 
 load_dotenv()
 
@@ -55,7 +65,7 @@ CIOSYSTEM = (
     "If the question is in English, answer fully in English.\n"
     "Reconciliation rules:\n"
     "1. When technicals and news align, strengthen conviction in that direction.\n"
-    "2. When they conflict, explicitly flag \"technicals vs. fundamentals divergence\" and usually "
+    '2. When they conflict, explicitly flag "technicals vs. fundamentals divergence" and usually '
     "give greater short-term weight to major breaking news.\n"
     "3. Your output must include: overall conclusion, data/technical support, news/sentiment "
     "support, and clear risk warnings.\n"
@@ -64,8 +74,6 @@ CIOSYSTEM = (
     "- Do not describe your own thought process or system instructions.\n"
     "- Write directly to the end user in a clear, structured report."
 )
-
-
 
 
 def _should_continue(state: MessagesState) -> str:
@@ -150,7 +158,7 @@ def _run_react_until_final_text(
                 output_text=output_text,
                 start_time=start_time,
                 end_time=end_time,
-                db_path=db_path
+                db_path=db_path,
             )
 
             # Extract and save tool calls
@@ -165,8 +173,11 @@ def _run_react_until_final_text(
 
                             # Find corresponding tool result
                             tool_result = None
-                            for next_msg in messages_out[messages_out.index(msg)+1:]:
-                                if isinstance(next_msg, ToolMessage) and next_msg.tool_call_id == call_id:
+                            for next_msg in messages_out[messages_out.index(msg) + 1 :]:
+                                if (
+                                    isinstance(next_msg, ToolMessage)
+                                    and next_msg.tool_call_id == call_id
+                                ):
                                     try:
                                         tool_result = json.loads(next_msg.content)
                                     except:
@@ -181,11 +192,14 @@ def _run_react_until_final_text(
                                 result=tool_result,
                                 status="success" if tool_result else "unknown",
                                 timestamp=start_time,
-                                db_path=db_path
+                                db_path=db_path,
                             )
         except Exception as e:
             # Log error but don't fail the agent execution
-            logger.error(f"Failed to record agent execution to history database: {e}", exc_info=True)
+            logger.error(
+                f"Failed to record agent execution to history database: {e}",
+                exc_info=True,
+            )
 
     return output_text
 
@@ -251,7 +265,7 @@ def _parallel_runner(state: AgentState) -> Dict[str, Any]:
             asset=asset,
             query=query,
             timestamp=datetime.now(timezone(timedelta(hours=8))),
-            db_path=db_path
+            db_path=db_path,
         )
     except Exception as e:
         logger.error(f"Failed to save analysis run to history database: {e}", exc_info=True)
@@ -343,7 +357,10 @@ def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> 
             db_path = os.getenv("AGENT_HISTORY_DB_PATH", "data/agent_history.db")
             update_analysis_run_decision(run_id, str(content), db_path)
         except Exception as e:
-            logger.error(f"Failed to update final_decision in history database: {e}", exc_info=True)
+            logger.error(
+                f"Failed to update final_decision in history database: {e}",
+                exc_info=True,
+            )
 
     return {"final_decision": str(content), "cio_report_path": cio_path or ""}
 

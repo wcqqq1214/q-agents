@@ -1,4 +1,5 @@
 """Configuration manager for handling .env file updates."""
+
 import os
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -140,7 +141,7 @@ class ConfigManager:
         mode: str,
         api_key: Optional[str] = None,
         secret_key: Optional[str] = None,
-        passphrase: Optional[str] = None
+        passphrase: Optional[str] = None,
     ) -> Dict[str, Optional[str]]:
         """更新OKX配置
 
@@ -190,9 +191,7 @@ class ConfigManager:
         }
 
     def update_redis_settings(
-        self,
-        redis_url: Optional[str] = None,
-        redis_enabled: Optional[bool] = None
+        self, redis_url: Optional[str] = None, redis_enabled: Optional[bool] = None
     ) -> Dict[str, Any]:
         """更新 Redis 配置"""
         updates = {}
@@ -221,7 +220,7 @@ def get_stock_catchup_config() -> dict:
     return {
         "catchup_days": int(os.getenv("STOCK_CATCHUP_DAYS", "5")),
         "rate_limit_delay": float(os.getenv("STOCK_RATE_LIMIT_DELAY", "1.5")),
-        "enabled": os.getenv("STOCK_CATCHUP_ENABLED", "true").lower() == "true"
+        "enabled": os.getenv("STOCK_CATCHUP_ENABLED", "true").lower() == "true",
     }
 
 

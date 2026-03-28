@@ -1,11 +1,13 @@
 """Crypto K-lines API endpoint."""
+
 from typing import List, Optional
-from fastapi import APIRouter, Query, HTTPException
+
 import pandas as pd
+from fastapi import APIRouter, HTTPException, Query
 
 from app.database.crypto_ohlc import get_crypto_ohlc
-from app.services.hot_cache import get_hot_cache
 from app.database.ohlc_aggregation import aggregate_ohlc
+from app.services.hot_cache import get_hot_cache
 
 router = APIRouter()
 
@@ -15,7 +17,7 @@ async def get_crypto_klines(
     symbol: str = Query(..., description="Trading pair symbol (e.g., BTCUSDT)"),
     interval: str = Query(..., description="K-line interval: 15m, 1h, 4h, 1d, 1w, 1M"),
     start: Optional[str] = Query(None, description="Start date in ISO format"),
-    end: Optional[str] = Query(None, description="End date in ISO format")
+    end: Optional[str] = Query(None, description="End date in ISO format"),
 ) -> List[dict]:
     """
     Get crypto K-line data by merging cold (database) and hot (cache) data.
@@ -47,36 +49,31 @@ async def get_crypto_klines(
     # Map interval to source bar and determine if aggregation is needed
     # Only support intervals that frontend uses
     interval_to_source = {
-        '15m': ('1m', True),   # 15 Min button
-        '1h': ('1m', True),    # 1 Hour button
-        '4h': ('1m', True),    # 4 Hour button
-        '1d': ('1d', False),   # 1 Day button
-        '1w': ('1d', True),    # 1 Week button
-        '1M': ('1d', True),    # 1 Month button
+        "15m": ("1m", True),  # 15 Min button
+        "1h": ("1m", True),  # 1 Hour button
+        "4h": ("1m", True),  # 4 Hour button
+        "1d": ("1d", False),  # 1 Day button
+        "1w": ("1d", True),  # 1 Week button
+        "1M": ("1d", True),  # 1 Month button
     }
 
     source_info = interval_to_source.get(interval)
     if not source_info:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid interval. Supported: {', '.join(interval_to_source.keys())}"
+            detail=f"Invalid interval. Supported: {', '.join(interval_to_source.keys())}",
         )
 
     source_bar, needs_aggregation = source_info
 
     # Convert symbol format: BTCUSDT -> BTC-USDT for database
-    if symbol.endswith('USDT') and '-' not in symbol:
+    if symbol.endswith("USDT") and "-" not in symbol:
         db_symbol = f"{symbol[:-4]}-USDT"
     else:
         db_symbol = symbol
 
     # Fetch cold data from database
-    cold_data = get_crypto_ohlc(
-        symbol=db_symbol,
-        bar=source_bar,
-        start=start,
-        end=end
-    )
+    cold_data = get_crypto_ohlc(symbol=db_symbol, bar=source_bar, start=start, end=end)
 
     # Fetch hot data from cache
     hot_df = get_hot_cache(symbol, source_bar)
@@ -85,9 +82,11 @@ async def get_crypto_klines(
     if cold_data:
         cold_df = pd.DataFrame(cold_data)
         # Remove 'symbol' and 'bar' columns to match hot data format
-        cold_df = cold_df[['timestamp', 'date', 'open', 'high', 'low', 'close', 'volume']]
+        cold_df = cold_df[["timestamp", "date", "open", "high", "low", "close", "volume"]]
     else:
-        cold_df = pd.DataFrame(columns=['timestamp', 'date', 'open', 'high', 'low', 'close', 'volume'])
+        cold_df = pd.DataFrame(
+            columns=["timestamp", "date", "open", "high", "low", "close", "volume"]
+        )
 
     # Merge cold and hot data
     if not hot_df.empty:
@@ -97,11 +96,11 @@ async def get_crypto_klines(
 
     # Deduplicate by timestamp (keep last, which prioritizes hot data)
     if not merged_df.empty:
-        merged_df = merged_df.drop_duplicates(subset=['timestamp'], keep='last')
-        merged_df = merged_df.sort_values('timestamp')
+        merged_df = merged_df.drop_duplicates(subset=["timestamp"], keep="last")
+        merged_df = merged_df.sort_values("timestamp")
 
     # Convert to list of dicts
-    result = merged_df.to_dict('records')
+    result = merged_df.to_dict("records")
 
     # Aggregate if needed
     if needs_aggregation and result:

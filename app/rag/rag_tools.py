@@ -134,4 +134,3 @@ def search_historical_event_impact(query: str, ticker: str) -> str:
         "请勿将其视为对未来价格走势的保证。"
     )
     return "\n".join(parts)
-

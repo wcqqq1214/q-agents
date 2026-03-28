@@ -49,8 +49,14 @@ async def test_get_redis_client_builds_async_client():
     mock_pool = Mock()
     mock_client = Mock()
 
-    with patch("app.services.redis_client.redis_async.ConnectionPool.from_url", return_value=mock_pool) as mock_from_url:
-        with patch("app.services.redis_client.redis_async.Redis.from_pool", return_value=mock_client) as mock_from_pool:
+    with patch(
+        "app.services.redis_client.redis_async.ConnectionPool.from_url",
+        return_value=mock_pool,
+    ) as mock_from_url:
+        with patch(
+            "app.services.redis_client.redis_async.Redis.from_pool",
+            return_value=mock_client,
+        ) as mock_from_pool:
             client = await get_redis_client()
 
     assert client is mock_client
@@ -63,8 +69,13 @@ def test_get_sync_redis_client_builds_sync_client():
     mock_pool = Mock()
     mock_client = Mock()
 
-    with patch("app.services.redis_client.redis.ConnectionPool.from_url", return_value=mock_pool) as mock_from_url:
-        with patch("app.services.redis_client.redis.Redis.from_pool", return_value=mock_client) as mock_from_pool:
+    with patch(
+        "app.services.redis_client.redis.ConnectionPool.from_url",
+        return_value=mock_pool,
+    ) as mock_from_url:
+        with patch(
+            "app.services.redis_client.redis.Redis.from_pool", return_value=mock_client
+        ) as mock_from_pool:
             client = get_sync_redis_client()
 
     assert client is mock_client

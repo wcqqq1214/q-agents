@@ -1,27 +1,22 @@
 # tests/test_dataflows_mcp_provider.py
-import pytest
 from datetime import datetime
-from app.dataflows.providers.mcp_provider import MCPDataProvider
+
+import pytest
+
+from app.dataflows.base import ProviderError
 from app.dataflows.models import StockCandle
-from app.dataflows.base import ProviderTimeoutError, ProviderError
+from app.dataflows.providers.mcp_provider import MCPDataProvider
+
 
 @pytest.mark.asyncio
 async def test_mcp_provider_get_stock_data():
     """Test MCP provider returns standardized StockCandle"""
-    config = {
-        "mcp_servers": {
-            "market_data": "http://localhost:8000"
-        }
-    }
+    config = {"mcp_servers": {"market_data": "http://localhost:8000"}}
     provider = MCPDataProvider(config)
 
     # Try to call MCP server, skip if not running
     try:
-        result = await provider.get_stock_data(
-            "AAPL",
-            datetime(2024, 1, 1),
-            datetime(2024, 1, 31)
-        )
+        result = await provider.get_stock_data("AAPL", datetime(2024, 1, 1), datetime(2024, 1, 31))
 
         assert isinstance(result, list)
         if result:  # If MCP server is running

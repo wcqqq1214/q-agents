@@ -1,8 +1,11 @@
 # tests/test_dataflows_yfinance_provider.py
-import pytest
 from datetime import datetime
-from app.dataflows.providers.yfinance_provider import YFinanceProvider
+
+import pytest
+
 from app.dataflows.models import StockCandle
+from app.dataflows.providers.yfinance_provider import YFinanceProvider
+
 
 @pytest.mark.asyncio
 async def test_yfinance_provider_get_stock_data():
@@ -10,11 +13,7 @@ async def test_yfinance_provider_get_stock_data():
     config = {}
     provider = YFinanceProvider(config)
 
-    result = await provider.get_stock_data(
-        "AAPL",
-        datetime(2024, 1, 1),
-        datetime(2024, 1, 31)
-    )
+    result = await provider.get_stock_data("AAPL", datetime(2024, 1, 1), datetime(2024, 1, 31))
 
     assert isinstance(result, list)
     assert len(result) > 0

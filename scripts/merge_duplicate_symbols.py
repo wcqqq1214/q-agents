@@ -10,9 +10,9 @@ from pathlib import Path
 db_path = Path("data/finance_data.db")
 conn = sqlite3.connect(str(db_path))
 
-print("="*80)
+print("=" * 80)
 print("Merging duplicate symbol data")
-print("="*80)
+print("=" * 80)
 
 # Check current state
 cursor = conn.execute("""
@@ -56,7 +56,7 @@ cursor = conn.execute("""
 
 print("\nFinal state:")
 print(f"{'Symbol':<15} {'Bar':<10} {'Records':>10} {'From':<25} {'To':<25}")
-print("-"*90)
+print("-" * 90)
 for row in cursor.fetchall():
     print(f"{row[0]:<15} {row[1]:<10} {row[2]:>10} {row[3]:<25} {row[4]:<25}")
 

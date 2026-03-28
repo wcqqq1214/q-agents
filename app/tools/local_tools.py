@@ -6,8 +6,7 @@ providing fast access to historical data for the Magnificent Seven stocks.
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from datetime import datetime
 
 import pandas as pd
 from langchain_core.tools import tool
@@ -66,10 +65,13 @@ def get_local_stock_data(ticker: str, days: int = 90) -> str:
     # Validate ticker
     mag_seven = {"AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"}
     if ticker not in mag_seven:
-        return json.dumps({
-            "ticker": ticker,
-            "error": f"Ticker {ticker} not supported. Only Magnificent Seven stocks are available: {', '.join(sorted(mag_seven))}"
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "ticker": ticker,
+                "error": f"Ticker {ticker} not supported. Only Magnificent Seven stocks are available: {', '.join(sorted(mag_seven))}",
+            },
+            ensure_ascii=False,
+        )
 
     try:
         conn = get_conn()
@@ -86,10 +88,13 @@ def get_local_stock_data(ticker: str, days: int = 90) -> str:
         conn.close()
 
         if not rows:
-            return json.dumps({
-                "ticker": ticker,
-                "error": f"No data found for {ticker}. Run scripts/daily_harvester.py to fetch data."
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "ticker": ticker,
+                    "error": f"No data found for {ticker}. Run scripts/daily_harvester.py to fetch data.",
+                },
+                ensure_ascii=False,
+            )
 
         # Convert to DataFrame (reverse to chronological order)
         df = pd.DataFrame(rows, columns=["date", "open", "high", "low", "close", "volume"])
@@ -137,18 +142,15 @@ def get_local_stock_data(ticker: str, days: int = 90) -> str:
 
     except Exception as exc:
         logger.error(f"Failed to fetch local stock data for {ticker}: {exc}", exc_info=True)
-        return json.dumps({
-            "ticker": ticker,
-            "error": f"Database error: {type(exc).__name__}: {exc}"
-        }, ensure_ascii=False)
+        return json.dumps(
+            {"ticker": ticker, "error": f"Database error: {type(exc).__name__}: {exc}"},
+            ensure_ascii=False,
+        )
 
 
 @tool("search_local_historical_news")
 def search_local_historical_news(
-    ticker: str,
-    start_date: str,
-    end_date: str,
-    limit: int = 20
+    ticker: str, start_date: str, end_date: str, limit: int = 20
 ) -> str:
     """Search historical news articles from local database for a specific time period.
 
@@ -204,20 +206,26 @@ def search_local_historical_news(
     # Validate ticker
     mag_seven = {"AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"}
     if ticker not in mag_seven:
-        return json.dumps({
-            "ticker": ticker,
-            "error": f"Ticker {ticker} not supported. Only Magnificent Seven stocks are available."
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "ticker": ticker,
+                "error": f"Ticker {ticker} not supported. Only Magnificent Seven stocks are available.",
+            },
+            ensure_ascii=False,
+        )
 
     # Validate dates
     try:
         datetime.fromisoformat(start_date)
         datetime.fromisoformat(end_date)
     except ValueError as exc:
-        return json.dumps({
-            "ticker": ticker,
-            "error": f"Invalid date format. Use YYYY-MM-DD. Error: {exc}"
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "ticker": ticker,
+                "error": f"Invalid date format. Use YYYY-MM-DD. Error: {exc}",
+            },
+            ensure_ascii=False,
+        )
 
     try:
         conn = get_conn()
@@ -237,13 +245,15 @@ def search_local_historical_news(
 
         articles = []
         for row in rows:
-            articles.append({
-                "published_utc": row["published_utc"],
-                "title": row["title"],
-                "description": row["description"],
-                "publisher": row["publisher"],
-                "article_url": row["article_url"],
-            })
+            articles.append(
+                {
+                    "published_utc": row["published_utc"],
+                    "title": row["title"],
+                    "description": row["description"],
+                    "publisher": row["publisher"],
+                    "article_url": row["article_url"],
+                }
+            )
 
         result = {
             "ticker": ticker,
@@ -258,12 +268,12 @@ def search_local_historical_news(
     except Exception as exc:
         logger.error(
             f"Failed to search local news for {ticker} ({start_date} to {end_date}): {exc}",
-            exc_info=True
+            exc_info=True,
         )
-        return json.dumps({
-            "ticker": ticker,
-            "error": f"Database error: {type(exc).__name__}: {exc}"
-        }, ensure_ascii=False)
+        return json.dumps(
+            {"ticker": ticker, "error": f"Database error: {type(exc).__name__}: {exc}"},
+            ensure_ascii=False,
+        )
 
 
 @tool("search_realtime_news")
@@ -300,7 +310,7 @@ def search_realtime_news(query: str, limit: int = 5) -> str:
         - articles: List of news articles with title, url, source, snippet
         - error: Error message if both searches fail
     """
-    from app.mcp_client.finance_client import call_search_news_tavily, call_search_news
+    from app.mcp_client.finance_client import call_search_news, call_search_news_tavily
 
     # Try Tavily first (via MCP)
     try:
@@ -309,20 +319,25 @@ def search_realtime_news(query: str, limit: int = 5) -> str:
         if tavily_results:  # If Tavily returns results, use them
             articles = []
             for item in tavily_results:
-                articles.append({
-                    "title": item.get("title"),
-                    "url": item.get("url"),
-                    "source": item.get("source"),
-                    "published_time": item.get("published_time"),
-                    "snippet": item.get("snippet"),
-                })
+                articles.append(
+                    {
+                        "title": item.get("title"),
+                        "url": item.get("url"),
+                        "source": item.get("source"),
+                        "published_time": item.get("published_time"),
+                        "snippet": item.get("snippet"),
+                    }
+                )
 
-            return json.dumps({
-                "query": query,
-                "count": len(articles),
-                "source": "tavily",
-                "articles": articles,
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "query": query,
+                    "count": len(articles),
+                    "source": "tavily",
+                    "articles": articles,
+                },
+                ensure_ascii=False,
+            )
         else:
             logger.info(f"Tavily returned no results for '{query}', falling back to DuckDuckGo")
     except Exception as exc:
@@ -334,29 +349,35 @@ def search_realtime_news(query: str, limit: int = 5) -> str:
 
         articles = []
         for item in ddg_results:
-            articles.append({
-                "title": item.get("title"),
-                "url": item.get("url"),
-                "source": item.get("source"),
-                "published_time": item.get("published_time"),
-                "snippet": item.get("snippet"),
-            })
+            articles.append(
+                {
+                    "title": item.get("title"),
+                    "url": item.get("url"),
+                    "source": item.get("source"),
+                    "published_time": item.get("published_time"),
+                    "snippet": item.get("snippet"),
+                }
+            )
 
-        return json.dumps({
-            "query": query,
-            "count": len(articles),
-            "source": "duckduckgo",
-            "articles": articles,
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "query": query,
+                "count": len(articles),
+                "source": "duckduckgo",
+                "articles": articles,
+            },
+            ensure_ascii=False,
+        )
 
     except Exception as exc:
         logger.error(f"Both Tavily and DuckDuckGo failed for '{query}': {exc}", exc_info=True)
-        return json.dumps({
-            "query": query,
-            "error": f"Both search sources failed. Last error: {type(exc).__name__}: {exc}"
-        }, ensure_ascii=False)
-
-
+        return json.dumps(
+            {
+                "query": query,
+                "error": f"Both search sources failed. Last error: {type(exc).__name__}: {exc}",
+            },
+            ensure_ascii=False,
+        )
 
 
 # Export tools for use in Agent

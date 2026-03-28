@@ -14,8 +14,9 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from app.database.schema import get_conn
 import logging
+
+from app.database.schema import get_conn
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ def clean_crypto_data(force=False):
         # Confirm deletion
         if not force:
             response = input("\nDelete all crypto data? (yes/no): ")
-            if response.lower() != 'yes':
+            if response.lower() != "yes":
                 logger.info("Cancelled.")
                 return
 

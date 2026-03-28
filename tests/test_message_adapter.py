@@ -1,6 +1,7 @@
 """Tests for LangChain to OpenAI message format conversion."""
 
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+
 from app.database.message_adapter import convert_messages_to_standard
 
 
@@ -44,9 +45,9 @@ def test_convert_ai_message_with_tool_calls():
                 {
                     "id": "call_abc123",
                     "name": "get_stock_data",
-                    "args": {"ticker": "AAPL", "period": "3mo"}
+                    "args": {"ticker": "AAPL", "period": "3mo"},
                 }
-            ]
+            ],
         )
     ]
     result = convert_messages_to_standard(messages)
@@ -66,12 +67,7 @@ def test_convert_ai_message_with_tool_calls():
 
 def test_convert_tool_message():
     """Test ToolMessage conversion."""
-    messages = [
-        ToolMessage(
-            content='{"price": 150.0}',
-            tool_call_id="call_abc123"
-        )
-    ]
+    messages = [ToolMessage(content='{"price": 150.0}', tool_call_id="call_abc123")]
     result = convert_messages_to_standard(messages)
 
     assert len(result) == 1
@@ -87,10 +83,10 @@ def test_convert_mixed_messages():
         HumanMessage(content="Analyze AAPL"),
         AIMessage(
             content="",
-            tool_calls=[{"id": "call_1", "name": "get_stock_data", "args": {"ticker": "AAPL"}}]
+            tool_calls=[{"id": "call_1", "name": "get_stock_data", "args": {"ticker": "AAPL"}}],
         ),
         ToolMessage(content='{"price": 150.0}', tool_call_id="call_1"),
-        AIMessage(content="AAPL is trading at $150")
+        AIMessage(content="AAPL is trading at $150"),
     ]
     result = convert_messages_to_standard(messages)
 

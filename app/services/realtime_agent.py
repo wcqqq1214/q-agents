@@ -1,12 +1,15 @@
 """Realtime agent for hot cache warmup and updates."""
-from datetime import datetime, timezone, timedelta
-from typing import List
+
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 
-from app.services.binance_client import fetch_binance_klines, fetch_klines_with_pagination
-from app.services.hot_cache import append_to_hot_cache, cleanup_hot_cache
 from app.database.crypto_ohlc import get_max_timestamp
+from app.services.binance_client import (
+    fetch_binance_klines,
+    fetch_klines_with_pagination,
+)
+from app.services.hot_cache import append_to_hot_cache, cleanup_hot_cache
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +30,15 @@ def _convert_to_db_symbol(binance_symbol: str) -> str:
         Symbol in database format (e.g., 'BTC-USDT')
     """
     # Simple conversion: insert hyphen before 'USDT'
-    if binance_symbol.endswith('USDT'):
+    if binance_symbol.endswith("USDT"):
         base = binance_symbol[:-4]
         return f"{base}-USDT"
     return binance_symbol
 
 
-async def _warmup_single(symbol: str, interval: str, now: datetime, end_time: int, max_gap_hours: int) -> None:
+async def _warmup_single(
+    symbol: str, interval: str, now: datetime, end_time: int, max_gap_hours: int
+) -> None:
     """
     Warmup hot cache for a single symbol and interval.
 
@@ -65,7 +70,7 @@ async def _warmup_single(symbol: str, interval: str, now: datetime, end_time: in
             interval=interval,
             start_time=start_time,
             end_time=end_time,
-            limit=1000
+            limit=1000,
         )
     else:
         # Calculate gap in hours
@@ -83,19 +88,21 @@ async def _warmup_single(symbol: str, interval: str, now: datetime, end_time: in
                 symbol=symbol,
                 interval=interval,
                 start_time=start_time,
-                end_time=end_time
+                end_time=end_time,
             )
         else:
             # Case 3: Large gap - only fetch last 48 hours to avoid long startup
             start_time = int((now - timedelta(hours=max_gap_hours)).timestamp() * 1000)
-            logger.info(f"Gap of {gap_hours:.1f}h detected for {symbol} {interval}, fetching last {max_gap_hours}h only")
+            logger.info(
+                f"Gap of {gap_hours:.1f}h detected for {symbol} {interval}, fetching last {max_gap_hours}h only"
+            )
 
             klines = await fetch_binance_klines(
                 symbol=symbol,
                 interval=interval,
                 start_time=start_time,
                 end_time=end_time,
-                limit=1000
+                limit=1000,
             )
 
     if klines:
@@ -134,10 +141,7 @@ async def warmup_hot_cache() -> None:
 
     # Execute all tasks in parallel with exception handling
     logger.info(f"Launching {len(tasks)} parallel warmup tasks...")
-    results = await asyncio.gather(
-        *[task for _, _, task in tasks],
-        return_exceptions=True
-    )
+    results = await asyncio.gather(*[task for _, _, task in tasks], return_exceptions=True)
 
     # Check results and log any failures
     success_count = 0
@@ -179,7 +183,7 @@ async def update_hot_cache() -> None:
                     interval=interval,
                     start_time=start_time,
                     end_time=end_time,
-                    limit=1000
+                    limit=1000,
                 )
 
                 if klines:

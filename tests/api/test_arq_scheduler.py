@@ -1,7 +1,6 @@
 """Tests for ARQ-backed scheduling helpers."""
 
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -27,7 +26,9 @@ async def test_create_arq_pool_returns_pool_when_enabled(monkeypatch):
     mock_pool = AsyncMock()
     mock_pool.ping = AsyncMock()
 
-    with patch("app.api.main.create_pool", new=AsyncMock(return_value=mock_pool)) as mock_create_pool:
+    with patch(
+        "app.api.main.create_pool", new=AsyncMock(return_value=mock_pool)
+    ) as mock_create_pool:
         pool = await create_arq_pool()
 
     assert pool is mock_pool

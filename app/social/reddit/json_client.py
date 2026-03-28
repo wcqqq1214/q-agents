@@ -169,4 +169,3 @@ def select_top_comments(comments: Sequence[RedditComment], k: int = 3) -> List[s
     usable = [c for c in comments if isinstance(c.get("body"), str) and c.get("body", "").strip()]
     usable.sort(key=lambda c: int(c.get("score") or 0), reverse=True)
     return [cast(str, c.get("body")) for c in usable[: max(0, k)]]
-

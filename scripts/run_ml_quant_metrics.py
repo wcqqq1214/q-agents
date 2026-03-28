@@ -28,7 +28,15 @@ from app.ml.model_trainer import train_lightgbm
 
 # v3 Alpha core pool (no CRCL, SNDK, QQQ, VOO).
 ALPHA_CORE_TICKERS = [
-    "NVDA", "MSFT", "TSLA", "AAPL", "GOOG", "META", "AMZN", "AMD", "TSM",
+    "NVDA",
+    "MSFT",
+    "TSLA",
+    "AAPL",
+    "GOOG",
+    "META",
+    "AMZN",
+    "AMD",
+    "TSM",
 ]
 
 
@@ -88,9 +96,9 @@ def main() -> int:
         if args.check:
             if out["mean_auc"] < 0.52:
                 failed.append(ticker)
-                print(f"  -> FAILED check (mean_auc >= 0.52)")
+                print("  -> FAILED check (mean_auc >= 0.52)")
             else:
-                print(f"  -> check passed")
+                print("  -> check passed")
 
     if failed:
         print(f"\nFailed tickers: {failed}")

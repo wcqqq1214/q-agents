@@ -1,6 +1,8 @@
 """Settings API routes."""
+
 from fastapi import APIRouter, HTTPException
-from app.api.models import SettingsResponse, SettingsRequest
+
+from app.api.models import SettingsRequest, SettingsResponse
 from app.config_manager import config_manager
 
 router = APIRouter()

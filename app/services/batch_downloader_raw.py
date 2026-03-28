@@ -1,12 +1,13 @@
 """Batch downloader without auto-commit for optimized bulk loading."""
 
-from datetime import date, datetime, timezone
-from typing import List, Dict, Any
-import zipfile
-import io
 import csv
-import httpx
+import io
 import logging
+import zipfile
+from datetime import date, datetime, timezone
+from typing import Any, Dict, List
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +27,7 @@ def get_download_url(symbol: str, interval: str, target_date: date) -> str:
 
 
 async def download_daily_data_raw(
-    symbol: str,
-    interval: str,
-    target_date: date
+    symbol: str, interval: str, target_date: date
 ) -> List[Dict[str, Any]]:
     """
     Download and parse daily K-line data WITHOUT database insertion.
@@ -57,7 +56,7 @@ async def download_daily_data_raw(
         # Extract CSV from ZIP
         with zipfile.ZipFile(io.BytesIO(response.content)) as zip_file:
             csv_filename = zip_file.namelist()[0]
-            csv_content = zip_file.read(csv_filename).decode('utf-8')
+            csv_content = zip_file.read(csv_filename).decode("utf-8")
 
         # Parse CSV
         result = []
@@ -78,14 +77,18 @@ async def download_daily_data_raw(
                     else:
                         # Fallback: might be milliseconds
                         timestamp_ms = timestamp_raw
-                        logger.warning(f"Expected microseconds but got milliseconds for {target_date} row {row_num}")
+                        logger.warning(
+                            f"Expected microseconds but got milliseconds for {target_date} row {row_num}"
+                        )
                 else:
                     # Data before 2025-01-01: milliseconds format
                     # Verify it's actually in milliseconds (13 digits)
                     if timestamp_raw > 10**15:
                         # Unexpected: got microseconds when expecting milliseconds
                         timestamp_ms = timestamp_raw // 1000
-                        logger.warning(f"Expected milliseconds but got microseconds for {target_date} row {row_num}")
+                        logger.warning(
+                            f"Expected milliseconds but got microseconds for {target_date} row {row_num}"
+                        )
                     else:
                         timestamp_ms = timestamp_raw
 
@@ -96,15 +99,17 @@ async def download_daily_data_raw(
 
                 dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
 
-                result.append({
-                    'timestamp': timestamp_ms,
-                    'date': dt.isoformat(),
-                    'open': float(row[1]),
-                    'high': float(row[2]),
-                    'low': float(row[3]),
-                    'close': float(row[4]),
-                    'volume': float(row[5])
-                })
+                result.append(
+                    {
+                        "timestamp": timestamp_ms,
+                        "date": dt.isoformat(),
+                        "open": float(row[1]),
+                        "high": float(row[2]),
+                        "low": float(row[3]),
+                        "close": float(row[4]),
+                        "volume": float(row[5]),
+                    }
+                )
             except (ValueError, OSError) as e:
                 logger.warning(f"Failed to parse row {row_num}: {e}, skipping")
                 continue

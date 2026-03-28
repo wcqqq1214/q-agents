@@ -13,9 +13,7 @@ from app.tasks.update_ohlc import update_daily_ohlc
 class WorkerSettings:
     """ARQ worker settings for background jobs."""
 
-    redis_settings = RedisSettings.from_dsn(
-        os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    )
+    redis_settings = RedisSettings.from_dsn(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
     functions = [update_daily_ohlc, worker_healthcheck]
     max_tries = 3
     retry_jobs = True

@@ -17,9 +17,7 @@ LIST_PATTERN = re.compile(
     r"^\d+\s+(best|top|worst|biggest|largest|most|highest|lowest)\b",
     re.IGNORECASE,
 )
-LIST_PATTERN_2 = re.compile(
-    r"\b(top|best|worst)\s+\d+\b", re.IGNORECASE
-)
+LIST_PATTERN_2 = re.compile(r"\b(top|best|worst)\s+\d+\b", re.IGNORECASE)
 
 
 def _check_article(
@@ -82,9 +80,7 @@ def run_layer0(symbol: str) -> Dict[str, int]:
         stats = {"total": len(rows), "passed": 0, "filtered": 0}
 
         for row in rows:
-            passed, reason = _check_article(
-                row["title"], row["description"], symbol
-            )
+            passed, reason = _check_article(row["title"], row["description"], symbol)
             conn.execute(
                 "INSERT OR IGNORE INTO layer0_results (news_id, symbol, passed, reason) VALUES (?, ?, ?, ?)",
                 (row["id"], symbol, 1 if passed else 0, reason),

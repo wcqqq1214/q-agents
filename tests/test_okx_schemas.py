@@ -1,11 +1,10 @@
 """测试OKX Pydantic模型"""
-import pytest
-from pydantic import ValidationError
+
 from app.api.models.schemas import (
-    OKXOrderRequest,
     OKXBalance,
-    OKXPosition,
+    OKXOrderRequest,
     OKXOrderResponse,
+    OKXPosition,
     OKXTicker,
 )
 
@@ -13,11 +12,7 @@ from app.api.models.schemas import (
 def test_okx_order_request_valid():
     """测试有效的下单请求"""
     order = OKXOrderRequest(
-        inst_id="BTC-USDT",
-        side="buy",
-        order_type="limit",
-        size="0.01",
-        price="50000"
+        inst_id="BTC-USDT", side="buy", order_type="limit", size="0.01", price="50000"
     )
     assert order.inst_id == "BTC-USDT"
     assert order.side == "buy"
@@ -26,23 +21,13 @@ def test_okx_order_request_valid():
 
 def test_okx_order_request_market_order():
     """测试市价单（无需price）"""
-    order = OKXOrderRequest(
-        inst_id="BTC-USDT",
-        side="sell",
-        order_type="market",
-        size="0.01"
-    )
+    order = OKXOrderRequest(inst_id="BTC-USDT", side="sell", order_type="market", size="0.01")
     assert order.price is None
 
 
 def test_okx_balance():
     """测试余额模型"""
-    balance = OKXBalance(
-        currency="USDT",
-        available="1000.5",
-        frozen="100.0",
-        total="1100.5"
-    )
+    balance = OKXBalance(currency="USDT", available="1000.5", frozen="100.0", total="1100.5")
     assert balance.currency == "USDT"
     assert balance.total == "1100.5"
 
@@ -56,7 +41,7 @@ def test_okx_position():
         available_position="10",
         average_price="50000",
         unrealized_pnl="500",
-        leverage="10"
+        leverage="10",
     )
     assert position.inst_id == "BTC-USDT-SWAP"
     assert position.position_side == "long"
@@ -75,7 +60,7 @@ def test_okx_order_response():
         filled_size="0",
         price="50000",
         average_price=None,
-        timestamp="2026-03-20T10:00:00Z"
+        timestamp="2026-03-20T10:00:00Z",
     )
     assert response.order_id == "123456"
     assert response.status == "live"
@@ -91,7 +76,7 @@ def test_okx_ticker():
         volume_24h="1234.56",
         high_24h="51000",
         low_24h="49000",
-        timestamp="2026-03-20T10:00:00Z"
+        timestamp="2026-03-20T10:00:00Z",
     )
     assert ticker.inst_id == "BTC-USDT"
     assert ticker.last == "50000"

@@ -111,11 +111,7 @@ def _to_iso_date(published_utc: Optional[str]) -> Optional[str]:
     if not published_utc:
         return None
     try:
-        return (
-            datetime.fromisoformat(published_utc.replace("Z", "+00:00"))
-            .date()
-            .isoformat()
-        )
+        return datetime.fromisoformat(published_utc.replace("Z", "+00:00")).date().isoformat()
     except (ValueError, AttributeError):
         return None
 

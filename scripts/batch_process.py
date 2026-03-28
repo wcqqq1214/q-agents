@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from dotenv import load_dotenv
 
 from app.database import get_conn
-from app.pipeline.layer1 import get_pending_articles, _build_batch_prompt
+from app.pipeline.layer1 import _build_batch_prompt, get_pending_articles
 
 # Load environment variables
 load_dotenv()
@@ -96,7 +96,13 @@ def submit_batch_api(symbol: str, articles: List[Dict[str, Any]]) -> str:
     conn.execute(
         """INSERT INTO batch_jobs (batch_id, symbol, status, total, created_at)
            VALUES (?, ?, ?, ?, ?)""",
-        (batch.id, symbol, batch.processing_status, len(articles), datetime.now().isoformat()),
+        (
+            batch.id,
+            symbol,
+            batch.processing_status,
+            len(articles),
+            datetime.now().isoformat(),
+        ),
     )
     conn.commit()
     conn.close()
@@ -245,7 +251,9 @@ def collect_batch_results(batch_id: str) -> Dict[str, int]:
     conn.commit()
     conn.close()
 
-    logger.info(f"Collection complete: {stats['processed']} processed, {stats['relevant']} relevant")
+    logger.info(
+        f"Collection complete: {stats['processed']} processed, {stats['relevant']} relevant"
+    )
     return stats
 
 
@@ -269,13 +277,13 @@ def main_submit():
 
     symbols = [args.symbol.upper()] if args.symbol else MAGNIFICENT_SEVEN
 
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("Batch API Submission - Layer 1 Semantic Extraction")
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info(f"Tickers: {', '.join(symbols)}")
     logger.info(f"Max articles per ticker: {args.limit}")
-    logger.info(f"Cost: ~50% cheaper than real-time API")
-    logger.info("="*60)
+    logger.info("Cost: ~50% cheaper than real-time API")
+    logger.info("=" * 60)
     logger.info("")
 
     batch_ids = []
@@ -300,10 +308,10 @@ def main_submit():
         logger.info("")
 
     # Summary
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("BATCH SUBMISSION COMPLETE")
     logger.info(f"Submitted {len(batch_ids)} batch jobs")
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("")
     logger.info("Next steps:")
     for symbol, batch_id in batch_ids:
@@ -315,9 +323,7 @@ def main_submit():
 
 def main_collect():
     """Main entry point for batch collection."""
-    parser = argparse.ArgumentParser(
-        description="Collect results from Anthropic Batch API"
-    )
+    parser = argparse.ArgumentParser(description="Collect results from Anthropic Batch API")
     parser.add_argument(
         "batch_id",
         type=str,
@@ -325,11 +331,11 @@ def main_collect():
     )
     args = parser.parse_args()
 
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("Batch API Collection")
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info(f"Batch ID: {args.batch_id}")
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("")
 
     try:
@@ -340,7 +346,7 @@ def main_collect():
         logger.info(f"Errored: {status['request_counts']['errored']}")
         logger.info("")
 
-        if status['status'] != 'ended':
+        if status["status"] != "ended":
             logger.warning(f"Batch is not complete yet (status: {status['status']})")
             logger.info("Wait for batch to complete before collecting results.")
             return
@@ -348,12 +354,12 @@ def main_collect():
         # Collect results
         stats = collect_batch_results(args.batch_id)
 
-        logger.info("="*60)
+        logger.info("=" * 60)
         logger.info("COLLECTION COMPLETE")
         logger.info(f"Processed: {stats['processed']}")
         logger.info(f"Relevant: {stats['relevant']}")
         logger.info(f"Errors: {stats['errors']}")
-        logger.info("="*60)
+        logger.info("=" * 60)
 
     except Exception as exc:
         logger.error(f"Failed to collect batch results: {exc}", exc_info=True)

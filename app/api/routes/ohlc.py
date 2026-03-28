@@ -1,12 +1,13 @@
 """OHLC data API endpoints."""
 
 import logging
+from datetime import datetime, timedelta
+from typing import List, Optional
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from typing import List, Optional
-from datetime import datetime, timedelta
 
-from app.database import get_ohlc, get_metadata, get_ohlc_aggregated
+from app.database import get_metadata, get_ohlc_aggregated
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -56,14 +57,14 @@ def get_stock_ohlc_from_db(
     if interval not in valid_intervals:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid interval. Must be one of: {', '.join(valid_intervals)}"
+            detail=f"Invalid interval. Must be one of: {', '.join(valid_intervals)}",
         )
 
     # Default to 5 years if not specified
     if not end:
         end = datetime.now().date().isoformat()
     if not start:
-        start = (datetime.now().date() - timedelta(days=5*365)).isoformat()
+        start = (datetime.now().date() - timedelta(days=5 * 365)).isoformat()
 
     # Validate date range
     try:
@@ -78,15 +79,9 @@ def get_stock_ohlc_from_db(
     try:
         data = get_ohlc_aggregated(symbol, start, end, interval)
         if not data:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No OHLC data found for {symbol}"
-            )
+            raise HTTPException(status_code=404, detail=f"No OHLC data found for {symbol}")
 
-        return OHLCResponse(
-            symbol=symbol.upper(),
-            data=[OHLCRecord(**record) for record in data]
-        )
+        return OHLCResponse(symbol=symbol.upper(), data=[OHLCRecord(**record) for record in data])
     except HTTPException:
         raise
     except ValueError as e:
@@ -113,26 +108,23 @@ def get_data_status(symbol: str):
     metadata = get_metadata(symbol)
 
     if not metadata:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No data found for {symbol}"
-        )
+        raise HTTPException(status_code=404, detail=f"No data found for {symbol}")
 
     # Count total records
     from app.database import get_conn
+
     conn = get_conn()
     try:
         count = conn.execute(
-            "SELECT COUNT(*) as cnt FROM ohlc WHERE symbol = ?",
-            (symbol.upper(),)
-        ).fetchone()['cnt']
+            "SELECT COUNT(*) as cnt FROM ohlc WHERE symbol = ?", (symbol.upper(),)
+        ).fetchone()["cnt"]
     finally:
         conn.close()
 
     return DataStatusResponse(
         symbol=symbol.upper(),
-        last_update=metadata.get('last_update'),
-        data_start=metadata.get('data_start'),
-        data_end=metadata.get('data_end'),
-        total_records=count
+        last_update=metadata.get("last_update"),
+        data_start=metadata.get("data_start"),
+        data_end=metadata.get("data_end"),
+        total_records=count,
     )

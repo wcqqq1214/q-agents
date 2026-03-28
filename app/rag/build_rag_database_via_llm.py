@@ -12,12 +12,16 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.llm_config import create_llm
 from app.rag.build_event_memory import (
-    create_memory_document,
     EventReturnComputationError,
+    create_memory_document,
     fetch_post_event_returns,
     init_chroma_db,
 )
-from app.tools.finance_tools import NewsItem, _parse_news_published_time, search_news_with_duckduckgo
+from app.tools.finance_tools import (
+    NewsItem,
+    _parse_news_published_time,
+    search_news_with_duckduckgo,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +110,7 @@ class HistoricalEvent(BaseModel):
         description=(
             "Objective 1-3 sentence summary describing what happened, grounded "
             "strictly in the referenced news article or articles."
-        )
+        ),
     )
     headline: Optional[str] = Field(
         default=None,
@@ -227,9 +231,7 @@ def _search_news_for_ticker_year(
         # `search_news_with_duckduckgo` is a LangChain StructuredTool due to @tool.
         # Call it via `.invoke({...})` to avoid treating it like a plain function.
         try:
-            items = search_news_with_duckduckgo.invoke(
-                {"query": q, "limit": per_query_limit}
-            )
+            items = search_news_with_duckduckgo.invoke({"query": q, "limit": per_query_limit})
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "search_news_with_duckduckgo.invoke failed for query=%r: %s",
@@ -366,7 +368,7 @@ def mine_historical_events(ticker: str, year: int) -> List[ResolvedEvent]:
         "- You MUST output a valid JSON object. The root MUST be an object "
         'containing a single key "events", whose value is a list of event '
         "objects. DO NOT output a raw list/array at the root level.\n"
-        "- The field \"source_index\" MUST be a single integer (e.g., 0). "
+        '- The field "source_index" MUST be a single integer (e.g., 0). '
         "DO NOT use arrays or lists like [0].\n"
         "- Do not output any thinking process, reasoning trace, conversational "
         "text, or explanations. Only return the JSON object."
@@ -597,7 +599,11 @@ def build_and_store_memory(
                 continue
 
             source_url = (meta.get("source_url") or "").strip()
-            dedupe_key = (normalized, source_url) if source_url else (normalized, f"__no_url__:{ev.date}:{ev.summary[:32]}")
+            dedupe_key = (
+                (normalized, source_url)
+                if source_url
+                else (normalized, f"__no_url__:{ev.date}:{ev.summary[:32]}")
+            )
 
             current_len = len(doc_clean)
             existing = best_by_url.get(dedupe_key)
@@ -663,4 +669,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

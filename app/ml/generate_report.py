@@ -88,9 +88,7 @@ def generate_report(asset: str, run_dir: str) -> MlQuantBundle:
         "asset": asset_norm,
         "module": "ml_quant",
         "meta": {
-            "generated_at_utc": datetime.now(timezone.utc)
-            .replace(microsecond=0)
-            .isoformat(),
+            "generated_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         },
         "ml_quant": ml_quant,
     }
@@ -99,4 +97,3 @@ def generate_report(asset: str, run_dir: str) -> MlQuantBundle:
     write_json(path, report)
     report["report_path"] = str(path)
     return cast(MlQuantBundle, report)
-

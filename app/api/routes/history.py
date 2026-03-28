@@ -1,14 +1,15 @@
 """API routes for agent decision history."""
 
-from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
 import os
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Query
 
 from app.database.agent_history import (
+    query_agent_messages,
     query_analysis_runs,
     query_run_detail,
-    query_agent_messages,
-    query_tool_calls
+    query_tool_calls,
 )
 
 router = APIRouter()
@@ -20,7 +21,7 @@ async def get_analysis_runs(
     date_from: Optional[str] = Query(None, description="Start date (ISO format)"),
     date_to: Optional[str] = Query(None, description="End date (ISO format)"),
     limit: int = Query(50, ge=1, le=200, description="Maximum results"),
-    offset: int = Query(0, ge=0, description="Offset for pagination")
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
 ):
     """Query analysis runs with optional filters."""
     db_path = os.getenv("AGENT_HISTORY_DB_PATH", "data/agent_history.db")
@@ -31,13 +32,10 @@ async def get_analysis_runs(
         date_to=date_to,
         limit=limit,
         offset=offset,
-        db_path=db_path
+        db_path=db_path,
     )
 
-    return {
-        "total": len(results),
-        "items": results
-    }
+    return {"total": len(results), "items": results}
 
 
 @router.get("/analysis-runs/{run_id}")
@@ -72,7 +70,7 @@ async def get_tool_calls(
     status: Optional[str] = Query(None, description="Filter by status (success/failed)"),
     date_from: Optional[str] = Query(None, description="Start date (ISO format)"),
     limit: int = Query(50, ge=1, le=200, description="Maximum results"),
-    offset: int = Query(0, ge=0, description="Offset for pagination")
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
 ):
     """Query tool calls with optional filters."""
     db_path = os.getenv("AGENT_HISTORY_DB_PATH", "data/agent_history.db")
@@ -83,19 +81,16 @@ async def get_tool_calls(
         date_from=date_from,
         limit=limit,
         offset=offset,
-        db_path=db_path
+        db_path=db_path,
     )
 
-    return {
-        "total": len(results),
-        "items": results
-    }
+    return {"total": len(results), "items": results}
 
 
 @router.get("/tool-calls/stats")
 async def get_tool_stats(
     date_from: Optional[str] = Query(None, description="Start date (ISO format)"),
-    date_to: Optional[str] = Query(None, description="End date (ISO format)")
+    date_to: Optional[str] = Query(None, description="End date (ISO format)"),
 ):
     """Get tool usage statistics."""
     db_path = os.getenv("AGENT_HISTORY_DB_PATH", "data/agent_history.db")
@@ -104,7 +99,7 @@ async def get_tool_stats(
     all_calls = query_tool_calls(
         date_from=date_from,
         limit=10000,  # Large limit to get all
-        db_path=db_path
+        db_path=db_path,
     )
 
     # Aggregate by tool_name
@@ -116,7 +111,7 @@ async def get_tool_stats(
                 "tool_name": tool_name,
                 "total_calls": 0,
                 "success_count": 0,
-                "failed_count": 0
+                "failed_count": 0,
             }
 
         stats_by_tool[tool_name]["total_calls"] += 1
@@ -133,10 +128,4 @@ async def get_tool_stats(
         tool_stats["success_rate"] = success / total if total > 0 else 0.0
         tools.append(tool_stats)
 
-    return {
-        "period": {
-            "from": date_from,
-            "to": date_to
-        },
-        "tools": tools
-    }
+    return {"period": {"from": date_from, "to": date_to}, "tools": tools}

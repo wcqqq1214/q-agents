@@ -284,6 +284,7 @@ def rate_limit(
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         if asyncio.iscoroutinefunction(func):
+
             @wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 identifier = _resolve_identifier(func, args, kwargs, identifier_key)
@@ -291,9 +292,7 @@ def rate_limit(
                     identifier = f"{identifier}:{func.__name__}"
                 allowed = await acquire_rate_limit(exchange, identifier)
                 if not allowed:
-                    raise RateLimitExceeded(
-                        f"Rate limit exceeded for {exchange} ({identifier})"
-                    )
+                    raise RateLimitExceeded(f"Rate limit exceeded for {exchange} ({identifier})")
                 return await func(*args, **kwargs)
 
             return async_wrapper
@@ -305,9 +304,7 @@ def rate_limit(
                 identifier = f"{identifier}:{func.__name__}"
             allowed = acquire_rate_limit_sync(exchange, identifier)
             if not allowed:
-                raise RateLimitExceeded(
-                    f"Rate limit exceeded for {exchange} ({identifier})"
-                )
+                raise RateLimitExceeded(f"Rate limit exceeded for {exchange} ({identifier})")
             return func(*args, **kwargs)
 
         return sync_wrapper

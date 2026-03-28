@@ -1,6 +1,7 @@
 """Test NLP tools with Claude provider."""
 
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -22,21 +23,24 @@ def test_analyze_reddit_text():
     """
 
     try:
-        result = analyze_reddit_text.invoke({
-            "asset": "NVDA",
-            "text": sample_text
-        })
+        result = analyze_reddit_text.invoke({"asset": "NVDA", "text": sample_text})
 
-        print(f"\n✓ Analysis completed successfully")
+        print("\n✓ Analysis completed successfully")
         print(f"  Sentiment: {result['sentiment']}")
         print(f"  Keywords: {result['keywords']}")
         print(f"  Summary: {result['summary']}")
 
         # Validate result structure
-        assert result['sentiment'] in ['panic', 'bearish', 'neutral', 'bullish', 'euphoric']
-        assert isinstance(result['keywords'], list)
-        assert isinstance(result['summary'], str)
-        assert len(result['summary']) > 0
+        assert result["sentiment"] in [
+            "panic",
+            "bearish",
+            "neutral",
+            "bullish",
+            "euphoric",
+        ]
+        assert isinstance(result["keywords"], list)
+        assert isinstance(result["summary"], str)
+        assert len(result["summary"]) > 0
 
         print("\n✓ Result structure is valid")
         return True
@@ -44,6 +48,7 @@ def test_analyze_reddit_text():
     except Exception as exc:
         print(f"\n✗ Test failed: {exc}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -55,17 +60,16 @@ def test_empty_text_handling():
     from app.social.nlp_tools import analyze_reddit_text
 
     try:
-        result = analyze_reddit_text.invoke({
-            "asset": "BTC",
-            "text": "No posts fetched from Reddit"
-        })
+        result = analyze_reddit_text.invoke(
+            {"asset": "BTC", "text": "No posts fetched from Reddit"}
+        )
 
-        print(f"✓ Empty text handled gracefully")
+        print("✓ Empty text handled gracefully")
         print(f"  Sentiment: {result['sentiment']}")
         print(f"  Summary: {result['summary']}")
 
-        assert result['sentiment'] == 'neutral'
-        assert 'No Reddit discussion' in result['summary']
+        assert result["sentiment"] == "neutral"
+        assert "No Reddit discussion" in result["summary"]
 
         return True
 

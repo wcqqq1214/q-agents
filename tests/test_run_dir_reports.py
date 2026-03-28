@@ -33,4 +33,3 @@ def test_per_run_dir_contains_four_reports(tmp_path: Path, monkeypatch: pytest.M
         assert obj.get("asset")
         assert obj.get("module") in {"quant", "news", "social", "cio"}
         assert "meta" in obj and isinstance(obj["meta"], dict)
-

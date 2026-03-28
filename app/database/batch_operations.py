@@ -1,9 +1,7 @@
 """Batch operations for crypto OHLC data with optimized performance."""
 
-from typing import List, Dict, Any
-from datetime import datetime
-import sqlite3
 import logging
+from typing import Any, Dict, List
 
 from app.database.schema import get_conn
 
@@ -51,17 +49,19 @@ class BatchInserter:
             data: List of OHLC records
         """
         for record in data:
-            self.buffer.append((
-                symbol,
-                record['timestamp'],
-                record['date'],
-                record['open'],
-                record['high'],
-                record['low'],
-                record['close'],
-                record['volume'],
-                bar
-            ))
+            self.buffer.append(
+                (
+                    symbol,
+                    record["timestamp"],
+                    record["date"],
+                    record["open"],
+                    record["high"],
+                    record["low"],
+                    record["close"],
+                    record["volume"],
+                    bar,
+                )
+            )
 
         # Auto-flush if buffer is full
         if len(self.buffer) >= self.batch_size:
@@ -88,7 +88,9 @@ class BatchInserter:
             cursor = self.conn.executemany(query, self.buffer)
             self.conn.commit()
             self.total_inserted += len(self.buffer)
-            logger.info(f"Flushed {len(self.buffer)} records to database (total: {self.total_inserted})")
+            logger.info(
+                f"Flushed {len(self.buffer)} records to database (total: {self.total_inserted})"
+            )
             self.buffer.clear()
         except Exception as e:
             logger.error(f"Failed to flush batch: {e}")

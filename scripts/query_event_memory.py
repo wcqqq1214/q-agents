@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from langchain_chroma import Chroma
+
 from app.embedding_config import create_embeddings
 
 PERSIST_DIR = "./data/chroma_event_db_stocks"
@@ -44,13 +45,11 @@ def query_events(ticker=None, sentiment=None, date_from=None, date_to=None, limi
 
     # Filter by date and collect matching events
     matching_events = []
-    for doc_id, doc, meta in zip(
-        results['ids'], results['documents'], results['metadatas']
-    ):
+    for doc_id, doc, meta in zip(results["ids"], results["documents"], results["metadatas"]):
         # Filter by date if specified
-        if date_from and meta['date'] < date_from:
+        if date_from and meta["date"] < date_from:
             continue
-        if date_to and meta['date'] > date_to:
+        if date_to and meta["date"] > date_to:
             continue
 
         matching_events.append((doc_id, doc, meta))
@@ -66,7 +65,7 @@ def query_events(ticker=None, sentiment=None, date_from=None, date_to=None, limi
         print(f"Sentiment: {meta.get('sentiment', 'N/A')}")
         print(f"Title: {meta['source_title'][:80]}...")
         print(f"URL: {meta['source_url']}")
-        print(f"\nContent preview:")
+        print("\nContent preview:")
         print(doc[:400])
         print("=" * 80)
 

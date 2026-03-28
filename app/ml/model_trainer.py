@@ -8,7 +8,6 @@ from lightgbm import LGBMClassifier
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.model_selection import TimeSeriesSplit
 
-
 # Strong regularization for low signal-to-noise financial data (new_ml_quant.md).
 LGBM_PARAMS: Dict[str, object] = {
     "objective": "binary",
@@ -132,4 +131,3 @@ def predict_proba_latest(model: LGBMClassifier, X: pd.DataFrame) -> float:
     proba = model.predict_proba(latest_row)[0, 1]
     # Ensure the value is a plain Python float for JSON serialization.
     return float(proba)
-

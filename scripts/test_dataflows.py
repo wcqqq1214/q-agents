@@ -1,8 +1,11 @@
 # scripts/test_dataflows.py
 """Smoke test for data provider abstraction layer"""
+
 import asyncio
 from datetime import datetime, timedelta
+
 from app.dataflows.interface import DataFlowRouter
+
 
 async def main():
     print("🧪 Testing Data Provider Abstraction Layer\n")
@@ -39,6 +42,7 @@ async def main():
         print(f"   ✗ Error: {e}")
 
     print("\n✅ Smoke test complete!")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

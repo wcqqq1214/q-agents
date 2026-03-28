@@ -7,8 +7,11 @@ from langchain_core.tools import tool
 
 from app.ml.feature_engine import build_dataset, load_ohlcv_with_macro
 from app.ml.model_trainer import predict_proba_latest, train_lightgbm
-from app.ml.shap_explainer import ShapSummary, build_markdown_report, explain_latest_sample
-
+from app.ml.shap_explainer import (
+    ShapSummary,
+    build_markdown_report,
+    explain_latest_sample,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -164,4 +167,3 @@ def run_ml_quant_analysis(ticker: str) -> MlQuantResult:
     """
 
     return _run_ml_quant_analysis_impl(ticker)
-

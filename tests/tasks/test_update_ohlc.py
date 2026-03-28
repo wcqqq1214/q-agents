@@ -15,14 +15,20 @@ async def test_update_daily_ohlc_returns_summary_with_redis_ctx():
 
     with patch("app.tasks.update_ohlc.SYMBOLS", ["AAPL", "MSFT"]):
         with patch("app.tasks.update_ohlc.asyncio.to_thread", new=AsyncMock()) as mock_to_thread:
+
             def run_sync(func, *args, **kwargs):
                 return func(*args, **kwargs)
 
             mock_to_thread.side_effect = run_sync
 
-            with patch("app.tasks.update_ohlc.call_get_stock_history", return_value=[{"date": "2026-03-25"}]):
+            with patch(
+                "app.tasks.update_ohlc.call_get_stock_history",
+                return_value=[{"date": "2026-03-25"}],
+            ):
                 with patch("app.tasks.update_ohlc.upsert_ohlc", new=Mock()) as mock_upsert:
-                    with patch("app.tasks.update_ohlc.update_metadata", new=Mock()) as mock_update_metadata:
+                    with patch(
+                        "app.tasks.update_ohlc.update_metadata", new=Mock()
+                    ) as mock_update_metadata:
                         result = await update_daily_ohlc(ctx)
 
     assert result == {"success": 2, "failed": 0, "total_records": 2}
@@ -36,6 +42,7 @@ async def test_update_daily_ohlc_counts_failures():
     """Task should continue processing when one symbol fails."""
     with patch("app.tasks.update_ohlc.SYMBOLS", ["AAPL", "MSFT"]):
         with patch("app.tasks.update_ohlc.asyncio.to_thread", new=AsyncMock()) as mock_to_thread:
+
             def run_sync(func, *args, **kwargs):
                 return func(*args, **kwargs)
 

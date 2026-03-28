@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
-from pathlib import Path
 import json
+from pathlib import Path
 from typing import List
+
+from fastapi import APIRouter, HTTPException
 
 from ..models import Report
 
@@ -40,7 +41,7 @@ async def get_reports():
                         social_sentiment=data.get("social_sentiment"),
                     )
                 )
-        except Exception as e:
+        except Exception:
             # Skip invalid reports
             continue
 

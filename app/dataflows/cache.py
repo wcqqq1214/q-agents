@@ -1,17 +1,21 @@
 # app/dataflows/cache.py
-import json
 import hashlib
-from typing import Optional, List
+import json
 from datetime import timedelta
+from typing import List, Optional
+
 import redis.asyncio as redis
 from pydantic import BaseModel
 
+
 class CacheConfig:
     """缓存配置"""
+
     STOCK_DATA_TTL = timedelta(days=7)
     INDICATORS_TTL = timedelta(days=1)
     NEWS_TTL = timedelta(hours=1)
     FUNDAMENTALS_TTL = timedelta(days=1)
+
 
 class DataCache:
     """异步 Redis 缓存层"""
@@ -39,13 +43,7 @@ class DataCache:
             return json.loads(data)
         return None
 
-    async def set(
-        self,
-        prefix: str,
-        data: List[BaseModel],
-        ttl: timedelta,
-        **kwargs
-    ):
+    async def set(self, prefix: str, data: List[BaseModel], ttl: timedelta, **kwargs):
         """写入缓存（Pydantic V2）"""
         key = self._make_key(prefix, **kwargs)
         json_data = json.dumps([item.model_dump() for item in data], default=str)

@@ -12,7 +12,7 @@ from app.mcp_client.finance_client import call_get_stock_history
 
 logger = logging.getLogger(__name__)
 
-SYMBOLS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA']
+SYMBOLS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"]
 
 
 async def update_daily_ohlc(ctx: Optional[Dict[str, Any]] = None) -> Dict[str, int]:
@@ -50,7 +50,9 @@ async def update_daily_ohlc(ctx: Optional[Dict[str, Any]] = None) -> Dict[str, i
         except Exception as e:
             logger.error(f"✗ Failed to update {symbol}: {e}")
 
-    logger.info(f"Daily update complete: {success_count}/{len(SYMBOLS)} stocks, {total_records} records")
+    logger.info(
+        f"Daily update complete: {success_count}/{len(SYMBOLS)} stocks, {total_records} records"
+    )
     return {
         "success": success_count,
         "failed": len(SYMBOLS) - success_count,

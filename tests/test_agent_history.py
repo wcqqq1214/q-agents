@@ -1,21 +1,22 @@
 """Tests for agent history database operations."""
 
-import sqlite3
-from pathlib import Path
-import pytest
 import json
+import sqlite3
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
 from app.database.agent_history import (
-    init_db,
     get_connection,
-    save_analysis_run,
-    save_agent_execution,
-    save_tool_call,
+    init_db,
+    query_agent_messages,
     query_analysis_runs,
     query_run_detail,
-    query_agent_messages,
-    query_tool_calls
+    query_tool_calls,
+    save_agent_execution,
+    save_analysis_run,
+    save_tool_call,
 )
 
 
@@ -59,13 +60,13 @@ def test_init_db_creates_indexes(tmp_path):
     indexes = {row[0] for row in cursor.fetchall()}
 
     expected_indexes = {
-        'idx_runs_asset',
-        'idx_runs_timestamp',
-        'idx_exec_run',
-        'idx_exec_agent',
-        'idx_tool_exec',
-        'idx_tool_name',
-        'idx_tool_status'
+        "idx_runs_asset",
+        "idx_runs_timestamp",
+        "idx_exec_run",
+        "idx_exec_agent",
+        "idx_tool_exec",
+        "idx_tool_name",
+        "idx_tool_status",
     }
 
     assert expected_indexes.issubset(indexes)
@@ -89,7 +90,7 @@ def test_save_analysis_run(tmp_path):
         query=query,
         timestamp=timestamp,
         final_decision=final_decision,
-        db_path=str(db_path)
+        db_path=str(db_path),
     )
 
     conn = get_connection(str(db_path))
@@ -117,7 +118,7 @@ def test_save_agent_execution(tmp_path):
         asset="AAPL",
         query="test",
         timestamp=datetime.now(timezone(timedelta(hours=8))),
-        db_path=str(db_path)
+        db_path=str(db_path),
     )
 
     # Then save execution
@@ -125,7 +126,7 @@ def test_save_agent_execution(tmp_path):
     agent_type = "quant"
     messages = [
         {"role": "system", "content": "You are an analyst"},
-        {"role": "user", "content": "Analyze AAPL"}
+        {"role": "user", "content": "Analyze AAPL"},
     ]
     output_text = "Technical analysis shows..."
     start_time = datetime.now(timezone(timedelta(hours=8)))
@@ -139,7 +140,7 @@ def test_save_agent_execution(tmp_path):
         output_text=output_text,
         start_time=start_time,
         end_time=end_time,
-        db_path=str(db_path)
+        db_path=str(db_path),
     )
 
     conn = get_connection(str(db_path))
@@ -174,7 +175,7 @@ def test_save_tool_call(tmp_path):
         asset="AAPL",
         query="test",
         timestamp=datetime.now(timezone(timedelta(hours=8))),
-        db_path=str(db_path)
+        db_path=str(db_path),
     )
     save_agent_execution(
         execution_id=execution_id,
@@ -182,7 +183,7 @@ def test_save_tool_call(tmp_path):
         agent_type="quant",
         messages=[],
         start_time=datetime.now(timezone(timedelta(hours=8))),
-        db_path=str(db_path)
+        db_path=str(db_path),
     )
 
     # Save tool call
@@ -201,7 +202,7 @@ def test_save_tool_call(tmp_path):
         result=result,
         status=status,
         timestamp=timestamp,
-        db_path=str(db_path)
+        db_path=str(db_path),
     )
 
     conn = get_connection(str(db_path))
@@ -231,9 +232,27 @@ def test_query_analysis_runs(tmp_path):
 
     # Insert test data
     tz = timezone(timedelta(hours=8))
-    save_analysis_run("20260321_100000", "AAPL", "test1", datetime(2026, 3, 21, 10, 0, 0, tzinfo=tz), db_path=str(db_path))
-    save_analysis_run("20260321_110000", "AAPL", "test2", datetime(2026, 3, 21, 11, 0, 0, tzinfo=tz), db_path=str(db_path))
-    save_analysis_run("20260321_120000", "NVDA", "test3", datetime(2026, 3, 21, 12, 0, 0, tzinfo=tz), db_path=str(db_path))
+    save_analysis_run(
+        "20260321_100000",
+        "AAPL",
+        "test1",
+        datetime(2026, 3, 21, 10, 0, 0, tzinfo=tz),
+        db_path=str(db_path),
+    )
+    save_analysis_run(
+        "20260321_110000",
+        "AAPL",
+        "test2",
+        datetime(2026, 3, 21, 11, 0, 0, tzinfo=tz),
+        db_path=str(db_path),
+    )
+    save_analysis_run(
+        "20260321_120000",
+        "NVDA",
+        "test3",
+        datetime(2026, 3, 21, 12, 0, 0, tzinfo=tz),
+        db_path=str(db_path),
+    )
 
     # Query all
     results = query_analysis_runs(db_path=str(db_path))
@@ -261,8 +280,14 @@ def test_query_run_detail(tmp_path):
 
     exec_id = str(uuid.uuid4())
     save_agent_execution(
-        exec_id, run_id, "quant", [{"role": "system", "content": "test"}],
-        datetime.now(tz), "output", datetime.now(tz), str(db_path)
+        exec_id,
+        run_id,
+        "quant",
+        [{"role": "system", "content": "test"}],
+        datetime.now(tz),
+        "output",
+        datetime.now(tz),
+        str(db_path),
     )
 
     # Query detail
@@ -287,7 +312,7 @@ def test_query_agent_messages(tmp_path):
     tz = timezone(timedelta(hours=8))
     messages = [
         {"role": "system", "content": "You are an analyst"},
-        {"role": "user", "content": "Analyze AAPL"}
+        {"role": "user", "content": "Analyze AAPL"},
     ]
 
     save_analysis_run(run_id, "AAPL", "test", datetime.now(tz), db_path=str(db_path))
@@ -317,8 +342,26 @@ def test_query_tool_calls(tmp_path):
     save_agent_execution(exec_id, run_id, "quant", [], datetime.now(tz), db_path=str(db_path))
 
     # Insert tool calls
-    save_tool_call(str(uuid.uuid4()), exec_id, "get_stock_data", {"ticker": "AAPL"}, "success", datetime.now(tz), {"data": []}, db_path=str(db_path))
-    save_tool_call(str(uuid.uuid4()), exec_id, "search_news", {"query": "AAPL"}, "failed", datetime.now(tz), error_message="timeout", db_path=str(db_path))
+    save_tool_call(
+        str(uuid.uuid4()),
+        exec_id,
+        "get_stock_data",
+        {"ticker": "AAPL"},
+        "success",
+        datetime.now(tz),
+        {"data": []},
+        db_path=str(db_path),
+    )
+    save_tool_call(
+        str(uuid.uuid4()),
+        exec_id,
+        "search_news",
+        {"query": "AAPL"},
+        "failed",
+        datetime.now(tz),
+        error_message="timeout",
+        db_path=str(db_path),
+    )
 
     # Query all
     results = query_tool_calls(db_path=str(db_path))

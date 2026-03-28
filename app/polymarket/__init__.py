@@ -11,4 +11,3 @@ __all__ = [
     "search_polymarket_predictions",
     "search_polymarket_by_category",
 ]
-

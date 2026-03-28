@@ -63,4 +63,3 @@ def test_get_reddit_discussion_returns_clean_text_and_respects_limit() -> None:
     print(header)
     print("--- reddit_ingest_excerpt ---")
     print(text[:800])
-

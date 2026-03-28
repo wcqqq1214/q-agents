@@ -23,8 +23,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from dotenv import load_dotenv
 
 from app.database import get_conn, init_db
-from app.polygon import fetch_news, fetch_ohlc
 from app.pipeline import align_news_for_symbol, run_layer0
+from app.polygon import fetch_news, fetch_ohlc
 
 # Load environment variables
 load_dotenv()
@@ -42,9 +42,7 @@ MAGNIFICENT_SEVEN = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"]
 
 # Date range for full fetch (2 years)
 TODAY = datetime.now(timezone.utc).date().isoformat()
-TWO_YEARS_AGO = (
-    datetime.now(timezone.utc).date() - timedelta(days=2 * 365)
-).isoformat()
+TWO_YEARS_AGO = (datetime.now(timezone.utc).date() - timedelta(days=2 * 365)).isoformat()
 
 
 def get_last_fetch_dates(symbol: str) -> Tuple[str, str]:
@@ -90,7 +88,9 @@ def store_ohlc_data(symbol: str, rows: List[dict]) -> int:
 
     conn = get_conn()
     try:
-        before_count = conn.execute("SELECT COUNT(*) FROM ohlc WHERE symbol = ?", (symbol,)).fetchone()[0]
+        before_count = conn.execute(
+            "SELECT COUNT(*) FROM ohlc WHERE symbol = ?", (symbol,)
+        ).fetchone()[0]
 
         for row in rows:
             try:
@@ -118,7 +118,9 @@ def store_ohlc_data(symbol: str, rows: List[dict]) -> int:
         )
 
         conn.commit()
-        after_count = conn.execute("SELECT COUNT(*) FROM ohlc WHERE symbol = ?", (symbol,)).fetchone()[0]
+        after_count = conn.execute(
+            "SELECT COUNT(*) FROM ohlc WHERE symbol = ?", (symbol,)
+        ).fetchone()[0]
         inserted = after_count - before_count
         return inserted
     except Exception as exc:
@@ -144,7 +146,9 @@ def store_news_data(symbol: str, articles: List[dict]) -> int:
 
     conn = get_conn()
     try:
-        before_count = conn.execute("SELECT COUNT(*) FROM news WHERE symbol = ?", (symbol,)).fetchone()[0]
+        before_count = conn.execute(
+            "SELECT COUNT(*) FROM news WHERE symbol = ?", (symbol,)
+        ).fetchone()[0]
 
         for article in articles:
             article_id = article.get("id")
@@ -176,7 +180,9 @@ def store_news_data(symbol: str, articles: List[dict]) -> int:
         )
 
         conn.commit()
-        after_count = conn.execute("SELECT COUNT(*) FROM news WHERE symbol = ?", (symbol,)).fetchone()[0]
+        after_count = conn.execute(
+            "SELECT COUNT(*) FROM news WHERE symbol = ?", (symbol,)
+        ).fetchone()[0]
         inserted = after_count - before_count
         return inserted
     except Exception as exc:
@@ -194,9 +200,9 @@ def harvest_ticker(symbol: str, full_fetch: bool = False) -> None:
         symbol: Stock ticker symbol.
         full_fetch: If True, fetch all historical data. If False, incremental update.
     """
-    logger.info(f"{'='*60}")
+    logger.info(f"{'=' * 60}")
     logger.info(f"Processing {symbol}")
-    logger.info(f"{'='*60}")
+    logger.info(f"{'=' * 60}")
 
     # Determine date range
     if full_fetch:
@@ -207,20 +213,16 @@ def harvest_ticker(symbol: str, full_fetch: bool = False) -> None:
         last_ohlc, last_news = get_last_fetch_dates(symbol)
 
         # Start from day after last fetch
-        ohlc_start = (
-            datetime.fromisoformat(last_ohlc) + timedelta(days=1)
-        ).date().isoformat()
-        news_start = (
-            datetime.fromisoformat(last_news) + timedelta(days=1)
-        ).date().isoformat()
+        ohlc_start = (datetime.fromisoformat(last_ohlc) + timedelta(days=1)).date().isoformat()
+        news_start = (datetime.fromisoformat(last_news) + timedelta(days=1)).date().isoformat()
 
-        logger.info(f"Incremental update:")
+        logger.info("Incremental update:")
         logger.info(f"  OHLC: {ohlc_start} to {TODAY}")
         logger.info(f"  News: {news_start} to {TODAY}")
 
         # Skip if already up to date
         if ohlc_start > TODAY and news_start > TODAY:
-            logger.info(f"Already up to date. Skipping.")
+            logger.info("Already up to date. Skipping.")
             return
 
     # Fetch and store OHLC data
@@ -239,9 +241,7 @@ def harvest_ticker(symbol: str, full_fetch: bool = False) -> None:
         if news_start <= TODAY:
             news_articles = fetch_news(symbol, news_start, TODAY)
             inserted_news = store_news_data(symbol, news_articles)
-            logger.info(
-                f"News: Fetched {len(news_articles)}, inserted {inserted_news} articles"
-            )
+            logger.info(f"News: Fetched {len(news_articles)}, inserted {inserted_news} articles")
         else:
             logger.info("News: Already up to date")
     except Exception as exc:
@@ -273,14 +273,14 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("Daily Data Harvester - Magnificent Seven")
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info(f"Mode: {'FULL FETCH' if args.full else 'INCREMENTAL UPDATE'}")
     logger.info(f"Date: {TODAY}")
     logger.info(f"Tickers: {', '.join(MAGNIFICENT_SEVEN)}")
-    logger.info(f"Rate limit: 5 requests/minute (Polygon free tier)")
-    logger.info("="*60)
+    logger.info("Rate limit: 5 requests/minute (Polygon free tier)")
+    logger.info("=" * 60)
     logger.info("")
 
     # Initialize database
@@ -298,16 +298,18 @@ def main() -> None:
 
     # Summary
     total_elapsed = (datetime.now() - total_start).total_seconds()
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("HARVEST COMPLETE")
     logger.info(f"Total time: {total_elapsed:.1f}s")
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("")
     logger.info("Next steps:")
     logger.info("  1. Run Layer 1 semantic extraction:")
     logger.info("     python scripts/process_layer1.py")
     logger.info("  2. Build feature matrix:")
-    logger.info("     python -c 'from app.ml.features import build_features; build_features(\"NVDA\")'")
+    logger.info(
+        "     python -c 'from app.ml.features import build_features; build_features(\"NVDA\")'"
+    )
 
 
 if __name__ == "__main__":

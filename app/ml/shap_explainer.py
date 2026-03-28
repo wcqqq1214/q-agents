@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, List, TypedDict
 import warnings
+from typing import Dict, List, TypedDict
+
 import numpy as np
 import pandas as pd
 import shap
@@ -166,7 +167,11 @@ def build_markdown_report(
     auc = metrics.get("mean_auc", metrics.get("auc"))
     acc_str = f"{acc:.3f}" if isinstance(acc, (float, int)) else "N/A"
     auc_str = f"{auc:.3f}" if isinstance(auc, (float, int)) else "N/A"
-    validation_note = "5-fold TimeSeriesSplit" if "TimeSeriesSplit" in str(metrics.get("train_test_split", "")) else "Hold-out"
+    validation_note = (
+        "5-fold TimeSeriesSplit"
+        if "TimeSeriesSplit" in str(metrics.get("train_test_split", ""))
+        else "Hold-out"
+    )
 
     pos_lines: List[str] = []
     for imp in shap_summary.get("top_positive", []) or []:
@@ -205,4 +210,3 @@ def build_markdown_report(
     lines.append(negative_block)
 
     return "\n".join(lines)
-

@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException
 import httpx
+from fastapi import APIRouter
 
 from ..models import MCPStatus, ServiceStatus
 

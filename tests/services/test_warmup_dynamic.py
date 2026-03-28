@@ -1,8 +1,11 @@
 """Tests for dynamic hot cache warmup functionality."""
+
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from datetime import datetime, timezone, timedelta
-from unittest.mock import AsyncMock, patch, MagicMock
-from app.services.realtime_agent import warmup_hot_cache, _convert_to_db_symbol
+
+from app.services.realtime_agent import _convert_to_db_symbol, warmup_hot_cache
 
 
 class TestConvertToDbSymbol:
@@ -28,17 +31,27 @@ class TestDynamicWarmup:
     async def test_warmup_empty_database(self):
         """Test warmup when database is empty - should fetch last 48 hours."""
         mock_klines = [
-            {'timestamp': 1000, 'date': '2024-01-01T00:00:00+00:00',
-             'open': 100.0, 'high': 101.0, 'low': 99.0, 'close': 100.5, 'volume': 1000.0}
+            {
+                "timestamp": 1000,
+                "date": "2024-01-01T00:00:00+00:00",
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.5,
+                "volume": 1000.0,
+            }
         ]
 
-        with patch('app.services.realtime_agent.get_max_timestamp') as mock_get_max:
+        with patch("app.services.realtime_agent.get_max_timestamp") as mock_get_max:
             mock_get_max.return_value = None  # Empty database
 
-            with patch('app.services.realtime_agent.fetch_binance_klines', new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "app.services.realtime_agent.fetch_binance_klines",
+                new_callable=AsyncMock,
+            ) as mock_fetch:
                 mock_fetch.return_value = mock_klines
 
-                with patch('app.services.realtime_agent.append_to_hot_cache') as mock_append:
+                with patch("app.services.realtime_agent.append_to_hot_cache") as mock_append:
                     await warmup_hot_cache()
 
                     # Should call fetch_binance_klines (not pagination) for 48h
@@ -46,8 +59,8 @@ class TestDynamicWarmup:
 
                     # Verify time range is approximately 48 hours
                     call_args = mock_fetch.call_args_list[0]
-                    start_time = call_args[1]['start_time']
-                    end_time = call_args[1]['end_time']
+                    start_time = call_args[1]["start_time"]
+                    end_time = call_args[1]["end_time"]
                     time_diff_hours = (end_time - start_time) / (1000 * 60 * 60)
                     assert 47 <= time_diff_hours <= 49
 
@@ -59,17 +72,27 @@ class TestDynamicWarmup:
         max_timestamp = int((now - timedelta(hours=24)).timestamp() * 1000)
 
         mock_klines = [
-            {'timestamp': max_timestamp + 60000, 'date': '2024-01-01T00:01:00+00:00',
-             'open': 100.0, 'high': 101.0, 'low': 99.0, 'close': 100.5, 'volume': 1000.0}
+            {
+                "timestamp": max_timestamp + 60000,
+                "date": "2024-01-01T00:01:00+00:00",
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.5,
+                "volume": 1000.0,
+            }
         ]
 
-        with patch('app.services.realtime_agent.get_max_timestamp') as mock_get_max:
+        with patch("app.services.realtime_agent.get_max_timestamp") as mock_get_max:
             mock_get_max.return_value = max_timestamp
 
-            with patch('app.services.realtime_agent.fetch_klines_with_pagination', new_callable=AsyncMock) as mock_pagination:
+            with patch(
+                "app.services.realtime_agent.fetch_klines_with_pagination",
+                new_callable=AsyncMock,
+            ) as mock_pagination:
                 mock_pagination.return_value = mock_klines
 
-                with patch('app.services.realtime_agent.append_to_hot_cache') as mock_append:
+                with patch("app.services.realtime_agent.append_to_hot_cache") as mock_append:
                     await warmup_hot_cache()
 
                     # Should use pagination for gap filling
@@ -77,7 +100,7 @@ class TestDynamicWarmup:
 
                     # Verify start_time is max_timestamp + 1
                     call_args = mock_pagination.call_args_list[0]
-                    start_time = call_args[1]['start_time']
+                    start_time = call_args[1]["start_time"]
                     assert start_time == max_timestamp + 1
 
     @pytest.mark.asyncio
@@ -88,17 +111,27 @@ class TestDynamicWarmup:
         max_timestamp = int((now - timedelta(hours=72)).timestamp() * 1000)
 
         mock_klines = [
-            {'timestamp': 1000, 'date': '2024-01-01T00:00:00+00:00',
-             'open': 100.0, 'high': 101.0, 'low': 99.0, 'close': 100.5, 'volume': 1000.0}
+            {
+                "timestamp": 1000,
+                "date": "2024-01-01T00:00:00+00:00",
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.5,
+                "volume": 1000.0,
+            }
         ]
 
-        with patch('app.services.realtime_agent.get_max_timestamp') as mock_get_max:
+        with patch("app.services.realtime_agent.get_max_timestamp") as mock_get_max:
             mock_get_max.return_value = max_timestamp
 
-            with patch('app.services.realtime_agent.fetch_binance_klines', new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "app.services.realtime_agent.fetch_binance_klines",
+                new_callable=AsyncMock,
+            ) as mock_fetch:
                 mock_fetch.return_value = mock_klines
 
-                with patch('app.services.realtime_agent.append_to_hot_cache') as mock_append:
+                with patch("app.services.realtime_agent.append_to_hot_cache") as mock_append:
                     await warmup_hot_cache()
 
                     # Should use regular fetch (not pagination) for last 48h only
@@ -106,21 +139,24 @@ class TestDynamicWarmup:
 
                     # Verify time range is approximately 48 hours
                     call_args = mock_fetch.call_args_list[0]
-                    start_time = call_args[1]['start_time']
-                    end_time = call_args[1]['end_time']
+                    start_time = call_args[1]["start_time"]
+                    end_time = call_args[1]["end_time"]
                     time_diff_hours = (end_time - start_time) / (1000 * 60 * 60)
                     assert 47 <= time_diff_hours <= 49
 
     @pytest.mark.asyncio
     async def test_warmup_converts_symbol_format(self):
         """Test that warmup converts Binance symbol to database format."""
-        with patch('app.services.realtime_agent.get_max_timestamp') as mock_get_max:
+        with patch("app.services.realtime_agent.get_max_timestamp") as mock_get_max:
             mock_get_max.return_value = None
 
-            with patch('app.services.realtime_agent.fetch_binance_klines', new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "app.services.realtime_agent.fetch_binance_klines",
+                new_callable=AsyncMock,
+            ) as mock_fetch:
                 mock_fetch.return_value = []
 
-                with patch('app.services.realtime_agent.append_to_hot_cache'):
+                with patch("app.services.realtime_agent.append_to_hot_cache"):
                     await warmup_hot_cache()
 
                     # Verify get_max_timestamp was called with converted symbols
@@ -132,13 +168,16 @@ class TestDynamicWarmup:
     @pytest.mark.asyncio
     async def test_warmup_handles_no_data_returned(self):
         """Test warmup handles case when API returns no data."""
-        with patch('app.services.realtime_agent.get_max_timestamp') as mock_get_max:
+        with patch("app.services.realtime_agent.get_max_timestamp") as mock_get_max:
             mock_get_max.return_value = None
 
-            with patch('app.services.realtime_agent.fetch_binance_klines', new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "app.services.realtime_agent.fetch_binance_klines",
+                new_callable=AsyncMock,
+            ) as mock_fetch:
                 mock_fetch.return_value = []  # No data
 
-                with patch('app.services.realtime_agent.append_to_hot_cache') as mock_append:
+                with patch("app.services.realtime_agent.append_to_hot_cache") as mock_append:
                     await warmup_hot_cache()
 
                     # Should not call append when no data
@@ -147,10 +186,13 @@ class TestDynamicWarmup:
     @pytest.mark.asyncio
     async def test_warmup_handles_api_errors(self):
         """Test warmup continues on API errors."""
-        with patch('app.services.realtime_agent.get_max_timestamp') as mock_get_max:
+        with patch("app.services.realtime_agent.get_max_timestamp") as mock_get_max:
             mock_get_max.return_value = None
 
-            with patch('app.services.realtime_agent.fetch_binance_klines', new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "app.services.realtime_agent.fetch_binance_klines",
+                new_callable=AsyncMock,
+            ) as mock_fetch:
                 mock_fetch.side_effect = Exception("API Error")
 
                 # Should not raise exception
@@ -162,18 +204,35 @@ class TestDynamicWarmup:
         now = datetime.now(timezone.utc)
         max_timestamp = int((now - timedelta(hours=48)).timestamp() * 1000)
 
-        mock_klines = [{'timestamp': 1000, 'date': '2024-01-01T00:00:00+00:00',
-                        'open': 100.0, 'high': 101.0, 'low': 99.0, 'close': 100.5, 'volume': 1000.0}]
+        mock_klines = [
+            {
+                "timestamp": 1000,
+                "date": "2024-01-01T00:00:00+00:00",
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.5,
+                "volume": 1000.0,
+            }
+        ]
 
-        with patch('app.services.realtime_agent.get_max_timestamp') as mock_get_max:
+        with patch("app.services.realtime_agent.get_max_timestamp") as mock_get_max:
             mock_get_max.return_value = max_timestamp
 
-            with patch('app.services.realtime_agent.fetch_klines_with_pagination', new_callable=AsyncMock) as mock_pagination, \
-                 patch('app.services.realtime_agent.fetch_binance_klines', new_callable=AsyncMock) as mock_fetch:
+            with (
+                patch(
+                    "app.services.realtime_agent.fetch_klines_with_pagination",
+                    new_callable=AsyncMock,
+                ) as mock_pagination,
+                patch(
+                    "app.services.realtime_agent.fetch_binance_klines",
+                    new_callable=AsyncMock,
+                ) as mock_fetch,
+            ):
                 mock_pagination.return_value = mock_klines
                 mock_fetch.return_value = mock_klines
 
-                with patch('app.services.realtime_agent.append_to_hot_cache'):
+                with patch("app.services.realtime_agent.append_to_hot_cache"):
                     await warmup_hot_cache()
 
                     # Gap <= 48h, should use pagination (not regular fetch)
@@ -186,16 +245,28 @@ class TestDynamicWarmup:
         now = datetime.now(timezone.utc)
         max_timestamp = int((now - timedelta(hours=48.5)).timestamp() * 1000)
 
-        mock_klines = [{'timestamp': 1000, 'date': '2024-01-01T00:00:00+00:00',
-                        'open': 100.0, 'high': 101.0, 'low': 99.0, 'close': 100.5, 'volume': 1000.0}]
+        mock_klines = [
+            {
+                "timestamp": 1000,
+                "date": "2024-01-01T00:00:00+00:00",
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.5,
+                "volume": 1000.0,
+            }
+        ]
 
-        with patch('app.services.realtime_agent.get_max_timestamp') as mock_get_max:
+        with patch("app.services.realtime_agent.get_max_timestamp") as mock_get_max:
             mock_get_max.return_value = max_timestamp
 
-            with patch('app.services.realtime_agent.fetch_binance_klines', new_callable=AsyncMock) as mock_fetch:
+            with patch(
+                "app.services.realtime_agent.fetch_binance_klines",
+                new_callable=AsyncMock,
+            ) as mock_fetch:
                 mock_fetch.return_value = mock_klines
 
-                with patch('app.services.realtime_agent.append_to_hot_cache'):
+                with patch("app.services.realtime_agent.append_to_hot_cache"):
                     await warmup_hot_cache()
 
                     # Gap > 48h, should use regular fetch
@@ -210,16 +281,27 @@ class TestDynamicWarmup:
 
         # Mock API to return new data
         new_data = [
-            {'timestamp': old_timestamp + 60000, 'date': (now - timedelta(minutes=59)).isoformat(),
-             'open': 105, 'high': 115, 'low': 95, 'close': 110, 'volume': 1100}
+            {
+                "timestamp": old_timestamp + 60000,
+                "date": (now - timedelta(minutes=59)).isoformat(),
+                "open": 105,
+                "high": 115,
+                "low": 95,
+                "close": 110,
+                "volume": 1100,
+            }
         ]
 
-        with patch('app.services.realtime_agent.get_max_timestamp') as mock_get_max, \
-             patch('app.services.realtime_agent.fetch_klines_with_pagination', new_callable=AsyncMock) as mock_fetch, \
-             patch('app.services.realtime_agent.append_to_hot_cache'), \
-             patch('app.services.realtime_agent.SYMBOLS', ['BTCUSDT']), \
-             patch('app.services.realtime_agent.INTERVALS', ['1m']):
-
+        with (
+            patch("app.services.realtime_agent.get_max_timestamp") as mock_get_max,
+            patch(
+                "app.services.realtime_agent.fetch_klines_with_pagination",
+                new_callable=AsyncMock,
+            ) as mock_fetch,
+            patch("app.services.realtime_agent.append_to_hot_cache"),
+            patch("app.services.realtime_agent.SYMBOLS", ["BTCUSDT"]),
+            patch("app.services.realtime_agent.INTERVALS", ["1m"]),
+        ):
             mock_get_max.return_value = old_timestamp
             mock_fetch.return_value = new_data
 
@@ -228,4 +310,4 @@ class TestDynamicWarmup:
             # Verify API was called with correct start time
             assert mock_fetch.called
             call_args = mock_fetch.call_args_list[0]
-            assert call_args[1]['start_time'] == old_timestamp + 1
+            assert call_args[1]["start_time"] == old_timestamp + 1

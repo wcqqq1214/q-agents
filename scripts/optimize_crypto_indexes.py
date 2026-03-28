@@ -28,7 +28,9 @@ def optimize_indexes():
 
     # 1. 检查现有索引
     print("1. 检查现有索引:")
-    cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name='crypto_ohlc'")
+    cursor.execute(
+        "SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name='crypto_ohlc'"
+    )
     existing_indexes = cursor.fetchall()
     for idx_name, idx_sql in existing_indexes:
         if idx_sql:  # Skip auto-generated indexes
@@ -36,7 +38,7 @@ def optimize_indexes():
 
     # 2. 删除旧的基于 date 的索引（我们使用 timestamp）
     print("\n2. 删除旧索引:")
-    old_indexes = ['idx_crypto_ohlc_symbol_date', 'idx_crypto_ohlc_symbol_bar_date']
+    old_indexes = ["idx_crypto_ohlc_symbol_date", "idx_crypto_ohlc_symbol_bar_date"]
     for idx_name in old_indexes:
         try:
             cursor.execute(f"DROP INDEX IF EXISTS {idx_name}")
@@ -81,7 +83,9 @@ def optimize_indexes():
 
     # 6. 显示最终索引列表
     print("\n5. 最终索引列表:")
-    cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name='crypto_ohlc'")
+    cursor.execute(
+        "SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name='crypto_ohlc'"
+    )
     final_indexes = cursor.fetchall()
     for idx_name, idx_sql in final_indexes:
         if idx_sql:

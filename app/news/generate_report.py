@@ -9,7 +9,6 @@ The output is structured JSON in English for agent-to-agent consumption.
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Literal, TypedDict, cast
@@ -21,7 +20,6 @@ from app.llm_config import create_llm
 from app.polymarket.tools import search_polymarket_predictions
 from app.reporting.writer import write_json
 from app.tools.local_tools import search_realtime_news
-
 
 load_dotenv()
 
@@ -125,6 +123,7 @@ def generate_report(asset: str, run_dir: str) -> NewsBundle:
         polymarket_markets = json.loads(polymarket_data) if polymarket_data else None
     except Exception as e:
         from logging import getLogger
+
         logger = getLogger(__name__)
         logger.warning(f"Failed to fetch Polymarket data: {e}")
         polymarket_markets = None
@@ -143,8 +142,12 @@ def generate_report(asset: str, run_dir: str) -> NewsBundle:
     prompt_parts.append(f"News items (JSON):\n{json.dumps(sources, ensure_ascii=False)}\n")
 
     if polymarket_markets and polymarket_markets.get("markets_found", 0) > 0:
-        prompt_parts.append(f"\nPolymarket prediction markets (JSON):\n{json.dumps(polymarket_markets, ensure_ascii=False)}\n")
-        prompt_parts.append("\nConsider both news sentiment and prediction market probabilities in your analysis.")
+        prompt_parts.append(
+            f"\nPolymarket prediction markets (JSON):\n{json.dumps(polymarket_markets, ensure_ascii=False)}\n"
+        )
+        prompt_parts.append(
+            "\nConsider both news sentiment and prediction market probabilities in your analysis."
+        )
 
     prompt = "".join(prompt_parts)
 
@@ -165,7 +168,8 @@ def generate_report(asset: str, run_dir: str) -> NewsBundle:
             "generated_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
             "source": actual_source,  # Dynamic: tavily or duckduckgo
             "time_window_days": 7,
-            "polymarket_enabled": polymarket_markets is not None and polymarket_markets.get("markets_found", 0) > 0,
+            "polymarket_enabled": polymarket_markets is not None
+            and polymarket_markets.get("markets_found", 0) > 0,
         },
         "bias": bias if bias in ("bullish", "bearish", "neutral") else "neutral",
         "key_points": [str(x).strip() for x in key_points if isinstance(x, str) and x.strip()][:6],
@@ -178,4 +182,3 @@ def generate_report(asset: str, run_dir: str) -> NewsBundle:
     write_json(path, report)
     report["report_path"] = str(path)
     return cast(NewsBundle, report)
-

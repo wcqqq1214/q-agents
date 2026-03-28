@@ -20,10 +20,7 @@ class RunContext:
 def _now_compact_utc8() -> str:
     tz = timezone(timedelta(hours=8))
     return (
-        datetime.now(timezone.utc)
-        .astimezone(tz)
-        .replace(microsecond=0)
-        .strftime("%Y%m%d_%H%M%S")
+        datetime.now(timezone.utc).astimezone(tz).replace(microsecond=0).strftime("%Y%m%d_%H%M%S")
     )
 
 
@@ -41,4 +38,3 @@ def make_run_dir(asset: str) -> RunContext:
     run_dir = Path("data/reports") / f"{run_id}_{asset_norm}"
     run_dir.mkdir(parents=True, exist_ok=True)
     return RunContext(run_id=run_id, run_dir=run_dir, asset=asset_norm)
-

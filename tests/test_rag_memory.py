@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Dict, List
 
 import numpy as np
 import pytest
@@ -169,4 +169,3 @@ def test_search_historical_event_impact_no_matches(
 
     result = search_historical_event_impact("earnings beat", "TSLA")
     assert "未能在历史事件记忆库中找到" in result
-

@@ -14,7 +14,9 @@ def _now_compact_utc8() -> str:
     """Return YYYYMMDD_HHMMSS timestamp in UTC+8."""
 
     tz = timezone(timedelta(hours=8))
-    return datetime.now(timezone.utc).astimezone(tz).replace(microsecond=0).strftime("%Y%m%d_%H%M%S")
+    return (
+        datetime.now(timezone.utc).astimezone(tz).replace(microsecond=0).strftime("%Y%m%d_%H%M%S")
+    )
 
 
 @tool("save_social_report")
@@ -58,7 +60,9 @@ def save_social_report(asset: str, report: Dict[str, Any]) -> str:
 
 
 @tool("build_social_report")
-def build_social_report(asset: str, nlp_result: Dict[str, Any], meta: Dict[str, Any]) -> Dict[str, Any]:
+def build_social_report(
+    asset: str, nlp_result: Dict[str, Any], meta: Dict[str, Any]
+) -> Dict[str, Any]:
     """Build the final Social Agent report object in a deterministic way.
 
     This tool exists to reduce output instability caused by LLM formatting.
@@ -91,4 +95,3 @@ def build_social_report(asset: str, nlp_result: Dict[str, Any], meta: Dict[str, 
     out: Dict[str, Any] = {"asset": asset_norm, "meta": meta}
     out.update(nlp_result)
     return out
-

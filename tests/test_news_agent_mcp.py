@@ -2,6 +2,7 @@
 
 import json
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,7 +20,7 @@ def test_mcp_fallback_logic():
 
     print(f"   Source: {data.get('source')}")
     print(f"   Count: {data.get('count')}")
-    if data.get('count', 0) > 0:
+    if data.get("count", 0) > 0:
         print(f"   First article: {data['articles'][0].get('title', 'N/A')[:50]}...")
 
     # Test 2: Another query
@@ -66,13 +67,13 @@ def test_mcp_server_required():
 
     # Check if MCP server is running
     import subprocess
-    result = subprocess.run(
-        ["ps", "aux"],
-        capture_output=True,
-        text=True
-    )
 
-    if "mcp_servers/market_data/main.py" in result.stdout or "mcp_servers/news_search/main.py" in result.stdout:
+    result = subprocess.run(["ps", "aux"], capture_output=True, text=True)
+
+    if (
+        "mcp_servers/market_data/main.py" in result.stdout
+        or "mcp_servers/news_search/main.py" in result.stdout
+    ):
         print("✓ MCP servers are running")
         return True
     else:

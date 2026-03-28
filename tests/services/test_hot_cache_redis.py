@@ -30,15 +30,17 @@ def reset_state(monkeypatch):
 def test_get_hot_cache_reads_from_redis():
     """Reads should prefer Redis payloads when available."""
     df = pd.DataFrame(
-        [{
-            "timestamp": 1710000000000,
-            "date": "2024-03-09T12:00:00+00:00",
-            "open": 50000.0,
-            "high": 50100.0,
-            "low": 49900.0,
-            "close": 50050.0,
-            "volume": 100.0,
-        }]
+        [
+            {
+                "timestamp": 1710000000000,
+                "date": "2024-03-09T12:00:00+00:00",
+                "open": 50000.0,
+                "high": 50100.0,
+                "low": 49900.0,
+                "close": 50050.0,
+                "volume": 100.0,
+            }
+        ]
     )
     mock_client = Mock()
     mock_client.get.return_value = _serialize_dataframe(df)
@@ -60,15 +62,17 @@ def test_append_to_hot_cache_falls_back_to_memory_on_redis_error():
         append_to_hot_cache(
             "BTCUSDT",
             "1m",
-            [{
-                "timestamp": 1710000000000,
-                "date": "2024-03-09T12:00:00+00:00",
-                "open": 50000.0,
-                "high": 50100.0,
-                "low": 49900.0,
-                "close": 50050.0,
-                "volume": 100.0,
-            }],
+            [
+                {
+                    "timestamp": 1710000000000,
+                    "date": "2024-03-09T12:00:00+00:00",
+                    "open": 50000.0,
+                    "high": 50100.0,
+                    "low": 49900.0,
+                    "close": 50050.0,
+                    "volume": 100.0,
+                }
+            ],
         )
 
         # Read from memory cache while Redis is still mocked as unavailable

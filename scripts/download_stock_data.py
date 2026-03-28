@@ -14,13 +14,13 @@
 """
 
 import asyncio
-import sys
 import logging
+import sys
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Set, Tuple, Optional, List
-import pandas as pd
+from typing import List, Set, Tuple
+
 import yfinance as yf
 
 # Add project root to Python path
@@ -29,15 +29,13 @@ sys.path.insert(0, str(project_root))
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
+
 load_dotenv(project_root / ".env")
 
-from app.database.schema import init_db, get_conn
+from app.database.schema import get_conn, init_db
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Stock symbols to download
@@ -58,18 +56,19 @@ def enable_wal_mode():
 def check_disk_space(required_gb: float = 1.0):
     """Check if there's enough disk space."""
     import shutil
+
     stats = shutil.disk_usage(Path.home())
     available_gb = stats.free / (1024**3)
 
-    print(f"\n磁盘空间检查:")
+    print("\n磁盘空间检查:")
     print(f"  可用空间: {available_gb:.1f} GB")
     print(f"  预计需要: {required_gb:.1f} GB")
 
     if available_gb < required_gb:
-        print(f"  ✗ 磁盘空间不足！")
+        print("  ✗ 磁盘空间不足！")
         return False
     else:
-        print(f"  ✓ 磁盘空间充足")
+        print("  ✓ 磁盘空间充足")
         return True
 
 
@@ -91,57 +90,70 @@ def download_year_data(symbol: str, year: int, conn) -> int:
     """Download data for a specific year using yfinance."""
     start_date = f"{year}-01-01"
     end_date = f"{year}-12-31"
-    
+
     today = date.today()
     if date.fromisoformat(end_date) > today:
         end_date = today.isoformat()
-    
+
     try:
         logger.info(f"  下载 {symbol} {year}...")
-        
+
         # Download data using yfinance
         ticker = yf.Ticker(symbol)
         df = ticker.history(start=start_date, end=end_date, auto_adjust=True)
-        
+
         if df.empty:
             logger.warning(f"  {symbol} {year}: 无数据")
             return 0
-        
+
         # Convert to records
         records = []
         for idx, row in df.iterrows():
             try:
                 # Handle both Timestamp and DatetimeIndex
-                if hasattr(idx, 'strftime'):
+                if hasattr(idx, "strftime"):
                     date_str = idx.strftime("%Y-%m-%d")
                 else:
                     date_str = str(idx)[:10]  # Extract YYYY-MM-DD from string
 
-                records.append({
-                    "date": date_str,
-                    "open": float(row["Open"]),
-                    "high": float(row["High"]),
-                    "low": float(row["Low"]),
-                    "close": float(row["Close"]),
-                    "volume": int(row["Volume"])
-                })
+                records.append(
+                    {
+                        "date": date_str,
+                        "open": float(row["Open"]),
+                        "high": float(row["High"]),
+                        "low": float(row["Low"]),
+                        "close": float(row["Close"]),
+                        "volume": int(row["Volume"]),
+                    }
+                )
             except (ValueError, KeyError) as e:
                 logger.warning(f"  跳过无效数据: {idx}, {e}")
                 continue
-        
+
         if records:
             # Insert directly into ohlc table (no timestamp or bar columns)
             query = """
                 INSERT OR REPLACE INTO ohlc (symbol, date, open, high, low, close, volume)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """
-            data = [(symbol, r['date'], r['open'], r['high'], r['low'], r['close'], r['volume']) for r in records]
+            data = [
+                (
+                    symbol,
+                    r["date"],
+                    r["open"],
+                    r["high"],
+                    r["low"],
+                    r["close"],
+                    r["volume"],
+                )
+                for r in records
+            ]
             conn.executemany(query, data)
             conn.commit()
             return len(records)
-        
+
         return 0
-        
+
     except Exception as e:
         logger.error(f"  下载失败 {symbol} {year}: {e}")
         return 0
@@ -153,7 +165,7 @@ def download_year_data(symbol: str, year: int, conn) -> int:
 def detect_gaps(symbol: str, start_date: date, end_date: date) -> List[Tuple[date, date]]:
     """Detect gaps in downloaded data (excluding weekends)."""
     conn = get_conn()
-    
+
     query = """
         SELECT DISTINCT DATE(date) as download_date
         FROM ohlc
@@ -161,16 +173,16 @@ def detect_gaps(symbol: str, start_date: date, end_date: date) -> List[Tuple[dat
         AND DATE(date) >= ? AND DATE(date) <= ?
         ORDER BY download_date
     """
-    
+
     cursor = conn.execute(query, (symbol, start_date.isoformat(), end_date.isoformat()))
     downloaded_dates = {date.fromisoformat(row[0]) for row in cursor.fetchall()}
     conn.close()
-    
+
     # Find gaps (skip weekends)
     gaps = []
     current = start_date
     gap_start = None
-    
+
     while current <= end_date:
         # Skip weekends (Saturday=5, Sunday=6)
         if current.weekday() < 5:
@@ -182,11 +194,11 @@ def detect_gaps(symbol: str, start_date: date, end_date: date) -> List[Tuple[dat
                     gaps.append((gap_start, current - timedelta(days=1)))
                     gap_start = None
         current += timedelta(days=1)
-    
+
     # Handle gap at the end
     if gap_start is not None:
         gaps.append((gap_start, end_date))
-    
+
     return gaps
 
 
@@ -195,43 +207,56 @@ def fill_gap(symbol: str, gap_start: date, gap_end: date, conn) -> int:
     try:
         ticker = yf.Ticker(symbol)
         df = ticker.history(start=gap_start.isoformat(), end=gap_end.isoformat(), auto_adjust=True)
-        
+
         if df.empty:
             return 0
-        
+
         records = []
         for idx, row in df.iterrows():
             try:
                 # Handle both Timestamp and DatetimeIndex
-                if hasattr(idx, 'strftime'):
+                if hasattr(idx, "strftime"):
                     date_str = idx.strftime("%Y-%m-%d")
                 else:
                     date_str = str(idx)[:10]  # Extract YYYY-MM-DD from string
 
-                records.append({
-                    "date": date_str,
-                    "open": float(row["Open"]),
-                    "high": float(row["High"]),
-                    "low": float(row["Low"]),
-                    "close": float(row["Close"]),
-                    "volume": int(row["Volume"])
-                })
+                records.append(
+                    {
+                        "date": date_str,
+                        "open": float(row["Open"]),
+                        "high": float(row["High"]),
+                        "low": float(row["Low"]),
+                        "close": float(row["Close"]),
+                        "volume": int(row["Volume"]),
+                    }
+                )
             except (ValueError, KeyError):
                 continue
-        
+
         if records:
             # Insert directly into ohlc table (no timestamp or bar columns)
             query = """
                 INSERT OR REPLACE INTO ohlc (symbol, date, open, high, low, close, volume)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """
-            data = [(symbol, r['date'], r['open'], r['high'], r['low'], r['close'], r['volume']) for r in records]
+            data = [
+                (
+                    symbol,
+                    r["date"],
+                    r["open"],
+                    r["high"],
+                    r["low"],
+                    r["close"],
+                    r["volume"],
+                )
+                for r in records
+            ]
             conn.executemany(query, data)
             conn.commit()
             return len(records)
-        
+
         return 0
-        
+
     except Exception as e:
         logger.error(f"  填补gap失败 {symbol} {gap_start} to {gap_end}: {e}")
         return 0
@@ -241,34 +266,34 @@ def fill_gap(symbol: str, gap_start: date, gap_end: date, conn) -> int:
 
 async def main():
     """Download stock data from 2020-01-01 to yesterday."""
-    print("="*70)
+    print("=" * 70)
     print("股票历史数据下载（使用 yfinance）")
-    print("="*70)
-    
+    print("=" * 70)
+
     # 1. Check disk space
     if not check_disk_space(required_gb=1.0):
         print("\n请清理磁盘空间后重试")
         return
-    
+
     # 2. Initialize database
     print("\n初始化数据库...")
     init_db()
     print("✓ 数据库已初始化")
-    
+
     # 3. Enable WAL mode
     enable_wal_mode()
-    
+
     # 4. Configuration
     start_year = 2020
     current_year = datetime.now().year
     yesterday = date.today() - timedelta(days=1)
-    
-    print(f"\n下载配置:")
+
+    print("\n下载配置:")
     print(f"  股票代码: {', '.join(SYMBOLS)}")
     print(f"  时间范围: {start_year}-01-01 至 {yesterday}")
-    print(f"  数据源: yfinance (免费，无限制)")
-    print(f"  延迟策略: 每次请求后等待1秒\n")
-    
+    print("  数据源: yfinance (免费，无限制)")
+    print("  延迟策略: 每次请求后等待1秒\n")
+
     total_records = 0
 
     # Get database connection
@@ -276,9 +301,9 @@ async def main():
 
     try:
         # ===== 阶段 1: 按年下载历史数据 =====
-        print("="*70)
+        print("=" * 70)
         print("阶段 1: 按年下载历史数据")
-        print("="*70)
+        print("=" * 70)
 
         for symbol in SYMBOLS:
             print(f"\n处理 {symbol}...")
@@ -301,9 +326,9 @@ async def main():
                 logger.info(f"  ✓ {symbol} {year}: {records} 条记录")
 
         # ===== 阶段 2: 检测并填补gap =====
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("阶段 2: 检测并填补数据gap")
-        print("="*70)
+        print("=" * 70)
 
         gap_filled = 0
         for symbol in SYMBOLS:
@@ -324,33 +349,35 @@ async def main():
                 if records > 0:
                     logger.info(f"  完成: {records} 条记录")
                 else:
-                    logger.info(f"  完成: 0 条记录（可能是节假日）")
+                    logger.info("  完成: 0 条记录（可能是节假日）")
 
         total_records += gap_filled
     finally:
         conn.close()
-    
+
     # ===== 最终统计 =====
-    print(f"\n\n{'='*70}")
-    print(f"下载完成！")
-    print(f"{'='*70}")
+    print(f"\n\n{'=' * 70}")
+    print("下载完成！")
+    print(f"{'=' * 70}")
     print(f"本次下载: {total_records:,} 条记录")
-    
+
     # Database statistics
     conn = get_conn()
     cursor = conn.execute("SELECT COUNT(*) FROM ohlc")
     total_db_records = cursor.fetchone()[0]
-    
-    cursor = conn.execute("SELECT page_count * page_size / 1024.0 / 1024.0 FROM pragma_page_count(), pragma_page_size()")
+
+    cursor = conn.execute(
+        "SELECT page_count * page_size / 1024.0 / 1024.0 FROM pragma_page_count(), pragma_page_size()"
+    )
     db_size_mb = cursor.fetchone()[0]
-    
+
     conn.close()
-    
-    print(f"\n数据库统计:")
+
+    print("\n数据库统计:")
     print(f"  总记录数: {total_db_records:,}")
     print(f"  数据库大小: {db_size_mb:.1f} MB")
-    
-    print(f"\n提示：")
+
+    print("\n提示：")
     print("- 使用 yfinance 下载，免费无限制")
     print("- 自动跳过已下载的年份（90%阈值）")
     print("- 自动检测并填补数据gap")

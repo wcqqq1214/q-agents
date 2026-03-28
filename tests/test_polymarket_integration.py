@@ -30,7 +30,7 @@ def test_client():
 
         # Test parsing
         parsed = client.parse_market_data(sample)
-        print(f"  Parsed successfully:")
+        print("  Parsed successfully:")
         print(f"    - Probability Yes: {parsed['probability_yes']:.1%}")
         print(f"    - Probability No: {parsed['probability_no']:.1%}")
         print(f"    - Volume 24h: ${parsed['volume_24h']:,.0f}")
@@ -72,15 +72,16 @@ def test_tool_registration():
     print("Testing Tool Registration")
     print("=" * 60)
 
-    from app.tools import NEWS_TOOLS, search_polymarket_predictions as imported_tool
+    from app.tools import NEWS_TOOLS
+    from app.tools import search_polymarket_predictions as imported_tool
 
     print(f"\n✓ NEWS_TOOLS contains {len(NEWS_TOOLS)} tools")
     print(f"  Tools: {[t.name for t in NEWS_TOOLS]}")
 
     if imported_tool in NEWS_TOOLS:
-        print(f"✓ search_polymarket_predictions is registered in NEWS_TOOLS")
+        print("✓ search_polymarket_predictions is registered in NEWS_TOOLS")
     else:
-        print(f"✗ search_polymarket_predictions NOT found in NEWS_TOOLS")
+        print("✗ search_polymarket_predictions NOT found in NEWS_TOOLS")
 
 
 if __name__ == "__main__":

@@ -34,7 +34,7 @@ def _build_batch_prompt(symbol: str, articles: List[Dict[str, Any]]) -> str:
     lines = []
     for i, art in enumerate(articles):
         lines.append(f"[{i}] {art['title']}")
-        if art.get('description'):
+        if art.get("description"):
             lines.append(f"  > {art['description'][:500]}")
 
     return f"""Analyze these {len(articles)} news articles for {symbol}. Return one line per article.
@@ -44,7 +44,7 @@ def _build_batch_prompt(symbol: str, articles: List[Dict[str, Any]]) -> str:
 For each article, return ONE line in this exact format:
 INDEX|RELEVANT|SENTIMENT|SUMMARY|UP_REASON|DOWN_REASON
 
-- INDEX: article number (0-{len(articles)-1})
+- INDEX: article number (0-{len(articles) - 1})
 - RELEVANT: Y if article specifically discusses {symbol} company/stock, N if irrelevant
 - SENTIMENT: + for positive, - for negative, 0 for neutral
 - SUMMARY: brief 5-10 word summary (use NONE if irrelevant)
@@ -78,9 +78,7 @@ def get_pending_articles(symbol: str, limit: int = 10000) -> List[Dict[str, Any]
     return [dict(r) for r in rows]
 
 
-def process_batch_group(
-    symbol: str, articles: List[Dict[str, Any]]
-) -> Dict[str, int]:
+def process_batch_group(symbol: str, articles: List[Dict[str, Any]]) -> Dict[str, int]:
     """Process a group of up to 50 articles in a single API call."""
     llm = _make_llm()
     conn = get_conn()
@@ -97,24 +95,24 @@ def process_batch_group(
             response = llm.messages.create(
                 model=model,
                 max_tokens=4096,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
             )
             text = response.content[0].text
         else:
             # LangChain client (OpenAI-compatible)
             response = llm.invoke(prompt)
-            text = response.content if hasattr(response, 'content') else str(response)
+            text = response.content if hasattr(response, "content") else str(response)
 
         # Parse pipe-delimited output
-        lines = text.strip().split('\n')
+        lines = text.strip().split("\n")
         results = []
 
         for line in lines:
             line = line.strip()
-            if not line or line.startswith('#') or line.startswith('INDEX'):
+            if not line or line.startswith("#") or line.startswith("INDEX"):
                 continue  # Skip empty lines, comments, and header
 
-            parts = line.split('|')
+            parts = line.split("|")
             if len(parts) < 3:  # At least need index, relevant, sentiment
                 logger.warning(f"Skipping malformed line (too few fields): {line[:100]}")
                 continue
@@ -122,23 +120,25 @@ def process_batch_group(
             try:
                 idx = int(parts[0].strip())
                 relevant = parts[1].strip().upper()
-                sentiment = parts[2].strip() if len(parts) > 2 else '0'
-                summary = parts[3].strip() if len(parts) > 3 else ''
-                up_reason = parts[4].strip() if len(parts) > 4 else ''
-                down_reason = parts[5].strip() if len(parts) > 5 else ''
+                sentiment = parts[2].strip() if len(parts) > 2 else "0"
+                summary = parts[3].strip() if len(parts) > 3 else ""
+                up_reason = parts[4].strip() if len(parts) > 4 else ""
+                down_reason = parts[5].strip() if len(parts) > 5 else ""
 
                 if idx < 0 or idx >= len(articles):
                     logger.warning(f"Invalid index {idx}, skipping")
                     continue
 
-                results.append({
-                    'i': idx,
-                    'r': 'y' if relevant == 'Y' else 'n',
-                    's': sentiment,
-                    'e': '' if summary.upper() == 'NONE' else summary,
-                    'u': '' if up_reason.upper() == 'NONE' else up_reason,
-                    'd': '' if down_reason.upper() == 'NONE' else down_reason,
-                })
+                results.append(
+                    {
+                        "i": idx,
+                        "r": "y" if relevant == "Y" else "n",
+                        "s": sentiment,
+                        "e": "" if summary.upper() == "NONE" else summary,
+                        "u": "" if up_reason.upper() == "NONE" else up_reason,
+                        "d": "" if down_reason.upper() == "NONE" else down_reason,
+                    }
+                )
             except (ValueError, IndexError) as e:
                 logger.warning(f"Error parsing line: {line[:100]} - {e}")
                 continue
@@ -209,13 +209,18 @@ def run_layer1(symbol: str, max_articles: int = 10000) -> Dict[str, Any]:
         return {"status": "no_pending", "total": 0}
 
     total_stats = {
-        "total": len(articles), "processed": 0, "relevant": 0,
-        "irrelevant": 0, "errors": 0, "api_calls": 0, "retries": 0,
+        "total": len(articles),
+        "processed": 0,
+        "relevant": 0,
+        "irrelevant": 0,
+        "errors": 0,
+        "api_calls": 0,
+        "retries": 0,
     }
 
     for i in range(0, len(articles), BATCH_SIZE):
         chunk = articles[i : i + BATCH_SIZE]
-        batch_num = total_stats['api_calls'] + 1
+        batch_num = total_stats["api_calls"] + 1
 
         # Retry logic for failed batches
         for attempt in range(MAX_RETRIES):

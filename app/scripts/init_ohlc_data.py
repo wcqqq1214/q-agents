@@ -8,20 +8,19 @@ Usage:
 import logging
 import time
 from datetime import datetime, timedelta
+
 from dotenv import load_dotenv
-from app.database import init_db, upsert_ohlc, update_metadata, DEFAULT_DB_PATH
+
+from app.database import DEFAULT_DB_PATH, init_db, update_metadata, upsert_ohlc
 from app.mcp_client.finance_client import call_get_stock_history
 
 # Load environment variables from .env file
 load_dotenv()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-SYMBOLS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA']
+SYMBOLS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"]
 
 
 def main():
@@ -35,7 +34,7 @@ def main():
 
     # Calculate date range (5 years)
     end_date = datetime.now().date()
-    start_date = end_date - timedelta(days=5*365)
+    start_date = end_date - timedelta(days=5 * 365)
 
     logger.info(f"Date range: {start_date} to {end_date}")
     logger.info(f"Symbols: {', '.join(SYMBOLS)}")

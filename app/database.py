@@ -1,10 +1,10 @@
 """SQLite database operations for OHLC data."""
 
-import sqlite3
 import logging
-from pathlib import Path
-from typing import List, Dict, Optional
+import sqlite3
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -87,12 +87,25 @@ def upsert_ohlc(symbol: str, data: List[Dict]):
         return
 
     conn = get_conn()
-    conn.executemany("""
+    conn.executemany(
+        """
         INSERT INTO ohlc (symbol, date, open, high, low, close, volume)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(symbol, date) DO NOTHING
-    """, [(symbol.upper(), d['date'], d['open'], d['high'], d['low'], d['close'], d['volume'])
-          for d in data])
+    """,
+        [
+            (
+                symbol.upper(),
+                d["date"],
+                d["open"],
+                d["high"],
+                d["low"],
+                d["close"],
+                d["volume"],
+            )
+            for d in data
+        ],
+    )
     conn.commit()
     conn.close()
     logger.info(f"Upserted {len(data)} records for {symbol}")
@@ -107,13 +120,16 @@ def update_metadata(symbol: str, start: str, end: str):
         end: Data end date
     """
     conn = get_conn()
-    conn.execute("""
+    conn.execute(
+        """
         INSERT INTO data_metadata (symbol, last_update, data_start, data_end)
         VALUES (?, ?, ?, ?)
         ON CONFLICT(symbol) DO UPDATE SET
             last_update = excluded.last_update,
             data_end = excluded.data_end
-    """, (symbol.upper(), datetime.now().isoformat(), start, end))
+    """,
+        (symbol.upper(), datetime.now().isoformat(), start, end),
+    )
     conn.commit()
     conn.close()
 
@@ -121,9 +137,6 @@ def update_metadata(symbol: str, start: str, end: str):
 def get_metadata(symbol: str) -> Optional[Dict]:
     """Get metadata for a symbol."""
     conn = get_conn()
-    row = conn.execute(
-        "SELECT * FROM data_metadata WHERE symbol = ?",
-        (symbol.upper(),)
-    ).fetchone()
+    row = conn.execute("SELECT * FROM data_metadata WHERE symbol = ?", (symbol.upper(),)).fetchone()
     conn.close()
     return dict(row) if row else None

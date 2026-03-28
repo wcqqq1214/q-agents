@@ -1,8 +1,9 @@
-from fastapi import APIRouter
-from datetime import datetime, timezone, timedelta
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Tuple
+
+from fastapi import APIRouter
 
 from ..models.schemas import StockQuote, StockQuotesResponse
 
@@ -27,6 +28,7 @@ QUOTE_CACHE_TTL = 60  # seconds - increased to reduce Yahoo Finance API calls
 async def _fetch_single_quote(symbol: str) -> StockQuote:
     """Fetch quote for a single symbol, returning error field on failure."""
     import os
+
     from app.mcp_client.finance_client import _call_get_us_stock_quote_async
 
     # Check cache first

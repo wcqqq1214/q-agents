@@ -1,14 +1,14 @@
 """Tests for daily crypto download with catch-up mechanism."""
-import pytest
-from unittest.mock import patch, AsyncMock, call
+
 from datetime import date, timedelta
+from unittest.mock import AsyncMock, patch
 
 
 class TestDailyCryptoDownload:
     """Tests for daily_crypto_download function with catch-up logic."""
 
-    @patch('app.api.main.download_daily_data', new_callable=AsyncMock)
-    @patch('app.api.main.get_max_date')
+    @patch("app.api.main.download_daily_data", new_callable=AsyncMock)
+    @patch("app.api.main.get_max_date")
     def test_downloads_yesterday_when_no_data_exists(self, mock_get_max_date, mock_download):
         """Test downloads yesterday's data when database is empty."""
         from app.api.main import daily_crypto_download
@@ -22,8 +22,8 @@ class TestDailyCryptoDownload:
         yesterday = date.today() - timedelta(days=1)
         assert mock_download.call_count == 4  # 2 symbols * 2 intervals
 
-    @patch('app.api.main.download_daily_data', new_callable=AsyncMock)
-    @patch('app.api.main.get_max_date')
+    @patch("app.api.main.download_daily_data", new_callable=AsyncMock)
+    @patch("app.api.main.get_max_date")
     def test_downloads_yesterday_when_data_is_current(self, mock_get_max_date, mock_download):
         """Test downloads only yesterday when data is already current."""
         from app.api.main import daily_crypto_download
@@ -37,8 +37,8 @@ class TestDailyCryptoDownload:
         # Should not download anything (data is current)
         assert mock_download.call_count == 0
 
-    @patch('app.api.main.download_daily_data', new_callable=AsyncMock)
-    @patch('app.api.main.get_max_date')
+    @patch("app.api.main.download_daily_data", new_callable=AsyncMock)
+    @patch("app.api.main.get_max_date")
     def test_catches_up_on_missing_dates(self, mock_get_max_date, mock_download):
         """Test downloads all missing dates when there's a gap."""
         from app.api.main import daily_crypto_download
@@ -54,8 +54,8 @@ class TestDailyCryptoDownload:
         # (yesterday, 2 days ago, 3 days ago)
         assert mock_download.call_count == 12  # 3 days * 2 symbols * 2 intervals
 
-    @patch('app.api.main.download_daily_data', new_callable=AsyncMock)
-    @patch('app.api.main.get_max_date')
+    @patch("app.api.main.download_daily_data", new_callable=AsyncMock)
+    @patch("app.api.main.get_max_date")
     def test_continues_on_download_failure(self, mock_get_max_date, mock_download):
         """Test continues downloading other dates when one fails."""
         from app.api.main import daily_crypto_download
@@ -81,9 +81,9 @@ class TestDailyCryptoDownload:
         # Should have attempted all downloads despite failure
         assert mock_download.call_count == 8  # 2 days * 2 symbols * 2 intervals
 
-    @patch('app.api.main.download_daily_data', new_callable=AsyncMock)
-    @patch('app.api.main.get_max_date')
-    @patch('app.api.main.logger')
+    @patch("app.api.main.download_daily_data", new_callable=AsyncMock)
+    @patch("app.api.main.get_max_date")
+    @patch("app.api.main.logger")
     def test_logs_statistics(self, mock_logger, mock_get_max_date, mock_download):
         """Test logs download statistics."""
         from app.api.main import daily_crypto_download
@@ -94,13 +94,13 @@ class TestDailyCryptoDownload:
         # Simulate some failures
         mock_download.side_effect = [
             Exception("Error 1"),
-            [{'data': 1}],
-            [{'data': 2}],
+            [{"data": 1}],
+            [{"data": 2}],
             Exception("Error 2"),
-            [{'data': 3}],
-            [{'data': 4}],
-            [{'data': 5}],
-            [{'data': 6}],
+            [{"data": 3}],
+            [{"data": 4}],
+            [{"data": 5}],
+            [{"data": 6}],
         ]
 
         daily_crypto_download()
@@ -110,12 +110,14 @@ class TestDailyCryptoDownload:
 
         # Should log completion with statistics
         completion_log = str(info_calls[-1])
-        assert 'completed' in completion_log.lower()
-        assert 'total' in completion_log.lower() or '8' in completion_log
+        assert "completed" in completion_log.lower()
+        assert "total" in completion_log.lower() or "8" in completion_log
 
-    @patch('app.api.main.download_daily_data', new_callable=AsyncMock)
-    @patch('app.api.main.get_max_date')
-    def test_handles_different_max_dates_per_symbol_interval(self, mock_get_max_date, mock_download):
+    @patch("app.api.main.download_daily_data", new_callable=AsyncMock)
+    @patch("app.api.main.get_max_date")
+    def test_handles_different_max_dates_per_symbol_interval(
+        self, mock_get_max_date, mock_download
+    ):
         """Test handles different max dates for different symbol/interval combinations."""
         from app.api.main import daily_crypto_download
 
@@ -142,8 +144,8 @@ class TestDailyCryptoDownload:
         # Total: 3 downloads
         assert mock_download.call_count == 3
 
-    @patch('app.api.main.download_daily_data', new_callable=AsyncMock)
-    @patch('app.api.main.get_max_date')
+    @patch("app.api.main.download_daily_data", new_callable=AsyncMock)
+    @patch("app.api.main.get_max_date")
     def test_no_download_when_today_is_max_date(self, mock_get_max_date, mock_download):
         """Test no download when max date is today (edge case)."""
         from app.api.main import daily_crypto_download

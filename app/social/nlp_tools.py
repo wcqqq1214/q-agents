@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, Dict, List, Literal, Optional, TypedDict, cast
+from typing import Any, Dict, List, Literal, TypedDict, cast
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -159,9 +159,9 @@ def analyze_reddit_text(asset: str, text: str) -> SocialNlpResult:
         f"Asset: {asset_norm}\n\n"
         "Return ONLY this JSON schema:\n"
         "{\n"
-        '  \"sentiment\": \"panic|bearish|neutral|bullish|euphoric\",\n'
-        '  \"keywords\": [\"...\", \"...\", \"...\", \"...\", \"...\"],\n'
-        '  \"summary\": \"One English sentence summary (<= 25 words)\"\n'
+        '  "sentiment": "panic|bearish|neutral|bullish|euphoric",\n'
+        '  "keywords": ["...", "...", "...", "...", "..."],\n'
+        '  "summary": "One English sentence summary (<= 25 words)"\n'
         "}\n\n"
         "Discussion text:\n"
         f"{text_norm}\n"
@@ -171,15 +171,14 @@ def analyze_reddit_text(asset: str, text: str) -> SocialNlpResult:
 
     # Handle different LLM types
     import anthropic
+
     if isinstance(llm, anthropic.Anthropic):
         # Native Anthropic API
         model = os.environ.get("CLAUDE_MODEL", "claude-3-5-sonnet-20241022")
         response = llm.messages.create(
             model=model,
             max_tokens=1024,
-            messages=[
-                {"role": "user", "content": f"{system}\n\n{prompt}"}
-            ]
+            messages=[{"role": "user", "content": f"{system}\n\n{prompt}"}],
         )
         # Extract text from content blocks (handle TextBlock, ThinkingBlock, etc.)
         content = ""
@@ -194,4 +193,3 @@ def analyze_reddit_text(asset: str, text: str) -> SocialNlpResult:
 
     obj = _extract_json_object(content)
     return _validate_result(obj)
-

@@ -1,9 +1,12 @@
 """OKX模块"""
+
 import threading
 from typing import Dict, Optional
-from .trading_client import OKXTradingClient
-from .exceptions import OKXConfigError
+
 from app.config_manager import config_manager
+
+from .exceptions import OKXConfigError
+from .trading_client import OKXTradingClient
 
 _client_cache: Dict[str, OKXTradingClient] = {}
 _cache_lock = threading.Lock()
@@ -48,7 +51,7 @@ def get_okx_client(mode: str = "demo", force_refresh: bool = False) -> OKXTradin
             api_key=api_key,
             secret_key=secret_key,
             passphrase=passphrase,
-            is_demo=(mode == "demo")
+            is_demo=(mode == "demo"),
         )
 
         # 缓存

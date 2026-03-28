@@ -1,17 +1,17 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-from datetime import datetime, date, timedelta
 import asyncio
 import inspect
 import logging
 import os
+from contextlib import asynccontextmanager
+from datetime import date, datetime, timedelta
+
 from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 # Load environment variables from .env file
@@ -21,16 +21,28 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from arq import create_pool
 from arq.connections import RedisSettings
+
 from app.config_manager import config_manager
-from app.tasks.update_ohlc import update_daily_ohlc
 from app.database.agent_history import init_db as init_agent_history_db
-from app.services.realtime_agent import warmup_hot_cache, update_hot_cache_loop
-from app.services.batch_downloader import download_daily_data
-from app.services.stock_updater import update_stocks_intraday
 from app.database.crypto_ohlc import get_max_date
+from app.services.batch_downloader import download_daily_data
+from app.services.realtime_agent import update_hot_cache_loop, warmup_hot_cache
+from app.services.stock_updater import update_stocks_intraday
+from app.tasks.update_ohlc import update_daily_ohlc
 
 from .models import HealthResponse
-from .routes import analyze, reports, system, settings, stocks, ohlc, history, okx, crypto, crypto_klines
+from .routes import (
+    analyze,
+    crypto,
+    crypto_klines,
+    history,
+    ohlc,
+    okx,
+    reports,
+    settings,
+    stocks,
+    system,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,14 +62,15 @@ async def create_arq_pool():
         return None
 
     try:
-        pool = await create_pool(
-            RedisSettings.from_dsn(redis_settings["redis_url"])
-        )
+        pool = await create_pool(RedisSettings.from_dsn(redis_settings["redis_url"]))
         await pool.ping()
         logger.info("✓ ARQ pool initialized")
         return pool
     except Exception as exc:
-        logger.warning("Failed to initialize ARQ pool, background jobs will fall back to local execution: %s", exc)
+        logger.warning(
+            "Failed to initialize ARQ pool, background jobs will fall back to local execution: %s",
+            exc,
+        )
         return None
 
 
@@ -102,11 +115,15 @@ def daily_crypto_download():
                 # Determine dates to download
                 if max_date is None:
                     # No data exists, download only yesterday
-                    logger.info(f"No data in database for {symbol} {interval}, downloading yesterday only")
+                    logger.info(
+                        f"No data in database for {symbol} {interval}, downloading yesterday only"
+                    )
                     dates_to_download = [yesterday]
                 elif max_date >= yesterday:
                     # Data is current, no download needed
-                    logger.info(f"Database up to date for {symbol} {interval} (max date: {max_date})")
+                    logger.info(
+                        f"Database up to date for {symbol} {interval} (max date: {max_date})"
+                    )
                     dates_to_download = []
                 else:
                     # Calculate missing dates (from day after max_date to yesterday)
@@ -115,7 +132,9 @@ def daily_crypto_download():
                     while current_date <= yesterday:
                         dates_to_download.append(current_date)
                         current_date += timedelta(days=1)
-                    logger.info(f"Found {len(dates_to_download)} missing dates for {symbol} {interval}: {dates_to_download[0]} to {dates_to_download[-1]}")
+                    logger.info(
+                        f"Found {len(dates_to_download)} missing dates for {symbol} {interval}: {dates_to_download[0]} to {dates_to_download[-1]}"
+                    )
 
                 # Download each missing date
                 for target_date in dates_to_download:
@@ -127,7 +146,9 @@ def daily_crypto_download():
                         logger.info(f"✓ Downloaded {symbol} {interval} for {target_date}")
                     except Exception as e:
                         failed_downloads += 1
-                        logger.error(f"✗ Failed to download {symbol} {interval} for {target_date}: {e}")
+                        logger.error(
+                            f"✗ Failed to download {symbol} {interval} for {target_date}: {e}"
+                        )
 
             except Exception as e:
                 logger.error(f"Failed to process {symbol} {interval}: {e}")
@@ -183,6 +204,7 @@ async def lifespan(app: FastAPI):
 
     # Prewarm Redis connection pool before any concurrent operations
     from app.services.redis_client import get_redis_client, ping_redis
+
     try:
         client = await get_redis_client()
         if client is not None:
@@ -211,36 +233,27 @@ async def lifespan(app: FastAPI):
     logger.info("✓ Stock catchup started in background (non-blocking)")
 
     # Schedule daily crypto data download at 08:00 UTC
-    scheduler.add_job(
-        daily_crypto_download,
-        'cron',
-        hour=8,
-        minute=0,
-        id='daily_crypto_download'
-    )
+    scheduler.add_job(daily_crypto_download, "cron", hour=8, minute=0, id="daily_crypto_download")
     logger.info("✓ Scheduled daily crypto download at 08:00 UTC")
 
     # Update daily after US market close (UTC 21:30 = EST 16:30)
     scheduler.add_job(
         enqueue_daily_ohlc_job,
-        'cron',
+        "cron",
         hour=21,
         minute=30,
         args=[app],
-        id='daily_ohlc_update'
+        id="daily_ohlc_update",
     )
 
     logger.info("Configuring intraday stock update scheduler...")
     scheduler.add_job(
         update_stocks_intraday,
-        trigger=CronTrigger(
-            minute='1,16,31,46',
-            timezone='America/New_York'
-        ),
-        id='intraday_stock_update',
-        name='Intraday Stock Data Update (15min)',
+        trigger=CronTrigger(minute="1,16,31,46", timezone="America/New_York"),
+        id="intraday_stock_update",
+        name="Intraday Stock Data Update (15min)",
         replace_existing=True,
-        max_instances=1
+        max_instances=1,
     )
     logger.info("✓ Intraday stock update configured: updates at :01, :16, :31, :46 (ET)")
 
@@ -286,14 +299,16 @@ app = FastAPI(
     title="Finance Agent API",
     description="Multi-agent financial analysis system API",
     version="0.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000",],
+    allow_origins=[
+        "http://localhost:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

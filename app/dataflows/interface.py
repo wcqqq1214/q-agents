@@ -1,12 +1,19 @@
 import logging
-from typing import List, Optional
 from datetime import datetime
+from typing import List, Optional
+
 from app.dataflows.base import (
-    BaseDataProvider, ProviderError, ProviderTimeoutError, ProviderRateLimitError
+    BaseDataProvider,
+    ProviderError,
+    ProviderRateLimitError,
+    ProviderTimeoutError,
 )
-from app.dataflows.models import StockCandle, TechnicalIndicator, NewsArticle, FundamentalsData
-from app.dataflows.cache import DataCache, CacheConfig
+from app.dataflows.cache import CacheConfig, DataCache
 from app.dataflows.config import DEFAULT_CONFIG
+from app.dataflows.models import (
+    NewsArticle,
+    StockCandle,
+)
 from app.dataflows.providers.mcp_provider import MCPDataProvider
 from app.dataflows.providers.yfinance_provider import YFinanceProvider
 
@@ -16,6 +23,7 @@ _PROVIDER_REGISTRY = {
     "mcp": MCPDataProvider,
     "yfinance": YFinanceProvider,
 }
+
 
 def validate_config(config: dict) -> None:
     """验证配置有效性"""
@@ -32,6 +40,7 @@ def validate_config(config: dict) -> None:
                 f"Invalid vendor '{vendor}' for tool '{tool_name}'. "
                 f"Available vendors: {list(_PROVIDER_REGISTRY.keys())}"
             )
+
 
 class DataFlowRouter:
     """带自动降级和缓存的数据路由器"""
@@ -63,13 +72,7 @@ class DataFlowRouter:
 
         return primary, fallback
 
-    async def _call_with_fallback(
-        self,
-        method_name: str,
-        category: str,
-        *args,
-        **kwargs
-    ):
+    async def _call_with_fallback(self, method_name: str, category: str, *args, **kwargs):
         """调用提供商方法，失败时自动降级"""
         primary_vendor, fallback_vendor = self._get_vendor_with_fallback(method_name, category)
 
@@ -116,10 +119,7 @@ class DataFlowRouter:
                 raise e
 
     async def get_stock_data(
-        self,
-        symbol: str,
-        start_date: datetime,
-        end_date: datetime
+        self, symbol: str, start_date: datetime, end_date: datetime
     ) -> List[StockCandle]:
         """获取股票数据（带缓存和降级）"""
         if self.cache:
@@ -127,16 +127,14 @@ class DataFlowRouter:
                 "stock_data",
                 symbol=symbol,
                 start=start_date.isoformat(),
-                end=end_date.isoformat()
+                end=end_date.isoformat(),
             )
             if cached:
                 logger.info(f"✓ Cache hit for {symbol} stock data")
                 return [StockCandle(**item) for item in cached]
 
         result = await self._call_with_fallback(
-            "get_stock_data",
-            "stock_data",
-            symbol, start_date, end_date
+            "get_stock_data", "stock_data", symbol, start_date, end_date
         )
 
         if self.cache and result:
@@ -146,16 +144,13 @@ class DataFlowRouter:
                 CacheConfig.STOCK_DATA_TTL,
                 symbol=symbol,
                 start=start_date.isoformat(),
-                end=end_date.isoformat()
+                end=end_date.isoformat(),
             )
 
         return result
 
     async def get_news(
-        self,
-        query: str,
-        limit: int = 10,
-        start_date: Optional[datetime] = None
+        self, query: str, limit: int = 10, start_date: Optional[datetime] = None
     ) -> List[NewsArticle]:
         """获取新闻（带缓存和降级）"""
         if self.cache:
@@ -163,16 +158,12 @@ class DataFlowRouter:
                 "news",
                 query=query,
                 limit=limit,
-                start=start_date.isoformat() if start_date else None
+                start=start_date.isoformat() if start_date else None,
             )
             if cached:
                 return [NewsArticle(**item) for item in cached]
 
-        result = await self._call_with_fallback(
-            "get_news",
-            "news",
-            query, limit, start_date
-        )
+        result = await self._call_with_fallback("get_news", "news", query, limit, start_date)
 
         if self.cache and result:
             await self.cache.set(
@@ -181,7 +172,7 @@ class DataFlowRouter:
                 CacheConfig.NEWS_TTL,
                 query=query,
                 limit=limit,
-                start=start_date.isoformat() if start_date else None
+                start=start_date.isoformat() if start_date else None,
             )
 
         return result

@@ -89,7 +89,7 @@ def search_polymarket_by_category(
         >>> search_polymarket_by_category("trump", category="politics")
     """
     # Map category names to tag IDs
-    CATEGORY_TAG_IDS = {
+    category_tag_ids = {
         "finance": "120",
         "crypto": "21",
         "politics": "2",
@@ -102,9 +102,9 @@ def search_polymarket_by_category(
         client = PolymarketClient()
 
         # Get tag_id for the category
-        tag_id = CATEGORY_TAG_IDS.get(category.lower())
+        tag_id = category_tag_ids.get(category.lower())
         if not tag_id:
-            available = ", ".join(CATEGORY_TAG_IDS.keys())
+            available = ", ".join(category_tag_ids.keys())
             return json.dumps(
                 {
                     "error": f"Invalid category '{category}'. Available: {available}",

@@ -222,7 +222,7 @@ def init_chroma_db(
     cleaned_metadatas: List[Dict[str, str]] = []
 
     if docs:
-        for doc, meta in zip(docs, metadatas):
+        for doc, meta in zip(docs, metadatas, strict=True):
             if doc and doc.strip():
                 cleaned_docs.append(doc)
                 cleaned_metadatas.append(meta)

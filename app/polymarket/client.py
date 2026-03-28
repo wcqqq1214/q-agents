@@ -275,7 +275,7 @@ class PolymarketClient:
         page_size = 10
         max_pages = 10  # Safety limit to avoid infinite loops
 
-        for page in range(max_pages):
+        for _page in range(max_pages):
             try:
                 url = f"{self.base_url}/public-search"
                 params = {"q": keyword, "offset": offset, "limit": page_size}

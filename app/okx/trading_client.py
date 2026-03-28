@@ -675,7 +675,7 @@ class OKXTradingClient:
             logger.error(
                 f"[OKX-{'DEMO' if self.is_demo else 'LIVE'}] Unexpected error getting ticker: {e}"
             )
-            raise OKXError(f"Failed to get ticker: {str(e)}")
+            raise OKXError(f"Failed to get ticker: {str(e)}") from e
 
     def _validate_response(self, response: Dict) -> None:
         """验证OKX API响应

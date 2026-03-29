@@ -299,10 +299,21 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
         return;
       }
 
+      const ohlc = param.seriesData.get(series) as { open: number; high: number; low: number; close: number } | undefined;
       const volData = param.seriesData.get(volumeSeries) as { value: number } | undefined;
-      if (volData) {
+
+      if (ohlc && volData) {
+        const change = ohlc.close - ohlc.open;
+        const changePct = (change / ohlc.open) * 100;
+        const isUp = change >= 0;
+        const color = isUp ? '#22c55e' : '#ef4444';
+        const sign = isUp ? '+' : '';
+
         legend.style.display = 'block';
-        legend.textContent = `Vol  ${formatVolume(volData.value)}`;
+        legend.innerHTML =
+          `<span style="color:#d1d5db">C&nbsp;${ohlc.close.toFixed(2)}</span>` +
+          `&nbsp;&nbsp;<span style="color:${color}">${sign}${changePct.toFixed(2)}%</span>` +
+          `&nbsp;&nbsp;<span style="color:#9ca3af">Vol&nbsp;${formatVolume(volData.value)}</span>`;
       } else {
         legend.style.display = 'none';
       }

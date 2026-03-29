@@ -270,8 +270,10 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
     const volumeData: { time: any; value: number; color: string }[] = [];
 
     for (const d of ohlcData) {
+      // Use backend's timestamp field if available (for intraday data)
+      // Otherwise parse date string for daily+ data
       const time = isIntradayData
-        ? (Math.floor(new Date(d.date).getTime() / 1000) as any)
+        ? ((d as any).timestamp || Math.floor(new Date(d.date).getTime() / 1000) as any)
         : (d.date.split('T')[0] as any);
 
       formattedData.push({ time, open: d.open, high: d.high, low: d.low, close: d.close });

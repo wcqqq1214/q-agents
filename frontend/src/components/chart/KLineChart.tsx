@@ -227,7 +227,7 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
         borderColor: '#334155',
         timeVisible: true,
         secondsVisible: false,
-        tickMarkFormatter: (time: number | string) => {
+        tickMarkFormatter: (time: number | string, tickMarkType: any, locale: string) => {
           // For daily+ data, time is a string (YYYY-MM-DD)
           if (typeof time === 'string') {
             return time;
@@ -235,14 +235,24 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
           // For intraday data, time is Unix seconds
           // Convert to local time (browser timezone, which should be UTC+8)
           const date = new Date(time * 1000);
-          const year = date.getFullYear();
           const month = String(date.getMonth() + 1).padStart(2, '0');
           const day = String(date.getDate()).padStart(2, '0');
           const hours = String(date.getHours()).padStart(2, '0');
           const minutes = String(date.getMinutes()).padStart(2, '0');
 
-          // Always show date and time for intraday data
-          return `${year}-${month}-${day} ${hours}:${minutes}`;
+          // Show date at midnight (00:00) or start of trading day
+          // This ensures at least one date marker per day
+          if (hours === '00' && minutes === '00') {
+            return `${month}-${day}`;
+          }
+
+          // Also show date at major time boundaries (every 6 hours)
+          if (minutes === '00' && (hours === '00' || hours === '06' || hours === '12' || hours === '18')) {
+            return `${month}-${day}`;
+          }
+
+          // Otherwise show time
+          return `${hours}:${minutes}`;
         },
       },
       rightPriceScale: {

@@ -250,8 +250,8 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
             return dateKey;
           }
 
-          // Otherwise show time
-          return `${hours}:${minutes}`;
+          // Otherwise show nothing (empty string)
+          return '';
         },
       },
       rightPriceScale: {

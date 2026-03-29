@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { createChart, IChartApi, CandlestickData, ISeriesApi, CandlestickSeries } from 'lightweight-charts';
+import { createChart, IChartApi, CandlestickData, ISeriesApi, CandlestickSeries, HistogramSeries } from 'lightweight-charts';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -233,6 +233,26 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       downColor: '#ef4444',
       wickUpColor: '#22c55e',
       wickDownColor: '#ef4444',
+      priceScaleId: 'right',
+    });
+
+    chart.priceScale('right').applyOptions({
+      scaleMargins: {
+        top: 0.1,
+        bottom: 0.25,
+      },
+    });
+
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      priceScaleId: 'volume',
+      priceFormat: { type: 'volume' },
+    });
+
+    chart.priceScale('volume').applyOptions({
+      scaleMargins: {
+        top: 0.8,
+        bottom: 0,
+      },
     });
 
     // Convert and set data

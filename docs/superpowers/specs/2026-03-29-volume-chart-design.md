@@ -8,7 +8,7 @@
 
 ## Overview
 
-Add a synchronized volume histogram below the existing K-line candlestick chart. The volume bars share the same chart instance, X-axis, and crosshair as the main price chart — no separate DOM elements or event synchronization code required.
+Add a synchronized volume histogram below the existing K-line candlestick chart. The volume bars share the same chart instance, X-axis, and crosshair as the main price chart. A fixed legend label in the top-left corner of the chart displays the volume value on crosshair hover via direct DOM manipulation (no React state, no re-renders).
 
 ---
 
@@ -92,23 +92,70 @@ volumeSeries.setData(volumeData);
 
 Alpha 0.6 keeps bars visually lighter than the candles above.
 
-### 4. Crosshair volume label
+### 4. 浮动 Volume 图例（Floating Legend）
 
-`lightweight-charts` natively renders the volume value on the `'volume'` price scale axis when the crosshair is active — no custom DOM or `subscribeCrosshairMove` code is needed for acceptance criterion 5. The `priceFormat: { type: 'volume' }` option on the series ensures the axis label is formatted as `1.23K` / `1.23M` automatically.
+`priceScaleId: 'volume'` 默认以覆盖层模式运行，不渲染可见的 Y 轴，因此原生十字准线轴标签不会显示。采用行业标准做法：在图表容器内放置一个绝对定位的 DOM 节点，通过 `subscribeCrosshairMove` 直接操作 DOM 更新数值，**不使用 React state**（避免鼠标移动时触发组件重渲染）。
 
-If a custom floating tooltip is added in the future, the correct guard in `subscribeCrosshairMove` is:
+#### JSX 结构变更
+
+图表容器需要改为 `relative` 定位，并在内部增加图例节点：
+
+```tsx
+// 新增 legendRef
+const legendRef = useRef<HTMLDivElement>(null);
+
+// JSX 中的图表区域（替换现有的 <div ref={chartContainerRef} className="flex-1" />）
+<div className="flex-1 relative">
+  <div ref={chartContainerRef} className="absolute inset-0" />
+  <div
+    ref={legendRef}
+    className="absolute top-2 left-2 z-10 hidden text-xs font-mono
+               bg-background/80 px-1.5 py-0.5 rounded pointer-events-none"
+  />
+</div>
+```
+
+#### useEffect 中的订阅逻辑
+
+在 `volumeSeries.setData(volumeData)` 之后添加：
 
 ```ts
+// 辅助函数：格式化成交量数值
+const formatVolume = (vol: number): string => {
+  if (vol >= 1_000_000) return (vol / 1_000_000).toFixed(2) + 'M';
+  if (vol >= 1_000) return (vol / 1_000).toFixed(2) + 'K';
+  return vol.toFixed(2);
+};
+
 chart.subscribeCrosshairMove((param) => {
-  if (!param.time) return;  // crosshair is off-chart
+  const legend = legendRef.current;
+  if (!legend) return;
+
+  if (
+    !param.time ||
+    param.point === undefined ||
+    param.point.x < 0 ||
+    param.point.y < 0
+  ) {
+    legend.style.display = 'none';
+    return;
+  }
+
   const volData = param.seriesData.get(volumeSeries) as { value: number } | undefined;
-  // render volData?.value somewhere
+  if (volData) {
+    legend.style.display = 'block';
+    legend.textContent = `Vol  ${formatVolume(volData.value)}`;
+  } else {
+    legend.style.display = 'none';
+  }
 });
 ```
 
-Note: `param.seriesData` is always a `Map` (never null/undefined), so guard on `!param.time` not `!param.seriesData`. Cleanup is not needed — the existing `chart.remove()` in the `useEffect` cleanup block removes all subscriptions.
-
-**Volume values:** `OHLCRecord.volume` may be a float (fractional crypto units). Pass it as-is to `value` — `priceFormat: { type: 'volume' }` handles display formatting correctly.
+**关键点：**
+- 用 `!param.time` 判断十字准线是否移出图表数据范围
+- `param.seriesData` 永远是 `Map`（不会为 null），不要用 `!param.seriesData` 作为守卫
+- `chart.remove()` 在现有 cleanup 中已经移除所有订阅，无需手动 `unsubscribeCrosshairMove`
+- `OHLCRecord.volume` 可能是浮点数（加密货币），`formatVolume` 直接处理，无需预处理
 
 ---
 
@@ -134,6 +181,7 @@ Note: `param.seriesData` is always a `Map` (never null/undefined), so guard on `
 - No changes to data fetching (`fetchData`, API calls)
 - No changes to `TimeRangeSelector`, `AssetSelector`, or any other component
 - No changes to the visible range logic
+- No React state added for tooltip (direct DOM manipulation only)
 
 ---
 
@@ -141,8 +189,8 @@ Note: `param.seriesData` is always a `Map` (never null/undefined), so guard on `
 
 1. Volume bars appear below the K-line chart with correct proportions (~20% height)
 2. Each bar color matches the corresponding candle (green/red)
-3. Crosshair moves across both regions simultaneously (native behavior, no extra code)
-4. Scrolling and zooming keeps both regions in sync (native behavior, no extra code)
-5. Volume value is readable on the `'volume'` price scale axis label (formatted as `1.23K` / `1.23M`)
+3. Crosshair moves across both regions simultaneously (native behavior)
+4. Scrolling and zooming keeps both regions in sync (native behavior)
+5. 鼠标悬停时，图表左上角浮动图例显示当前 K 线的成交量数值（格式如 `1.23K` / `1.23M`），鼠标移出时隐藏；不引起组件重渲染
 6. No regression on existing candlestick behavior (colors, time range, resize)
-7. Empty data path (`ohlcData.length === 0`) is handled by the existing early-return guard at line 177 — no additional handling needed
+7. Empty data path (`ohlcData.length === 0`) is handled by the existing early-return guard — no additional handling needed

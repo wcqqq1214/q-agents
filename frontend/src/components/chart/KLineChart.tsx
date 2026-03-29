@@ -191,9 +191,6 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       chartRef.current = null;
     }
 
-    // Track last displayed date for smart date/time formatting
-    let lastDisplayedDate: string | null = null;
-
     // Create chart
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -238,20 +235,19 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
           // For intraday data, time is Unix seconds
           // Convert to local time (browser timezone, which should be UTC+8)
           const date = new Date(time * 1000);
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
           const hours = String(date.getHours()).padStart(2, '0');
           const minutes = String(date.getMinutes()).padStart(2, '0');
 
-          const currentDate = `${month}-${day}`;
+          // For time axis, show different formats based on zoom level
+          // If it's a new day, show date; otherwise just show time
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
 
-          // If this is a new day (date changed), show the date
-          if (lastDisplayedDate !== currentDate) {
-            lastDisplayedDate = currentDate;
-            return currentDate;
+          // Check if this is midnight or close to start of day
+          if (date.getHours() === 0 && date.getMinutes() === 0) {
+            return `${month}-${day}`;
           }
 
-          // Otherwise show time
           return `${hours}:${minutes}`;
         },
       },

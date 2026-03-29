@@ -32,15 +32,18 @@ No new files, no new components, no new props.
 
 ### 1. Main price scale margins
 
-Add `scaleMargins` to the candlestick series options so the K-line area occupies the top ~75% and leaves room for volume below:
+`scaleMargins` is a `PriceScaleOptions` property, not a series option. Apply it via `chart.priceScale('right').applyOptions()` after creating the series:
 
 ```ts
-chart.addSeries(CandlestickSeries, {
+const series = chart.addSeries(CandlestickSeries, {
   upColor: '#22c55e',
   downColor: '#ef4444',
   wickUpColor: '#22c55e',
   wickDownColor: '#ef4444',
   priceScaleId: 'right',
+});
+
+chart.priceScale('right').applyOptions({
   scaleMargins: {
     top: 0.1,
     bottom: 0.25,
@@ -89,19 +92,23 @@ volumeSeries.setData(volumeData);
 
 Alpha 0.6 keeps bars visually lighter than the candles above.
 
-### 4. Tooltip / crosshair volume display
+### 4. Crosshair volume label
 
-The existing `subscribeCrosshairMove` callback (if present) or a new one reads both series from `param.seriesData`:
+`lightweight-charts` natively renders the volume value on the `'volume'` price scale axis when the crosshair is active — no custom DOM or `subscribeCrosshairMove` code is needed for acceptance criterion 5. The `priceFormat: { type: 'volume' }` option on the series ensures the axis label is formatted as `1.23K` / `1.23M` automatically.
+
+If a custom floating tooltip is added in the future, the correct guard in `subscribeCrosshairMove` is:
 
 ```ts
 chart.subscribeCrosshairMove((param) => {
-  if (!param.point || !param.seriesData) return;
+  if (!param.time) return;  // crosshair is off-chart
   const volData = param.seriesData.get(volumeSeries) as { value: number } | undefined;
-  // update tooltip DOM with volData?.value
+  // render volData?.value somewhere
 });
 ```
 
-Display the raw volume value formatted as `1.23K` / `1.23M` — `lightweight-charts` handles this automatically via `priceFormat: { type: 'volume' }` on the series.
+Note: `param.seriesData` is always a `Map` (never null/undefined), so guard on `!param.time` not `!param.seriesData`. Cleanup is not needed — the existing `chart.remove()` in the `useEffect` cleanup block removes all subscriptions.
+
+**Volume values:** `OHLCRecord.volume` may be a float (fractional crypto units). Pass it as-is to `value` — `priceFormat: { type: 'volume' }` handles display formatting correctly.
 
 ---
 
@@ -134,7 +141,8 @@ Display the raw volume value formatted as `1.23K` / `1.23M` — `lightweight-cha
 
 1. Volume bars appear below the K-line chart with correct proportions (~20% height)
 2. Each bar color matches the corresponding candle (green/red)
-3. Crosshair moves across both regions simultaneously
-4. Scrolling and zooming keeps both regions in sync
-5. Volume value is readable in the tooltip/crosshair label area
+3. Crosshair moves across both regions simultaneously (native behavior, no extra code)
+4. Scrolling and zooming keeps both regions in sync (native behavior, no extra code)
+5. Volume value is readable on the `'volume'` price scale axis label (formatted as `1.23K` / `1.23M`)
 6. No regression on existing candlestick behavior (colors, time range, resize)
+7. Empty data path (`ohlcData.length === 0`) is handled by the existing early-return guard at line 177 — no additional handling needed

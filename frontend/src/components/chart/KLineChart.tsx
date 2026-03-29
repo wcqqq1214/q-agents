@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { createChart, IChartApi, CandlestickData, ISeriesApi, CandlestickSeries, HistogramSeries } from 'lightweight-charts';
+import { createChart, IChartApi, CandlestickData, ISeriesApi, CandlestickSeries, HistogramSeries, TickMarkType } from 'lightweight-charts';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -205,13 +205,13 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
             return timestamp;
           }
           // For intraday data, timestamp is Unix seconds
-          const date = new Date(timestamp * 1000);
-          // Format as YYYY-MM-DD HH:MM
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
-          const hours = String(date.getHours()).padStart(2, '0');
-          const minutes = String(date.getMinutes()).padStart(2, '0');
+          // Force convert to UTC+8 for consistent timezone display
+          const date = new Date((timestamp + 8 * 3600) * 1000);
+          const year = date.getUTCFullYear();
+          const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+          const day = String(date.getUTCDate()).padStart(2, '0');
+          const hours = String(date.getUTCHours()).padStart(2, '0');
+          const minutes = String(date.getUTCMinutes()).padStart(2, '0');
           return `${year}-${month}-${day} ${hours}:${minutes}`;
         },
       },
@@ -225,8 +225,27 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       },
       timeScale: {
         borderColor: '#334155',
-        timeVisible: false,
+        timeVisible: true,
         secondsVisible: false,
+        tickMarkFormatter: (time: number | string, tickMarkType: TickMarkType) => {
+          // For daily+ data, time is a string (YYYY-MM-DD)
+          if (typeof time === 'string') {
+            return time;
+          }
+          // For intraday data, use TickMarkType to determine what to show
+          // Force convert to UTC+8 for consistent timezone display
+          const date = new Date((time + 8 * 3600) * 1000);
+
+          // Hide time-level ticks (only show date-level ticks)
+          if (tickMarkType === TickMarkType.Time || tickMarkType === TickMarkType.TimeWithSeconds) {
+            return '';
+          }
+
+          // Show date for day/month/year level ticks
+          const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+          const day = String(date.getUTCDate()).padStart(2, '0');
+          return `${month}-${day}`;
+        },
       },
       rightPriceScale: {
         borderColor: '#334155',

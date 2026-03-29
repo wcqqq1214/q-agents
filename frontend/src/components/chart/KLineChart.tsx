@@ -422,23 +422,23 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       </div>
 
       {/* Chart */}
-      {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      ) : ohlcData.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-sm text-muted-foreground">No data available</p>
-        </div>
-      ) : (
-        <div className="flex-1 relative">
-          <div ref={chartContainerRef} className="absolute inset-0" />
-          <div
-            ref={legendRef}
-            className="absolute top-2 left-2 z-10 hidden text-xs font-mono bg-background/80 px-1.5 py-0.5 rounded pointer-events-none"
-          />
-        </div>
-      )}
+      <div className="flex-1 relative">
+        <div ref={chartContainerRef} className="absolute inset-0" />
+        <div
+          ref={legendRef}
+          className="absolute top-2 left-2 z-10 hidden text-xs font-mono bg-background/80 px-1.5 py-0.5 rounded pointer-events-none"
+        />
+        {loading && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        )}
+        {!loading && ohlcData.length === 0 && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center">
+            <p className="text-sm text-muted-foreground">No data available</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

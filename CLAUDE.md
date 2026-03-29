@@ -58,6 +58,21 @@ uv run pytest tests/test_multi_agent_graph.py
 uv run pytest --cov=app tests/
 ```
 
+### Linting & Formatting (Ruff)
+```bash
+# Check linting errors
+uv run ruff check .
+
+# Auto-fix linting errors
+uv run ruff check --fix .
+
+# Format code
+uv run ruff format .
+
+# Check formatting without modifying
+uv run ruff format --check .
+```
+
 ### Interactive Agent CLI
 ```bash
 # Interactive command-line interface

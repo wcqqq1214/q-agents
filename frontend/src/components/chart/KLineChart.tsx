@@ -225,29 +225,8 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       },
       timeScale: {
         borderColor: '#334155',
-        timeVisible: true,
+        timeVisible: false,
         secondsVisible: false,
-        tickMarkFormatter: (time: number | string) => {
-          // For daily+ data, time is a string (YYYY-MM-DD)
-          if (typeof time === 'string') {
-            return time;
-          }
-          // For intraday data, time is Unix seconds
-          // Convert to local time (browser timezone, which should be UTC+8)
-          const date = new Date(time * 1000);
-          const hours = date.getHours();
-          const minutes = date.getMinutes();
-
-          // Only show date at 00:00 in local timezone (UTC+8)
-          // All other times show empty string
-          if (hours === 0 && minutes === 0) {
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${month}-${day}`;
-          }
-
-          return '';
-        },
       },
       rightPriceScale: {
         borderColor: '#334155',

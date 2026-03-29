@@ -204,9 +204,10 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
           if (typeof timestamp === 'string') {
             return timestamp;
           }
-          // For intraday data, timestamp is Unix seconds (already in UTC)
-          // Convert to local time (browser timezone should be UTC+8)
-          const date = new Date(timestamp * 1000);
+          // For intraday data, timestamp has been shifted by +8 hours
+          // Subtract 8 hours to get real Beijing time for display
+          const realTimestamp = timestamp - 8 * 3600;
+          const date = new Date(realTimestamp * 1000);
           const year = date.getFullYear();
           const month = String(date.getMonth() + 1).padStart(2, '0');
           const day = String(date.getDate()).padStart(2, '0');
@@ -232,8 +233,8 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
           if (typeof time === 'string') {
             return time;
           }
-          // For intraday data, timestamp is Unix seconds (already in UTC)
-          // Convert to local time (browser timezone should be UTC+8)
+          // For intraday data, time has been shifted by +8 hours
+          // So UTC 00:00 now represents Beijing 00:00
           const date = new Date(time * 1000);
 
           // Hide time-level ticks (only show date-level ticks)
@@ -242,8 +243,9 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
           }
 
           // Show date for day/month/year level ticks
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
+          // Use UTC methods since data is already shifted
+          const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+          const day = String(date.getUTCDate()).padStart(2, '0');
           return `${month}-${day}`;
         },
       },
@@ -285,15 +287,23 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
     // For daily+ data, use YYYY-MM-DD format
     const isIntradayData = ['15M', '1H', '4H'].includes(timeRange);
 
+    // UTC+8 offset in seconds (8 hours)
+    const UTC8_OFFSET = 8 * 3600;
+
     const formattedData: CandlestickData[] = [];
     const volumeData: { time: any; value: number; color: string }[] = [];
 
     for (const d of ohlcData) {
       // Use backend's timestamp field if available (for intraday data)
       // Otherwise parse date string for daily+ data
-      const time = isIntradayData
-        ? ((d as any).timestamp || Math.floor(new Date(d.date).getTime() / 1000) as any)
-        : (d.date.split('T')[0] as any);
+      let time: any;
+      if (isIntradayData) {
+        const timestamp = (d as any).timestamp || Math.floor(new Date(d.date).getTime() / 1000);
+        // Add 8 hours offset so chart engine treats UTC 00:00 as Beijing 00:00
+        time = timestamp + UTC8_OFFSET;
+      } else {
+        time = d.date.split('T')[0];
+      }
 
       formattedData.push({ time, open: d.open, high: d.high, low: d.low, close: d.close });
       volumeData.push({

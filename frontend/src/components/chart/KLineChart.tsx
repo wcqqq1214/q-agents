@@ -204,14 +204,14 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
           if (typeof timestamp === 'string') {
             return timestamp;
           }
-          // For intraday data, timestamp is Unix seconds
-          // Force convert to UTC+8 for consistent timezone display
-          const date = new Date((timestamp + 8 * 3600) * 1000);
-          const year = date.getUTCFullYear();
-          const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-          const day = String(date.getUTCDate()).padStart(2, '0');
-          const hours = String(date.getUTCHours()).padStart(2, '0');
-          const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+          // For intraday data, timestamp is Unix seconds (already in UTC)
+          // Convert to local time (browser timezone should be UTC+8)
+          const date = new Date(timestamp * 1000);
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
           return `${year}-${month}-${day} ${hours}:${minutes}`;
         },
       },
@@ -232,9 +232,9 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
           if (typeof time === 'string') {
             return time;
           }
-          // For intraday data, use TickMarkType to determine what to show
-          // Force convert to UTC+8 for consistent timezone display
-          const date = new Date((time + 8 * 3600) * 1000);
+          // For intraday data, timestamp is Unix seconds (already in UTC)
+          // Convert to local time (browser timezone should be UTC+8)
+          const date = new Date(time * 1000);
 
           // Hide time-level ticks (only show date-level ticks)
           if (tickMarkType === TickMarkType.Time || tickMarkType === TickMarkType.TimeWithSeconds) {
@@ -242,8 +242,8 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
           }
 
           // Show date for day/month/year level ticks
-          const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-          const day = String(date.getUTCDate()).padStart(2, '0');
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
           return `${month}-${day}`;
         },
       },

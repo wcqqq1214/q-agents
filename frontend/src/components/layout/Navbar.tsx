@@ -21,7 +21,7 @@ export function Navbar() {
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-8">
             <Link href="/" className="text-xl font-bold">
-              Finance Agent
+              Q Agents
             </Link>
             <div className="flex gap-6">
               {navItems.map((item) => (

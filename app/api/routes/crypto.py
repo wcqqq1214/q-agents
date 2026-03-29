@@ -5,7 +5,7 @@ from typing import List
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.hot_cache import get_hot_cache
 
@@ -19,11 +19,13 @@ CRYPTO_NAMES = {"BTC-USDT": "Bitcoin", "ETH-USDT": "Ethereum"}
 class CryptoQuote(BaseModel):
     """Crypto quote model."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     symbol: str = Field(..., description="Trading pair symbol (e.g., BTC-USDT)")
     name: str = Field(..., description="Crypto name (e.g., Bitcoin)")
     price: float = Field(..., description="Current price")
     change: float = Field(..., description="24h price change amount")
-    changePercent: float = Field(..., description="24h price change percentage")
+    change_percent: float = Field(..., alias="changePercent", description="24h price change percentage")
     volume24h: float = Field(..., description="24h trading volume")
     high24h: float = Field(..., description="24h highest price")
     low24h: float = Field(..., description="24h lowest price")
@@ -95,7 +97,7 @@ async def get_crypto_quotes(
                         name=name,
                         price=0.0,
                         change=0.0,
-                        changePercent=0.0,
+                        change_percent=0.0,
                         volume24h=0.0,
                         high24h=0.0,
                         low24h=0.0,
@@ -149,7 +151,7 @@ async def get_crypto_quotes(
                     name=name,
                     price=last_price,
                     change=change_amount,
-                    changePercent=change_pct,
+                    change_percent=change_pct,
                     volume24h=volume_today,
                     high24h=high_today,
                     low24h=low_today,
@@ -171,4 +173,4 @@ async def get_crypto_quotes(
         raise
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}") from e

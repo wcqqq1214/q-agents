@@ -5,22 +5,13 @@ import os
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 
-from dotenv import load_dotenv
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-
-# Load environment variables from .env file
-load_dotenv()
-
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from arq import create_pool
 from arq.connections import RedisSettings
+from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config_manager import config_manager
 from app.database.agent_history import init_db as init_agent_history_db
@@ -42,6 +33,14 @@ from .routes import (
     settings,
     stocks,
     system,
+)
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 logger = logging.getLogger(__name__)

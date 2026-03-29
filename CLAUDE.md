@@ -28,19 +28,19 @@ uv run uvicorn app.api.main:app --port 8080
 ### Start All Services
 ```bash
 # Start everything (MCP servers + API + Frontend)
-bash scripts/start_all.sh
+bash scripts/startup/start_all.sh
 
 # Stop everything
-bash scripts/stop_all.sh
+bash scripts/startup/stop_all.sh
 ```
 
 ### Individual Services
 ```bash
 # Start MCP servers (required for agents)
-bash scripts/start_mcp_servers.sh
+bash scripts/startup/start_mcp_servers.sh
 
 # Start FastAPI backend
-bash scripts/start_api.sh
+bash scripts/startup/start_api.sh
 
 # Start Next.js frontend
 cd frontend && pnpm dev
@@ -76,7 +76,7 @@ uv run ruff format --check .
 ### Interactive Agent CLI
 ```bash
 # Interactive command-line interface
-uv run python -m scripts.manual_run
+uv run python -m scripts.utils.manual_run
 ```
 
 
@@ -276,8 +276,8 @@ lsof -i :8000  # Market data server
 lsof -i :8001  # News search server
 
 # Restart if needed
-bash scripts/stop_mcp_servers.sh
-bash scripts/start_mcp_servers.sh
+bash scripts/startup/stop_mcp_servers.sh
+bash scripts/startup/start_mcp_servers.sh
 ```
 
 ### Environment Variables
@@ -306,17 +306,17 @@ uv run python -c "from app.graph_multi import run_once; print(run_once('Analyze 
 
 ### Build Event Memory (RAG)
 ```bash
-uv run python scripts/build_event_memory_batch.py
+uv run python scripts/rag/build_event_memory_batch.py
 ```
 
 ### Train ML Model
 ```bash
-uv run python scripts/run_ml_quant_metrics.py
+uv run python scripts/ml/run_ml_quant_metrics.py
 ```
 
 ### Download Crypto Historical Data
 ```bash
-uv run python scripts/download_crypto_data.py
+uv run python scripts/data/download_crypto_data.py
 ```
 
 ### Check API Health

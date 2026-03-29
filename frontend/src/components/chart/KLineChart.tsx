@@ -191,9 +191,6 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       chartRef.current = null;
     }
 
-    // Track displayed dates to show each date only once
-    const displayedDates = new Set<string>();
-
     // Create chart
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -238,20 +235,17 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
           // For intraday data, time is Unix seconds
           // Convert to local time (browser timezone, which should be UTC+8)
           const date = new Date(time * 1000);
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
           const hours = date.getHours();
           const minutes = date.getMinutes();
 
-          const dateKey = `${month}-${day}`;
-
-          // Show date only at local 00:00 (UTC+8) or if this date hasn't been shown yet
-          if ((hours === 0 && minutes === 0) || !displayedDates.has(dateKey)) {
-            displayedDates.add(dateKey);
-            return dateKey;
+          // Only show date at 00:00 in local timezone (UTC+8)
+          // All other times show empty string
+          if (hours === 0 && minutes === 0) {
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${month}-${day}`;
           }
 
-          // Otherwise show nothing (empty string)
           return '';
         },
       },

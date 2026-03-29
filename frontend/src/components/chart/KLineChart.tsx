@@ -260,31 +260,24 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
     // For daily+ data, use YYYY-MM-DD format
     const isIntradayData = ['15M', '1H', '4H'].includes(timeRange);
 
-    const formattedData: CandlestickData[] = ohlcData.map((d) => {
-      if (isIntradayData) {
-        // For intraday: convert ISO string to Unix timestamp (seconds)
-        const time = Math.floor(new Date(d.date).getTime() / 1000);
-        return {
-          time: time as any,
-          open: d.open,
-          high: d.high,
-          low: d.low,
-          close: d.close,
-        };
-      } else {
-        // For daily+: extract YYYY-MM-DD part
-        const time = d.date.split('T')[0];
-        return {
-          time: time as any,
-          open: d.open,
-          high: d.high,
-          low: d.low,
-          close: d.close,
-        };
-      }
-    });
+    const formattedData: CandlestickData[] = [];
+    const volumeData: { time: any; value: number; color: string }[] = [];
+
+    for (const d of ohlcData) {
+      const time = isIntradayData
+        ? (Math.floor(new Date(d.date).getTime() / 1000) as any)
+        : (d.date.split('T')[0] as any);
+
+      formattedData.push({ time, open: d.open, high: d.high, low: d.low, close: d.close });
+      volumeData.push({
+        time,
+        value: d.volume,
+        color: d.close >= d.open ? 'rgba(34, 197, 94, 0.6)' : 'rgba(239, 68, 68, 0.6)',
+      });
+    }
 
     series.setData(formattedData);
+    volumeSeries.setData(volumeData);
 
     // Set initial visible range based on time granularity
     // This shows recent data while keeping all historical data available for zooming

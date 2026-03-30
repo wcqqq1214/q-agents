@@ -58,7 +58,7 @@ interface AnalysisReport {
 }
 ```
 
-Note: No `cio_summary` field. The collapsed trigger derives its summary by truncating `reports.cio` to ~200 characters at render time, avoiding a redundant field that would need to be kept in sync.
+Note: No `cio_summary` field. The collapsed trigger derives its summary at render time via a `stripMarkdown` utility that strips Markdown syntax (`#`, `*`, `[]()`, `` ` ``, etc.) before truncating to ~200 characters and appending `...`. This avoids both a redundant field and broken Markdown fragments in the summary text.
 
 ### Mock Data
 
@@ -86,7 +86,7 @@ Note: No `cio_summary` field. The collapsed trigger derives its summary by trunc
   - **News Sentiment**
   - **Social Sentiment**
 - Each tab content rendered with `MarkdownRenderer` component
-- Tab content area scrollable, max height ~400-500px
+- Tab content area expands naturally with content — no `max-height` or inner scroll. The page itself scrolls, avoiding scroll hijacking where the user can't tell if the page or the card is moving.
 - Empty tab content shows fallback message: "No report available."
 
 ### Empty State
@@ -122,7 +122,12 @@ This must run before any other step. The `Accordion` component does not exist in
    - Define `AnalysisReport` type (mock-only, not exported from `types.ts`)
    - Export `mockReports: AnalysisReport[]` array with 3-5 records
 
-2. **`/frontend/src/components/reports/ReportCard.tsx`** (new)
+2. **`/frontend/src/lib/strip-markdown.ts`** (new)
+   - Export `stripMarkdown(text: string): string` utility
+   - Strips `#`, `*`, `_`, `[]()`, `` ` ``, `>` and other common Markdown syntax via regex
+   - Used by `ReportCard` to produce clean plain-text summary from `reports.cio`
+
+3. **`/frontend/src/components/reports/ReportCard.tsx`** (new)
    - Renders `AccordionItem` + `AccordionTrigger` + `AccordionContent`
    - Receives `report: AnalysisReport` as prop
    - Contains Tabs logic for the 4 report types

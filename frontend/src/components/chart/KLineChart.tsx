@@ -13,6 +13,12 @@ interface KLineChartProps {
   assetType: 'crypto' | 'stocks';
 }
 
+// Helper function to get CSS variable value and convert to hsl color
+function getCSSVariableColor(variableName: string): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
+  return `hsl(${value})`;
+}
+
 function formatVolume(vol: number): string {
   if (vol >= 1_000_000) return (vol / 1_000_000).toFixed(2) + 'M';
   if (vol >= 1_000) return (vol / 1_000).toFixed(2) + 'K';
@@ -221,14 +227,14 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       },
       layout: {
         background: { color: 'transparent' },
-        textColor: 'hsl(var(--muted-foreground))',
+        textColor: getCSSVariableColor('--muted-foreground'),
       },
       grid: {
-        vertLines: { color: 'hsl(var(--border))' },
-        horzLines: { color: 'hsl(var(--border))' },
+        vertLines: { color: getCSSVariableColor('--border') },
+        horzLines: { color: getCSSVariableColor('--border') },
       },
       timeScale: {
-        borderColor: 'hsl(var(--border))',
+        borderColor: getCSSVariableColor('--border'),
         timeVisible: true,
         secondsVisible: false,
         tickMarkFormatter: (time: number | string, tickMarkType: TickMarkType) => {
@@ -253,16 +259,16 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
         },
       },
       rightPriceScale: {
-        borderColor: 'hsl(var(--border))',
+        borderColor: getCSSVariableColor('--border'),
       },
     });
 
     // Add candlestick series using v5 API
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: 'hsl(var(--chart-up))',
-      downColor: 'hsl(var(--chart-down))',
-      wickUpColor: 'hsl(var(--chart-up))',
-      wickDownColor: 'hsl(var(--chart-down))',
+      upColor: getCSSVariableColor('--chart-up'),
+      downColor: getCSSVariableColor('--chart-down'),
+      wickUpColor: getCSSVariableColor('--chart-up'),
+      wickDownColor: getCSSVariableColor('--chart-down'),
       priceScaleId: 'right',
     });
 
@@ -312,7 +318,7 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       volumeData.push({
         time,
         value: d.volume,
-        color: d.close >= d.open ? 'hsl(var(--chart-up) / 0.6)' : 'hsl(var(--chart-down) / 0.6)',
+        color: d.close >= d.open ? getCSSVariableColor('--chart-up').replace(')', ' / 0.6)') : getCSSVariableColor('--chart-down').replace(')', ' / 0.6)'),
       });
     }
 
@@ -340,17 +346,17 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
         const change = ohlc.close - ohlc.open;
         const changePct = (change / ohlc.open) * 100;
         const isUp = change >= 0;
-        const color = isUp ? 'hsl(var(--chart-up))' : 'hsl(var(--chart-down))';
+        const color = isUp ? getCSSVariableColor('--chart-up') : getCSSVariableColor('--chart-down');
         const sign = isUp ? '+' : '';
 
         legend.style.display = 'block';
         legend.innerHTML =
-          `<span style="color:hsl(var(--muted-foreground))">O&nbsp;$${ohlc.open.toFixed(2)}</span>` +
-          `&nbsp;&nbsp;<span style="color:hsl(var(--muted-foreground))">H&nbsp;$${ohlc.high.toFixed(2)}</span>` +
-          `&nbsp;&nbsp;<span style="color:hsl(var(--muted-foreground))">L&nbsp;$${ohlc.low.toFixed(2)}</span>` +
-          `&nbsp;&nbsp;<span style="color:hsl(var(--muted-foreground))">C&nbsp;$${ohlc.close.toFixed(2)}</span>` +
+          `<span style="color:${getCSSVariableColor('--muted-foreground')}">O&nbsp;$${ohlc.open.toFixed(2)}</span>` +
+          `&nbsp;&nbsp;<span style="color:${getCSSVariableColor('--muted-foreground')}">H&nbsp;$${ohlc.high.toFixed(2)}</span>` +
+          `&nbsp;&nbsp;<span style="color:${getCSSVariableColor('--muted-foreground')}">L&nbsp;$${ohlc.low.toFixed(2)}</span>` +
+          `&nbsp;&nbsp;<span style="color:${getCSSVariableColor('--muted-foreground')}">C&nbsp;$${ohlc.close.toFixed(2)}</span>` +
           `&nbsp;&nbsp;<span style="color:${color}">${sign}${changePct.toFixed(2)}%</span>` +
-          `&nbsp;&nbsp;<span style="color:hsl(var(--muted-foreground))">Vol&nbsp;${formatVolume(volData.value)}</span>`;
+          `&nbsp;&nbsp;<span style="color:${getCSSVariableColor('--muted-foreground')}">Vol&nbsp;${formatVolume(volData.value)}</span>`;
       } else {
         legend.style.display = 'none';
       }

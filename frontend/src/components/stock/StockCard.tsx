@@ -14,7 +14,7 @@ export function StockCard({ stock, selected, onClick }: StockCardProps) {
   const isPositive = (stock.change ?? 0) >= 0;
   const changeColor = stock.change === undefined
     ? 'text-muted-foreground'
-    : isPositive ? 'text-green-500' : 'text-red-500';
+    : isPositive ? 'text-chart-up' : 'text-chart-down';
   const changeIcon = isPositive ? '↑' : '↓';
 
   const formattedPrice = stock.price !== undefined

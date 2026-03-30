@@ -73,7 +73,7 @@ def prepare_dl_data(
     train_idx: np.ndarray,
     test_idx: np.ndarray,
     config: DLConfig,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, object]:
     """Prepare data for a single TimeSeriesSplit fold with fold-isolated scaling.
 
     Critical design:
@@ -89,9 +89,10 @@ def prepare_dl_data(
         config: DL configuration
 
     Returns:
-        (X_train_scaled, X_test_scaled, y_train, y_test)
+        (X_train_scaled, X_test_scaled, y_train, y_test, scaler)
         - X_test_scaled includes lookback (length = len(test_idx) + seq_len - 1)
         - y_test does NOT include lookback (length = len(test_idx))
+        - scaler: Fitted scaler from training set (for inference)
 
     Raises:
         ValueError: If train set too small to provide lookback
@@ -145,4 +146,4 @@ def prepare_dl_data(
     X_train_scaled = X_train_scaled[all_cols].values
     X_test_scaled = X_test_scaled[all_cols].values
 
-    return X_train_scaled, X_test_scaled, y_train, y_test
+    return X_train_scaled, X_test_scaled, y_train, y_test, scaler

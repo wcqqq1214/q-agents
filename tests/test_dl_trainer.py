@@ -33,10 +33,13 @@ def test_train_dl_model_returns_model_and_metrics():
         n_splits=2,  # Fewer splits for speed
     )
 
-    model, metrics = train_dl_model(X, y, config=config)
+    model, metrics, scaler = train_dl_model(X, y, config=config)
 
     # Check model is returned
     assert model is not None
+
+    # Check scaler is returned
+    assert scaler is not None
 
     # Check metrics format (compatible with LightGBM)
     assert "mean_auc" in metrics

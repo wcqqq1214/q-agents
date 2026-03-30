@@ -118,7 +118,7 @@ class TestPrepareDLData:
 
         config = DLConfig(seq_len=15)
 
-        X_train, X_test, y_train, y_test = prepare_dl_data(X, y, train_idx, test_idx, config)
+        X_train, X_test, y_train, y_test, scaler = prepare_dl_data(X, y, train_idx, test_idx, config)
 
         # X_test should include lookback (14 extra rows)
         assert X_test.shape[0] == len(test_idx) + config.seq_len - 1  # 50 + 14 = 64
@@ -155,7 +155,7 @@ class TestPrepareDLData:
 
         config = DLConfig(seq_len=15)
 
-        X_train, X_test, y_train, y_test = prepare_dl_data(X, y, train_idx, test_idx, config)
+        X_train, X_test, y_train, y_test, scaler = prepare_dl_data(X, y, train_idx, test_idx, config)
 
         assert isinstance(X_train, np.ndarray)
         assert isinstance(X_test, np.ndarray)
@@ -181,7 +181,7 @@ class TestPrepareDLData:
 
         config = DLConfig(seq_len=15, scaler_type="robust")
 
-        X_train, X_test, y_train, y_test = prepare_dl_data(X, y, train_idx, test_idx, config)
+        X_train, X_test, y_train, y_test, scaler = prepare_dl_data(X, y, train_idx, test_idx, config)
 
         # After scaling, train set should have mean close to 0 for scaled columns
         # (RobustScaler centers on median, so mean might not be exactly 0)
@@ -202,7 +202,7 @@ class TestPrepareDLData:
 
         config = DLConfig(seq_len=15, scaler_type="standard")
 
-        X_train, X_test, y_train, y_test = prepare_dl_data(X, y, train_idx, test_idx, config)
+        X_train, X_test, y_train, y_test, scaler = prepare_dl_data(X, y, train_idx, test_idx, config)
 
         assert X_train.shape[0] == len(train_idx)
         assert X_test.shape[0] == len(test_idx) + config.seq_len - 1
@@ -220,7 +220,7 @@ class TestPrepareDLData:
 
         config = DLConfig(seq_len=15, scaler_type="minmax")
 
-        X_train, X_test, y_train, y_test = prepare_dl_data(X, y, train_idx, test_idx, config)
+        X_train, X_test, y_train, y_test, scaler = prepare_dl_data(X, y, train_idx, test_idx, config)
 
         assert X_train.shape[0] == len(train_idx)
         assert X_test.shape[0] == len(test_idx) + config.seq_len - 1
@@ -242,7 +242,7 @@ class TestPrepareDLData:
 
         config = DLConfig(seq_len=15)
 
-        X_train, X_test, y_train, y_test = prepare_dl_data(X, y, train_idx, test_idx, config)
+        X_train, X_test, y_train, y_test, scaler = prepare_dl_data(X, y, train_idx, test_idx, config)
 
         # Should have same number of features
         assert X_train.shape[1] == len(all_cols)

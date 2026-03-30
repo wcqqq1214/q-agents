@@ -26,7 +26,7 @@ def train_dl_model(
     X: pd.DataFrame,
     y: pd.Series,
     config: DLConfig | None = None,
-) -> Tuple[nn.Module, Dict[str, float | str | List[float]]]:
+) -> Tuple[nn.Module, Dict[str, float | str | List[float]], object]:
     """Train deep learning model with TimeSeriesSplit and early stopping
 
     Training flow:
@@ -37,7 +37,7 @@ def train_dl_model(
        - Training loop: AdamW + weighted BCE + gradient clipping
        - Early stopping on validation loss with best weight rollback
        - Learning rate scheduling with ReduceLROnPlateau
-    3. Return last fold's model + aggregated metrics
+    3. Return last fold's model + aggregated metrics + scaler
 
     Args:
         X: Feature matrix (from features.py FEATURE_COLS)
@@ -45,9 +45,10 @@ def train_dl_model(
         config: DL configuration, defaults to DLConfig()
 
     Returns:
-        (model, metrics)
+        (model, metrics, scaler)
         - model: Last fold's trained model
         - metrics: Compatible with LightGBM format
+        - scaler: RobustScaler from last fold (for inference)
 
     Raises:
         ValueError: If X or y is empty, or if lengths don't match
@@ -64,6 +65,7 @@ def train_dl_model(
     fold_aucs: List[float] = []
     fold_accuracies: List[float] = []
     model: nn.Module | None = None
+    last_fold_scaler: object | None = None
 
     for fold_idx, (train_idx, test_idx) in enumerate(tss.split(X)):
         logger.info(f"Training fold {fold_idx + 1}/{config.n_splits}")
@@ -77,12 +79,15 @@ def train_dl_model(
         val_idx = train_idx[train_size:]
 
         # Prepare data with fold-isolated scaling
-        X_train, X_val, y_train, y_val = prepare_dl_data(
+        X_train, X_val, y_train, y_val, train_scaler = prepare_dl_data(
             X, y, actual_train_idx, val_idx, config
         )
-        X_test_scaled, _, y_test, _ = prepare_dl_data(
+        X_test_scaled, _, y_test, _, _ = prepare_dl_data(
             X, y, train_idx, test_idx, config
         )
+
+        # Save the last fold's scaler for inference
+        last_fold_scaler = train_scaler
 
         # Create datasets
         train_dataset = TimeSeriesDataset(
@@ -97,13 +102,13 @@ def train_dl_model(
 
         # Create dataloaders
         train_loader = DataLoader(
-            train_dataset, batch_size=config.batch_size, shuffle=True, drop_last=True
+            train_dataset, batch_size=config.batch_size, shuffle=True, drop_last=True, pin_memory=True
         )
         val_loader = DataLoader(
-            val_dataset, batch_size=config.batch_size, shuffle=False, drop_last=True
+            val_dataset, batch_size=config.batch_size, shuffle=False, drop_last=True, pin_memory=True
         )
         test_loader = DataLoader(
-            test_dataset, batch_size=config.batch_size, shuffle=False, drop_last=True
+            test_dataset, batch_size=config.batch_size, shuffle=False, drop_last=True, pin_memory=True
         )
 
         # Create model
@@ -243,4 +248,4 @@ def train_dl_model(
         "auc": mean_auc,
     }
 
-    return model, metrics
+    return model, metrics, last_fold_scaler

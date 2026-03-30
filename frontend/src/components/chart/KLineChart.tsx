@@ -259,10 +259,10 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
 
     // Add candlestick series using v5 API
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: '#22c55e',
-      downColor: '#ef4444',
-      wickUpColor: '#22c55e',
-      wickDownColor: '#ef4444',
+      upColor: 'hsl(var(--chart-up))',
+      downColor: 'hsl(var(--chart-down))',
+      wickUpColor: 'hsl(var(--chart-up))',
+      wickDownColor: 'hsl(var(--chart-down))',
       priceScaleId: 'right',
     });
 

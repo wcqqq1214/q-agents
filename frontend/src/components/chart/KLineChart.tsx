@@ -345,12 +345,12 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
 
         legend.style.display = 'block';
         legend.innerHTML =
-          `<span style="color:#d1d5db">O&nbsp;$${ohlc.open.toFixed(2)}</span>` +
-          `&nbsp;&nbsp;<span style="color:#d1d5db">H&nbsp;$${ohlc.high.toFixed(2)}</span>` +
-          `&nbsp;&nbsp;<span style="color:#d1d5db">L&nbsp;$${ohlc.low.toFixed(2)}</span>` +
-          `&nbsp;&nbsp;<span style="color:#d1d5db">C&nbsp;$${ohlc.close.toFixed(2)}</span>` +
+          `<span style="color:hsl(var(--muted-foreground))">O&nbsp;$${ohlc.open.toFixed(2)}</span>` +
+          `&nbsp;&nbsp;<span style="color:hsl(var(--muted-foreground))">H&nbsp;$${ohlc.high.toFixed(2)}</span>` +
+          `&nbsp;&nbsp;<span style="color:hsl(var(--muted-foreground))">L&nbsp;$${ohlc.low.toFixed(2)}</span>` +
+          `&nbsp;&nbsp;<span style="color:hsl(var(--muted-foreground))">C&nbsp;$${ohlc.close.toFixed(2)}</span>` +
           `&nbsp;&nbsp;<span style="color:${color}">${sign}${changePct.toFixed(2)}%</span>` +
-          `&nbsp;&nbsp;<span style="color:#9ca3af">Vol&nbsp;${formatVolume(volData.value)}</span>`;
+          `&nbsp;&nbsp;<span style="color:hsl(var(--muted-foreground))">Vol&nbsp;${formatVolume(volData.value)}</span>`;
       } else {
         legend.style.display = 'none';
       }

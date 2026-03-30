@@ -211,6 +211,8 @@ ps aux | grep mcp_servers
 ### Frontend (Next.js)
 - `frontend/src/app/` — Next.js app directory
 - `frontend/src/components/` — React components
+- `frontend/tsconfig.json` — TypeScript strict mode enabled
+- `frontend/eslint.config.mjs` — ESLint with TypeScript rules (no explicit `any`)
 
 ## Architecture
 
@@ -244,6 +246,8 @@ Quant, News, and Social agents execute in parallel. Each produces a structured r
 
 ## Code Quality
 
+### Backend (Python)
+
 Uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting (configured in `pyproject.toml`): line length 100, Python 3.13, rules E/F/I/N/B.
 
 ```bash
@@ -252,12 +256,33 @@ uv run ruff check --fix .     # lint + autofix
 uv run pytest tests/          # tests
 ```
 
+### Frontend (TypeScript)
+
+- **TypeScript Strict Mode**: Enabled in `tsconfig.json` for type safety
+- **ESLint**: Configured with Next.js and TypeScript rules
+  - Enforces `@typescript-eslint/no-explicit-any` (error level)
+  - Uses `eslint-config-next` for Next.js best practices
+
+```bash
+cd frontend
+pnpm lint                     # run ESLint
+pnpm lint:fix                 # auto-fix ESLint issues
+pnpm type-check               # TypeScript type checking
+```
+
 ## Contributing
 
+### Backend
 1. `uv run ruff format .`
 2. `uv run ruff check --fix .`
 3. `uv run pytest tests/`
-4. Submit a Pull Request
+
+### Frontend
+1. `cd frontend && pnpm lint:fix`
+2. `pnpm type-check`
+3. Ensure TypeScript strict mode compliance (no `any` types)
+
+Submit a Pull Request after all checks pass.
 
 ## License
 

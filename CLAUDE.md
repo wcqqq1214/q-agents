@@ -219,6 +219,8 @@ Edit `app/dataflows/config.py` to change data vendors:
 - `frontend/src/components/` - React components
 - `frontend/CLAUDE.md` - Frontend-specific instructions
 - `frontend/AGENTS.md` - Next.js version warnings
+- `frontend/tsconfig.json` - TypeScript strict mode enabled
+- `frontend/eslint.config.mjs` - ESLint with TypeScript rules
 
 
 ## Development Workflow
@@ -261,6 +263,16 @@ When modifying `frontend/` code:
 2. Follow Next.js 16+ conventions (breaking changes from older versions)
 3. Use shadcn/ui components from `frontend/src/components/ui/`
 4. API calls go to `http://localhost:8080/api/`
+5. **TypeScript Strict Mode**: All code must comply with strict type checking
+6. **ESLint Rules**: No explicit `any` types allowed (`@typescript-eslint/no-explicit-any: error`)
+
+Frontend linting and type checking:
+```bash
+cd frontend
+pnpm lint              # Run ESLint
+pnpm lint:fix          # Auto-fix ESLint issues
+pnpm type-check        # TypeScript type checking
+```
 
 
 ## Important Notes

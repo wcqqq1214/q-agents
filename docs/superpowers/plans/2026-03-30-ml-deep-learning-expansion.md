@@ -1410,3 +1410,80 @@ Two execution options:
 
 Which approach?
 
+
+---
+
+## Critical Fixes Based on Expert Review
+
+### Fix 1: Scaler Leakage in Inference
+
+**Problem**: `predict_proba_latest_dl` re-fits scaler on full data during inference, causing distribution mismatch with training.
+
+**Solution**: Return and reuse the last fold's scaler from `train_dl_model`.
+
+**Changes Required**:
+
+1. **Modify Task 4 (dl_trainer.py)**: Return scaler along with model and metrics
+
+```python
+# In train_dl_model, after the fold loop:
+# Save the last fold's scaler
+last_scaler = scaler  # From the last fold iteration
+
+return model, metrics, last_scaler  # Add scaler to return
+```
+
+2. **Modify Task 5 (model_registry.py)**: Use returned scaler for inference
+
+```python
+# In train_all_models:
+dl_model, dl_metrics, dl_scaler = train_dl_model(X, y, config=dl_config)
+
+results[model_type] = {
+    "model": dl_model,
+    "metrics": dl_metrics,
+    "scaler": dl_scaler,  # Save scaler
+    "prediction": predict_proba_latest_dl(dl_model, X, dl_config, dl_scaler),
+}
+
+# In predict_proba_latest_dl signature:
+def predict_proba_latest_dl(
+    model: torch.nn.Module,
+    X: pd.DataFrame,
+    config: DLConfig,
+    scaler: RobustScaler,  # Add scaler parameter
+) -> float:
+    # ...
+    if scale_cols:
+        X_scaled[scale_cols] = scaler.transform(X[scale_cols])  # Use transform, NOT fit_transform
+```
+
+### Fix 2: DataLoader Optimization
+
+**Enhancement**: Add `pin_memory=True` to DataLoaders for faster GPU transfer.
+
+**Changes Required in Task 4 (dl_trainer.py)**:
+
+```python
+train_loader = DataLoader(
+    train_dataset, 
+    batch_size=config.batch_size, 
+    shuffle=True,
+    pin_memory=True,  # Add this
+)
+val_loader = DataLoader(
+    val_dataset, 
+    batch_size=config.batch_size, 
+    shuffle=False,
+    pin_memory=True,  # Add this
+)
+test_loader = DataLoader(
+    test_dataset, 
+    batch_size=config.batch_size, 
+    shuffle=False,
+    pin_memory=True,  # Add this
+)
+```
+
+**Note**: These fixes should be applied during implementation of Tasks 4 and 5.
+

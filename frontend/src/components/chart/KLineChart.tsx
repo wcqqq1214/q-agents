@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createChart, IChartApi, CandlestickData, CandlestickSeries, HistogramSeries, TickMarkType, Time } from 'lightweight-charts';
+import { useTheme } from 'next-themes';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -95,6 +96,7 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
   const legendRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const [timezoneInfo] = useState(getTimezoneInfo());
+  const { resolvedTheme } = useTheme();
 
   // Reset timeRange when assetType changes
   useEffect(() => {

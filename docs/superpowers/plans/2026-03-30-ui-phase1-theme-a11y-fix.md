@@ -549,11 +549,35 @@ git commit -m "fix(a11y): add aria-label to chat submit button"
 ## Task 10: Fix AssetSelector.tsx ARIA Label and ClassName
 
 **Files:**
+- Modify: `frontend/src/components/asset/AssetSelector.tsx:1-11` (imports)
 - Modify: `frontend/src/components/asset/AssetSelector.tsx:113-121` (refresh button)
 
-- [ ] **Step 1: Add aria-label and fix className**
+- [ ] **Step 1: Add cn() import**
 
-Open `frontend/src/components/asset/AssetSelector.tsx` and locate the refresh button (around line 113). Replace:
+Open `frontend/src/components/asset/AssetSelector.tsx` and check the imports at the top. The file currently does NOT import `cn`. Add it after the existing imports (around line 10):
+
+```typescript
+import { cn } from '@/lib/utils';
+```
+
+The imports section should look like:
+
+```typescript
+import { useState, useEffect, useCallback } from 'react';
+import { RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { StockCard } from '../stock/StockCard';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { api } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';  // Add this line
+import type { StockInfo, CryptoQuote } from '@/lib/types';
+```
+
+- [ ] **Step 2: Add aria-label and fix className**
+
+Locate the refresh button (around line 113). Replace:
 
 ```typescript
 <Button
@@ -582,15 +606,15 @@ With:
 </Button>
 ```
 
-- [ ] **Step 2: Verify TypeScript compilation**
+- [ ] **Step 3: Verify TypeScript compilation**
 
 ```bash
 cd frontend && pnpm type-check
 ```
 
-Expected: No type errors
+Expected: No type errors (cn should now be recognized)
 
-- [ ] **Step 3: Test with keyboard navigation**
+- [ ] **Step 4: Test with keyboard navigation**
 
 In browser:
 1. Press Tab to navigate to refresh button
@@ -598,7 +622,7 @@ In browser:
 3. Press Enter to trigger refresh
 4. Verify quotes refresh and spinner animates
 
-- [ ] **Step 4: Commit AssetSelector ARIA fix**
+- [ ] **Step 5: Commit AssetSelector ARIA fix**
 
 ```bash
 git add frontend/src/components/asset/AssetSelector.tsx
@@ -710,5 +734,58 @@ git commit -m "test: verify Phase 1 UI fixes complete"
 - Each logical change gets its own commit
 - Commit messages follow conventional commit format
 - Easy to review and rollback if needed
+
+---
+
+## ⚠️ Critical Implementation Notes
+
+### Watch Out #1: cn() Import in AssetSelector.tsx (Task 10)
+
+**Risk**: Task 10 uses `cn()` function but may not have the import statement.
+
+**Before modifying className in Task 10, Step 1:**
+
+Check if `cn` is already imported at the top of `frontend/src/components/asset/AssetSelector.tsx`. If not, add:
+
+```typescript
+import { cn } from '@/lib/utils';
+```
+
+The import should be added with other utility imports, typically after React imports and before component imports.
+
+---
+
+### Watch Out #2: Canvas Memory Leak Prevention (Task 7)
+
+**Risk**: Adding `resolvedTheme` to useEffect dependencies will cause the effect to re-run on theme changes. If the cleanup function is missing or incomplete, multiple chart instances will be created, causing memory leaks and visual overlaps.
+
+**In Task 7, Step 2 (after adding resolvedTheme dependency):**
+
+Verify the useEffect has proper cleanup. The existing useEffect should already have a return statement like:
+
+```typescript
+return () => {
+  window.removeEventListener('resize', handleResize);
+  if (chartRef.current) {
+    chartRef.current.remove();
+    chartRef.current = null;
+  }
+};
+```
+
+If this cleanup is missing, the chart will leak memory. The current code (as of the spec) already has this cleanup at line 418-424, so this should be fine. But verify it's still there after your changes.
+
+---
+
+### Watch Out #3: Line Number Brittleness
+
+**Note**: Line numbers in this plan are approximate and may shift as you make changes.
+
+**Best Practice**: Use the code snippets provided in each step to locate the target code via pattern matching, not just line numbers. The line numbers are hints, not absolute references.
+
+If you can't find code at the specified line number:
+1. Search for the code pattern in the file
+2. Use your editor's "Find" feature with the code snippet
+3. Look for surrounding context (function names, comments)
 
 ---

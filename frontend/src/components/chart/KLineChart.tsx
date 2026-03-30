@@ -312,7 +312,7 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       volumeData.push({
         time,
         value: d.volume,
-        color: d.close >= d.open ? 'rgba(34, 197, 94, 0.6)' : 'rgba(239, 68, 68, 0.6)',
+        color: d.close >= d.open ? 'hsl(var(--chart-up) / 0.6)' : 'hsl(var(--chart-down) / 0.6)',
       });
     }
 

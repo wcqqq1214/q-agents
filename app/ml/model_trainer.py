@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -64,6 +65,7 @@ def train_lightgbm(
     fold_accuracies: List[float] = []
     model: LGBMClassifier | None = None
 
+    start_time = time.time()
     for train_idx, test_idx in tss.split(X):
         X_train = X.iloc[train_idx]
         y_train = y.iloc[train_idx]
@@ -84,6 +86,7 @@ def train_lightgbm(
         except Exception:
             auc = float("nan")
         fold_aucs.append(auc)
+    training_time_seconds = time.time() - start_time
 
     if model is None:
         raise ValueError("TimeSeriesSplit produced no folds.")
@@ -99,6 +102,7 @@ def train_lightgbm(
         "train_test_split": f"TimeSeriesSplit_n{n_splits}",
         "accuracy": mean_accuracy,
         "auc": mean_auc,
+        "training_time_seconds": training_time_seconds,
     }
     return model, metrics
 

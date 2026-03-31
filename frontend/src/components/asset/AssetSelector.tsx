@@ -115,7 +115,7 @@ export function AssetSelector({
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <Tabs value={assetType} onValueChange={onAssetTypeChange}>
-          <TabsList variant="default">
+          <TabsList>
             <TabsTrigger value="stocks">Stocks</TabsTrigger>
             <TabsTrigger value="crypto">Crypto</TabsTrigger>
           </TabsList>

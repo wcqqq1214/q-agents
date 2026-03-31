@@ -71,12 +71,6 @@ async def get_stock_quotes(symbols: str = "AAPL,MSFT,GOOGL,AMZN,NVDA,META,TSLA")
     """Fetch real-time quotes for a comma-separated list of symbols."""
     symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
 
-    # Fetch quotes with a small delay between requests to avoid rate limiting
-    quotes = []
-    for i, symbol in enumerate(symbol_list):
-        if i > 0:
-            await asyncio.sleep(0.2)  # 200ms delay between requests
-        quote = await _fetch_single_quote(symbol)
-        quotes.append(quote)
+    quotes = await asyncio.gather(*[_fetch_single_quote(s) for s in symbol_list])
 
     return StockQuotesResponse(quotes=list(quotes))

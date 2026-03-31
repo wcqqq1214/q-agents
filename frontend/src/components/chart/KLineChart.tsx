@@ -304,6 +304,9 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
     const series = chart.addSeries(CandlestickSeries, {
       upColor: upColor,
       downColor: downColor,
+      borderVisible: true,
+      borderUpColor: upColor,
+      borderDownColor: downColor,
       wickUpColor: upColor,
       wickDownColor: downColor,
       priceScaleId: "right",

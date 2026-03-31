@@ -214,21 +214,21 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Display Preferences</CardTitle>
-            <CardDescription>配置图表涨跌颜色习惯</CardDescription>
+            <CardDescription>Configure chart color conventions for price movements</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>涨跌色模式</Label>
+                <Label>Price Color Convention</Label>
                 <p className="text-sm text-muted-foreground">
-                  {!isMounted ? "加载中..." : trendMode === "chinese" ? "🇨🇳 红涨绿跌（Chinese）" : "🌍 绿涨红跌（Western）"}
+                  {!isMounted ? "Loading..." : trendMode === "chinese" ? "Red = Up, Green = Down (Chinese)" : "Green = Up, Red = Down (Western)"}
                 </p>
               </div>
               <Switch
                 disabled={!isMounted}
                 checked={isMounted ? trendMode === "chinese" : false}
                 onCheckedChange={(checked: boolean) => setTrendMode(checked ? "chinese" : "western")}
-                aria-label="切换涨跌色模式"
+                aria-label="Toggle price color convention"
               />
             </div>
           </CardContent>

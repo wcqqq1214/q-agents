@@ -1,12 +1,12 @@
 // frontend/src/app/reports/page.tsx
-'use client';
+"use client";
 
-import { Accordion } from '@/components/ui/accordion';
-import { mockReports } from '@/lib/mock-data/reports';
-import { ReportCard } from '@/components/reports/ReportCard';
+import { Accordion } from "@/components/ui/accordion";
+import { mockReports } from "@/lib/mock-data/reports";
+import { ReportCard } from "@/components/reports/ReportCard";
 
 const sorted = [...mockReports].sort(
-  (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
 );
 
 export default function ReportsPage() {
@@ -14,7 +14,7 @@ export default function ReportsPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-3xl font-bold">Analysis Reports</h1>
-        <p className="text-muted-foreground mt-2">
+        <p className="mt-2 text-muted-foreground">
           Browse all generated financial analysis reports
         </p>
       </div>

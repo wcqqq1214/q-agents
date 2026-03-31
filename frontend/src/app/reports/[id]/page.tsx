@@ -1,4 +1,10 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -14,9 +20,7 @@ export default async function ReportDetailPage({
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold">Report: {id}</h1>
-          <p className="text-muted-foreground mt-2">
-            Detailed analysis report
-          </p>
+          <p className="mt-2 text-muted-foreground">Detailed analysis report</p>
         </div>
         <Badge>Completed</Badge>
       </div>

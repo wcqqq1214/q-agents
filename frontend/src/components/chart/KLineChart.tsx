@@ -1,33 +1,43 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { createChart, IChartApi, CandlestickData, CandlestickSeries, HistogramSeries, TickMarkType, Time } from 'lightweight-charts';
-import { useTheme } from 'next-themes';
-import { TimeRangeSelector } from './TimeRangeSelector';
-import { api } from '@/lib/api';
-import { useToast } from '@/hooks/use-toast';
-import type { TimeRange, OHLCRecord } from '@/lib/types';
+import { useEffect, useRef, useState, useCallback } from "react";
+import {
+  createChart,
+  IChartApi,
+  CandlestickData,
+  CandlestickSeries,
+  HistogramSeries,
+  TickMarkType,
+  Time,
+} from "lightweight-charts";
+import { useTheme } from "next-themes";
+import { TimeRangeSelector } from "./TimeRangeSelector";
+import { api } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import type { TimeRange, OHLCRecord } from "@/lib/types";
 
 interface KLineChartProps {
   selectedStock: string | null;
-  assetType: 'crypto' | 'stocks';
+  assetType: "crypto" | "stocks";
 }
 
 // Resolve CSS variables to standard HSL/HSLA strings for lightweight-charts
 const getChartColor = (cssVar: string, fallbackHex: string) => {
-  if (typeof document === 'undefined') return fallbackHex;
-  const val = getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
+  if (typeof document === "undefined") return fallbackHex;
+  const val = getComputedStyle(document.documentElement)
+    .getPropertyValue(cssVar)
+    .trim();
 
   // If it's a standard hsl/hsla format, use it
-  if (val.startsWith('hsl')) return val;
+  if (val.startsWith("hsl")) return val;
 
   // Otherwise fall back to hex (handles lab/oklch or missing variables)
   return fallbackHex;
 };
 
 function formatVolume(vol: number): string {
-  if (vol >= 1_000_000) return (vol / 1_000_000).toFixed(2) + 'M';
-  if (vol >= 1_000) return (vol / 1_000).toFixed(2) + 'K';
+  if (vol >= 1_000_000) return (vol / 1_000_000).toFixed(2) + "M";
+  if (vol >= 1_000) return (vol / 1_000).toFixed(2) + "K";
   return vol.toFixed(2);
 }
 
@@ -37,50 +47,50 @@ function calculateDateRange(range: TimeRange): { start: string; end: string } {
 
   switch (range) {
     // Stock ranges
-    case 'D':
+    case "D":
       // Day: load all available data for zooming, initially show last 3 months
       start.setFullYear(start.getFullYear() - 10);
       break;
-    case 'W':
+    case "W":
       // Week: load all available data for zooming, initially show last 1 year
       start.setFullYear(start.getFullYear() - 10);
       break;
-    case 'M':
+    case "M":
       // Month: load all available data for zooming, initially show last 3 years
       start.setFullYear(start.getFullYear() - 10);
       break;
-    case 'Y':
+    case "Y":
       // Year: load all available data (20 years)
       start.setFullYear(start.getFullYear() - 20);
       break;
     // Crypto short-term ranges
-    case '15M':
+    case "15M":
       start.setDate(start.getDate() - 90); // Load 90 days for zooming
       break;
-    case '1H':
+    case "1H":
       start.setDate(start.getDate() - 90); // Load 90 days for zooming
       break;
-    case '4H':
+    case "4H":
       start.setDate(start.getDate() - 180); // Load 180 days for zooming
       break;
     // Crypto long-term ranges (load all available data for zooming)
-    case '1D':
+    case "1D":
       start.setFullYear(start.getFullYear() - 10); // Load 10 years for zooming
       break;
-    case '1W':
+    case "1W":
       start.setFullYear(start.getFullYear() - 10); // Load 10 years for zooming
       break;
-    case '1M':
+    case "1M":
       start.setFullYear(start.getFullYear() - 10); // Load 10 years for zooming
       break;
-    case '1Y':
+    case "1Y":
       start.setFullYear(start.getFullYear() - 10); // Load 10 years for zooming
       break;
   }
 
   return {
-    start: start.toISOString().split('T')[0],
-    end: end.toISOString().split('T')[0],
+    start: start.toISOString().split("T")[0],
+    end: end.toISOString().split("T")[0],
   };
 }
 
@@ -90,15 +100,16 @@ function getTimezoneInfo(): { name: string; offset: string } {
   const offsetMinutes = -new Date().getTimezoneOffset();
   const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
   const offsetMins = Math.abs(offsetMinutes) % 60;
-  const sign = offsetMinutes >= 0 ? '+' : '-';
-  const offsetStr = offsetMins > 0
-    ? `UTC${sign}${offsetHours}:${offsetMins.toString().padStart(2, '0')}`
-    : `UTC${sign}${offsetHours}`;
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const offsetStr =
+    offsetMins > 0
+      ? `UTC${sign}${offsetHours}:${offsetMins.toString().padStart(2, "0")}`
+      : `UTC${sign}${offsetHours}`;
   return { name: timeZone, offset: offsetStr };
 }
 
 export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
-  const defaultTimeRange: TimeRange = assetType === 'crypto' ? '15M' : 'D';
+  const defaultTimeRange: TimeRange = assetType === "crypto" ? "15M" : "D";
   const [timeRange, setTimeRange] = useState<TimeRange>(defaultTimeRange);
   const [ohlcData, setOhlcData] = useState<OHLCRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -112,7 +123,7 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
 
   // Reset timeRange when assetType changes
   useEffect(() => {
-    const newDefaultRange: TimeRange = assetType === 'crypto' ? '15M' : 'D';
+    const newDefaultRange: TimeRange = assetType === "crypto" ? "15M" : "D";
     setTimeRange(newDefaultRange);
   }, [assetType]);
 
@@ -133,56 +144,59 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       // Crypto supports: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w
       // Stocks support: day, week, month, year
       const stockIntervalMap: Record<TimeRange, string> = {
-        'D': 'day',
-        'W': 'week',
-        'M': 'month',
-        'Y': 'year',
-        '15M': '15m',
-        '1H': '1h',
-        '4H': '4h',
-        '1D': '1d',
-        '1W': '1w',
-        '1M': '1m',
-        '1Y': '1y',
+        D: "day",
+        W: "week",
+        M: "month",
+        Y: "year",
+        "15M": "15m",
+        "1H": "1h",
+        "4H": "4h",
+        "1D": "1d",
+        "1W": "1w",
+        "1M": "1m",
+        "1Y": "1y",
       };
 
       const cryptoIntervalMap: Record<TimeRange, string> = {
-        'D': '1d',      // Day view: use daily bars
-        'W': '1d',      // Week view: use daily bars
-        'M': '1d',      // Month view: use daily bars
-        'Y': '1d',      // Year view: use daily bars
-        '15M': '15m',   // 15-minute view
-        '1H': '1h',     // 1-hour view
-        '4H': '4h',     // 4-hour view
-        '1D': '1d',     // 1-day view
-        '1W': '1w',     // 1-week view
-        '1M': '1M',     // 1-month button: use monthly bars
-        '1Y': '1d',     // 1-year button: use daily bars
+        D: "1d", // Day view: use daily bars
+        W: "1d", // Week view: use daily bars
+        M: "1d", // Month view: use daily bars
+        Y: "1d", // Year view: use daily bars
+        "15M": "15m", // 15-minute view
+        "1H": "1h", // 1-hour view
+        "4H": "4h", // 4-hour view
+        "1D": "1d", // 1-day view
+        "1W": "1w", // 1-week view
+        "1M": "1M", // 1-month button: use monthly bars
+        "1Y": "1d", // 1-year button: use daily bars
       };
 
-      const intervalMap = assetType === 'crypto' ? cryptoIntervalMap : stockIntervalMap;
+      const intervalMap =
+        assetType === "crypto" ? cryptoIntervalMap : stockIntervalMap;
 
-      const response = assetType === 'crypto'
-        ? await api.getCryptoOHLC(
-            selectedStock,
-            start,
-            end,
-            intervalMap[timeRange]
-          )
-        : await api.getStockOHLC(
-            selectedStock,
-            start,
-            end,
-            intervalMap[timeRange]
-          );
+      const response =
+        assetType === "crypto"
+          ? await api.getCryptoOHLC(
+              selectedStock,
+              start,
+              end,
+              intervalMap[timeRange],
+            )
+          : await api.getStockOHLC(
+              selectedStock,
+              start,
+              end,
+              intervalMap[timeRange],
+            );
       setOhlcData(response.data);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load chart data';
+      const message =
+        err instanceof Error ? err.message : "Failed to load chart data";
       setError(message);
       toast({
-        title: 'Failed to load chart',
-        description: 'Unable to fetch OHLC data',
-        variant: 'destructive',
+        title: "Failed to load chart",
+        description: "Unable to fetch OHLC data",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -206,24 +220,30 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
     }
 
     // Resolve colors using dual-track variables with fallbacks
-    const upColor = getChartColor('--chart-up-js', '#22c55e');
-    const downColor = getChartColor('--chart-down-js', '#ef4444');
-    const volumeUpColor = getChartColor('--chart-up-js-alpha', 'rgba(34,197,94,0.6)');
-    const volumeDownColor = getChartColor('--chart-down-js-alpha', 'rgba(239,68,68,0.6)');
-    const textColor = getChartColor('--muted-foreground-js', '#64748b');
-    const borderColor = getChartColor('--border-js', '#334155');
+    const upColor = getChartColor("--chart-up-js", "#22c55e");
+    const downColor = getChartColor("--chart-down-js", "#ef4444");
+    const volumeUpColor = getChartColor(
+      "--chart-up-js-alpha",
+      "rgba(34,197,94,0.6)",
+    );
+    const volumeDownColor = getChartColor(
+      "--chart-down-js-alpha",
+      "rgba(239,68,68,0.6)",
+    );
+    const textColor = getChartColor("--muted-foreground-js", "#64748b");
+    const borderColor = getChartColor("--border-js", "#334155");
 
     // Create chart
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth || 800,
       height: chartContainerRef.current.clientHeight || 400,
       localization: {
-        locale: 'en-US',
-        dateFormat: 'yyyy-MM-dd',
+        locale: "en-US",
+        dateFormat: "yyyy-MM-dd",
         // Custom time formatter for tooltips and crosshair
         timeFormatter: (timestamp: number | string) => {
           // For daily+ data, timestamp is a string (YYYY-MM-DD)
-          if (typeof timestamp === 'string') {
+          if (typeof timestamp === "string") {
             return timestamp;
           }
           // For intraday data, timestamp has been shifted by browser timezone offset
@@ -232,15 +252,15 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
           const realTimestamp = timestamp - browserOffsetSeconds;
           const date = new Date(realTimestamp * 1000);
           const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
-          const hours = String(date.getHours()).padStart(2, '0');
-          const minutes = String(date.getMinutes()).padStart(2, '0');
+          const month = String(date.getMonth() + 1).padStart(2, "0");
+          const day = String(date.getDate()).padStart(2, "0");
+          const hours = String(date.getHours()).padStart(2, "0");
+          const minutes = String(date.getMinutes()).padStart(2, "0");
           return `${year}-${month}-${day} ${hours}:${minutes}`;
         },
       },
       layout: {
-        background: { color: 'transparent' },
+        background: { color: "transparent" },
         textColor: textColor,
       },
       grid: {
@@ -251,9 +271,12 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
         borderColor: borderColor,
         timeVisible: true,
         secondsVisible: false,
-        tickMarkFormatter: (time: number | string, tickMarkType: TickMarkType) => {
+        tickMarkFormatter: (
+          time: number | string,
+          tickMarkType: TickMarkType,
+        ) => {
           // For daily+ data, time is a string (YYYY-MM-DD)
-          if (typeof time === 'string') {
+          if (typeof time === "string") {
             return time;
           }
           // For intraday data, time has been shifted by browser timezone offset
@@ -261,14 +284,17 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
           const date = new Date(time * 1000);
 
           // Hide time-level ticks (only show date-level ticks)
-          if (tickMarkType === TickMarkType.Time || tickMarkType === TickMarkType.TimeWithSeconds) {
-            return '';
+          if (
+            tickMarkType === TickMarkType.Time ||
+            tickMarkType === TickMarkType.TimeWithSeconds
+          ) {
+            return "";
           }
 
           // Show date for day/month/year level ticks
           // Use UTC methods since data is already shifted
-          const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-          const day = String(date.getUTCDate()).padStart(2, '0');
+          const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+          const day = String(date.getUTCDate()).padStart(2, "0");
           return `${month}-${day}`;
         },
       },
@@ -283,10 +309,10 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       downColor: downColor,
       wickUpColor: upColor,
       wickDownColor: downColor,
-      priceScaleId: 'right',
+      priceScaleId: "right",
     });
 
-    chart.priceScale('right').applyOptions({
+    chart.priceScale("right").applyOptions({
       scaleMargins: {
         top: 0.1,
         bottom: 0.25,
@@ -294,11 +320,11 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
     });
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
-      priceScaleId: 'volume',
-      priceFormat: { type: 'volume' },
+      priceScaleId: "volume",
+      priceFormat: { type: "volume" },
     });
 
-    chart.priceScale('volume').applyOptions({
+    chart.priceScale("volume").applyOptions({
       scaleMargins: {
         top: 0.8,
         bottom: 0,
@@ -308,7 +334,7 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
     // Convert and set data
     // For intraday data (crypto 15M, 1H, 4H), use Unix timestamp
     // For daily+ data, use YYYY-MM-DD format
-    const isIntradayData = ['15M', '1H', '4H'].includes(timeRange);
+    const isIntradayData = ["15M", "1H", "4H"].includes(timeRange);
 
     // Use browser's timezone offset (auto-adapt to user's local timezone)
     const browserOffsetSeconds = -new Date().getTimezoneOffset() * 60;
@@ -321,14 +347,22 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       // Otherwise parse date string for daily+ data
       let time: Time;
       if (isIntradayData) {
-        const timestamp = (d as OHLCRecord & { timestamp?: number }).timestamp || Math.floor(new Date(d.date).getTime() / 1000);
+        const timestamp =
+          (d as OHLCRecord & { timestamp?: number }).timestamp ||
+          Math.floor(new Date(d.date).getTime() / 1000);
         // Apply browser timezone offset for proper local time display
         time = (timestamp + browserOffsetSeconds) as Time;
       } else {
-        time = d.date.split('T')[0] as Time;
+        time = d.date.split("T")[0] as Time;
       }
 
-      formattedData.push({ time, open: d.open, high: d.high, low: d.low, close: d.close });
+      formattedData.push({
+        time,
+        open: d.open,
+        high: d.high,
+        low: d.low,
+        close: d.close,
+      });
       volumeData.push({
         time,
         value: d.volume,
@@ -349,21 +383,25 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
         param.point.x < 0 ||
         param.point.y < 0
       ) {
-        legend.style.display = 'none';
+        legend.style.display = "none";
         return;
       }
 
-      const ohlc = param.seriesData.get(series) as { open: number; high: number; low: number; close: number } | undefined;
-      const volData = param.seriesData.get(volumeSeries) as { value: number } | undefined;
+      const ohlc = param.seriesData.get(series) as
+        | { open: number; high: number; low: number; close: number }
+        | undefined;
+      const volData = param.seriesData.get(volumeSeries) as
+        | { value: number }
+        | undefined;
 
       if (ohlc && volData) {
         const change = ohlc.close - ohlc.open;
         const changePct = (change / ohlc.open) * 100;
         const isUp = change >= 0;
         const color = isUp ? upColor : downColor;
-        const sign = isUp ? '+' : '';
+        const sign = isUp ? "+" : "";
 
-        legend.style.display = 'block';
+        legend.style.display = "block";
         legend.innerHTML =
           `<span style="color:${textColor}">O&nbsp;$${ohlc.open.toFixed(2)}</span>` +
           `&nbsp;&nbsp;<span style="color:${textColor}">H&nbsp;$${ohlc.high.toFixed(2)}</span>` +
@@ -372,7 +410,7 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
           `&nbsp;&nbsp;<span style="color:${color}">${sign}${changePct.toFixed(2)}%</span>` +
           `&nbsp;&nbsp;<span style="color:${borderColor}">Vol&nbsp;${formatVolume(volData.value)}</span>`;
       } else {
-        legend.style.display = 'none';
+        legend.style.display = "none";
       }
     });
 
@@ -383,37 +421,37 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       let visibleBars: number;
 
       switch (timeRange) {
-        case 'D':
+        case "D":
           visibleBars = 60; // Show ~3 months initially
           break;
-        case 'W':
+        case "W":
           visibleBars = 52; // Show ~1 year initially
           break;
-        case 'M':
+        case "M":
           visibleBars = 36; // Show ~3 years initially
           break;
-        case 'Y':
+        case "Y":
           visibleBars = 5; // Show ~5 years initially
           break;
-        case '15M':
+        case "15M":
           visibleBars = 96; // Show ~1 day initially (24h)
           break;
-        case '1H':
+        case "1H":
           visibleBars = 168; // Show ~1 week initially
           break;
-        case '4H':
+        case "4H":
           visibleBars = 42; // Show ~1 week initially
           break;
-        case '1D':
+        case "1D":
           visibleBars = 60; // Show ~2 months initially
           break;
-        case '1W':
+        case "1W":
           visibleBars = 52; // Show ~1 year initially
           break;
-        case '1M':
+        case "1M":
           visibleBars = 36; // Show ~3 years initially
           break;
-        case '1Y':
+        case "1Y":
           visibleBars = 5; // Show ~5 years initially
           break;
         default:
@@ -429,13 +467,16 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
 
     // Use ResizeObserver to track container-level size changes
     const resizeObserver = new ResizeObserver((entries) => {
-      if (entries.length === 0 || entries[0].target !== chartContainerRef.current) {
+      if (
+        entries.length === 0 ||
+        entries[0].target !== chartContainerRef.current
+      ) {
         return;
       }
       const newRect = entries[0].contentRect;
       chart.applyOptions({
         width: newRect.width,
-        height: newRect.height
+        height: newRect.height,
       });
     });
 
@@ -455,15 +496,17 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
   // Render
   if (!selectedStock) {
     return (
-      <div className="h-full flex items-center justify-center border rounded-lg bg-card">
-        <p className="text-sm text-muted-foreground">Select a stock to view chart</p>
+      <div className="flex h-full items-center justify-center rounded-lg border bg-card">
+        <p className="text-sm text-muted-foreground">
+          Select a stock to view chart
+        </p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="h-full flex flex-col items-center justify-center border rounded-lg bg-card gap-2">
+      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border bg-card">
         <p className="text-sm text-destructive">{error}</p>
         <button
           onClick={fetchData}
@@ -476,14 +519,17 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
   }
 
   return (
-    <div className="h-full flex flex-col border rounded-lg bg-card p-4">
+    <div className="flex h-full flex-col rounded-lg border bg-card p-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold">
             {selectedStock} K-Line Chart
           </h3>
-          <span className="text-xs text-muted-foreground" title={timezoneInfo.name}>
+          <span
+            className="text-xs text-muted-foreground"
+            title={timezoneInfo.name}
+          >
             ({timezoneInfo.offset})
           </span>
         </div>
@@ -496,15 +542,15 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       </div>
 
       {/* Chart */}
-      <div className="flex-1 relative">
+      <div className="relative flex-1">
         <div ref={chartContainerRef} className="absolute inset-0" />
         <div
           ref={legendRef}
-          className="absolute top-2 left-2 z-10 hidden text-xs font-mono bg-background/80 px-1.5 py-0.5 rounded pointer-events-none"
+          className="pointer-events-none absolute top-2 left-2 z-10 hidden rounded bg-background/80 px-1.5 py-0.5 font-mono text-xs"
         />
         {loading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
           </div>
         )}
         {!loading && ohlcData.length === 0 && (

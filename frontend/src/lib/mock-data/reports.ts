@@ -5,7 +5,7 @@
 export interface AnalysisReport {
   id: string;
   symbol: string;
-  assetType: 'stocks' | 'crypto';
+  assetType: "stocks" | "crypto";
   query: string;
   timestamp: string; // ISO 8601
   reports: {
@@ -18,10 +18,10 @@ export interface AnalysisReport {
 
 export const mockReports: AnalysisReport[] = [
   {
-    id: '1',
-    symbol: 'NVDA',
-    assetType: 'stocks',
-    query: '分析英伟达近期走势，是否适合买入？',
+    id: "1",
+    symbol: "NVDA",
+    assetType: "stocks",
+    query: "分析英伟达近期走势，是否适合买入？",
     timestamp: new Date(Date.now() - 1000 * 60 * 90).toISOString(), // 90 min ago
     reports: {
       cio: `# CIO 投资决策报告 — NVDA
@@ -98,10 +98,10 @@ export const mockReports: AnalysisReport[] = [
     },
   },
   {
-    id: '2',
-    symbol: 'AAPL',
-    assetType: 'stocks',
-    query: 'Apple Q1 财报后的投资机会分析',
+    id: "2",
+    symbol: "AAPL",
+    assetType: "stocks",
+    query: "Apple Q1 财报后的投资机会分析",
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(), // 5 hours ago
     reports: {
       cio: `# CIO 投资决策报告 — AAPL
@@ -162,10 +162,10 @@ export const mockReports: AnalysisReport[] = [
     },
   },
   {
-    id: '3',
-    symbol: 'BTC',
-    assetType: 'crypto',
-    query: '比特币减半后的价格走势预测',
+    id: "3",
+    symbol: "BTC",
+    assetType: "crypto",
+    query: "比特币减半后的价格走势预测",
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(), // 26 hours ago
     reports: {
       cio: `# CIO 投资决策报告 — BTC
@@ -227,10 +227,10 @@ export const mockReports: AnalysisReport[] = [
     },
   },
   {
-    id: '4',
-    symbol: 'TSLA',
-    assetType: 'stocks',
-    query: 'Tesla 交付量下滑，现在是抄底时机吗？',
+    id: "4",
+    symbol: "TSLA",
+    assetType: "stocks",
+    query: "Tesla 交付量下滑，现在是抄底时机吗？",
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(), // 3 days ago
     reports: {
       cio: `# CIO 投资决策报告 — TSLA

@@ -1,6 +1,12 @@
-'use client';
+"use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -9,7 +15,7 @@ export default function SystemPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">System Status</h1>
-        <p className="text-muted-foreground mt-2">
+        <p className="mt-2 text-muted-foreground">
           Monitor the health of backend services and MCP servers
         </p>
       </div>
@@ -21,9 +27,7 @@ export default function SystemPage() {
               <CardTitle>FastAPI Backend</CardTitle>
               <Skeleton className="h-5 w-20" />
             </div>
-            <CardDescription>
-              Main API server status
-            </CardDescription>
+            <CardDescription>Main API server status</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2 text-sm">
@@ -45,9 +49,7 @@ export default function SystemPage() {
               <CardTitle>Market Data MCP</CardTitle>
               <Skeleton className="h-5 w-20" />
             </div>
-            <CardDescription>
-              Market data service
-            </CardDescription>
+            <CardDescription>Market data service</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2 text-sm">
@@ -69,9 +71,7 @@ export default function SystemPage() {
               <CardTitle>News Search MCP</CardTitle>
               <Skeleton className="h-5 w-20" />
             </div>
-            <CardDescription>
-              News search service
-            </CardDescription>
+            <CardDescription>News search service</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2 text-sm">
@@ -90,9 +90,7 @@ export default function SystemPage() {
         <Card>
           <CardHeader>
             <CardTitle>Agent System</CardTitle>
-            <CardDescription>
-              Multi-agent orchestration
-            </CardDescription>
+            <CardDescription>Multi-agent orchestration</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2 text-sm">
@@ -113,7 +111,7 @@ export default function SystemPage() {
         </Card>
       </div>
 
-      <p className="text-sm text-muted-foreground text-center py-4">
+      <p className="py-4 text-center text-sm text-muted-foreground">
         Real-time status checks will be implemented via API
       </p>
     </div>

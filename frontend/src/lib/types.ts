@@ -43,7 +43,7 @@ export interface AnalyzeResponse {
 }
 
 export interface SSEEvent {
-  type: 'progress' | 'result' | 'error';
+  type: "progress" | "result" | "error";
   message?: string;
   step?: string;
   done?: boolean;
@@ -102,7 +102,7 @@ export interface OHLCRecord {
   high: number;
   low: number;
   close: number;
-  volume: number;  // Can be float from database
+  volume: number; // Can be float from database
 }
 
 export interface OHLCResponse {
@@ -118,7 +118,18 @@ export interface DataStatusResponse {
   total_records: number;
 }
 
-export type TimeRange = 'D' | 'W' | 'M' | 'Y' | '15M' | '1H' | '4H' | '1D' | '1W' | '1M' | '1Y';
+export type TimeRange =
+  | "D"
+  | "W"
+  | "M"
+  | "Y"
+  | "15M"
+  | "1H"
+  | "4H"
+  | "1D"
+  | "1W"
+  | "1M"
+  | "1Y";
 
 // Crypto Types
 export interface CryptoQuote {
@@ -126,8 +137,8 @@ export interface CryptoQuote {
   name: string;
   logo?: string;
   price: number;
-  change: number;  // Price change amount (e.g., $261.09)
-  changePercent: number;  // Price change percentage (e.g., 0.37%)
+  change: number; // Price change amount (e.g., $261.09)
+  changePercent: number; // Price change percentage (e.g., 0.37%)
   volume24h: number;
   high24h: number;
   low24h: number;

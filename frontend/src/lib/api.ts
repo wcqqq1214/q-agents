@@ -11,24 +11,24 @@ import type {
   OHLCRecord,
   DataStatusResponse,
   CryptoQuotesResponse,
-} from './types';
+} from "./types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 class APIError extends Error {
   constructor(
     message: string,
     public status: number,
-    public data?: unknown
+    public data?: unknown,
   ) {
     super(message);
-    this.name = 'APIError';
+    this.name = "APIError";
   }
 }
 
 async function fetchAPI<T>(
   endpoint: string,
-  options?: RequestInit
+  options?: RequestInit,
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
 
@@ -36,7 +36,7 @@ async function fetchAPI<T>(
     const response = await fetch(url, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...options?.headers,
       },
     });
@@ -46,7 +46,7 @@ async function fetchAPI<T>(
       throw new APIError(
         errorData.message || `HTTP ${response.status}`,
         response.status,
-        errorData
+        errorData,
       );
     }
 
@@ -56,29 +56,29 @@ async function fetchAPI<T>(
       throw error;
     }
     throw new APIError(
-      error instanceof Error ? error.message : 'Network error',
-      0
+      error instanceof Error ? error.message : "Network error",
+      0,
     );
   }
 }
 
 export const api = {
   // Health check
-  health: () => fetchAPI<HealthResponse>('/api/health'),
+  health: () => fetchAPI<HealthResponse>("/api/health"),
 
   // MCP status
-  mcpStatus: () => fetchAPI<MCPStatus>('/api/mcp/status'),
+  mcpStatus: () => fetchAPI<MCPStatus>("/api/mcp/status"),
 
   // Get all reports
-  getReports: () => fetchAPI<Report[]>('/api/reports'),
+  getReports: () => fetchAPI<Report[]>("/api/reports"),
 
   // Get single report
   getReport: (id: string) => fetchAPI<Report>(`/api/reports/${id}`),
 
   // Start analysis (returns immediately, use SSE for progress)
   analyze: (request: AnalyzeRequest) =>
-    fetchAPI<AnalyzeResponse>('/api/analyze', {
-      method: 'POST',
+    fetchAPI<AnalyzeResponse>("/api/analyze", {
+      method: "POST",
       body: JSON.stringify(request),
     }),
 
@@ -89,29 +89,34 @@ export const api = {
   },
 
   // Settings
-  getSettings: () => fetchAPI<SettingsResponse>('/api/settings'),
+  getSettings: () => fetchAPI<SettingsResponse>("/api/settings"),
 
   updateSettings: (data: SettingsRequest) =>
-    fetchAPI<SettingsResponse>('/api/settings', {
-      method: 'PUT',
+    fetchAPI<SettingsResponse>("/api/settings", {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
 
   // Get stock quotes for given symbols
   getStockQuotes: (symbols: string[]) =>
     fetchAPI<StockQuotesResponse>(
-      `/api/stocks/quotes?symbols=${symbols.join(',')}`
+      `/api/stocks/quotes?symbols=${symbols.join(",")}`,
     ),
 
   // Get OHLC data for a stock
-  getStockOHLC: (symbol: string, start?: string, end?: string, interval: string = 'day') => {
+  getStockOHLC: (
+    symbol: string,
+    start?: string,
+    end?: string,
+    interval: string = "day",
+  ) => {
     const params = new URLSearchParams();
-    if (start) params.append('start', start);
-    if (end) params.append('end', end);
-    params.append('interval', interval);
+    if (start) params.append("start", start);
+    if (end) params.append("end", end);
+    params.append("interval", interval);
     const query = params.toString();
     return fetchAPI<OHLCResponse>(
-      `/api/stocks/${symbol}/ohlc${query ? `?${query}` : ''}`
+      `/api/stocks/${symbol}/ohlc${query ? `?${query}` : ""}`,
     );
   },
 
@@ -122,37 +127,42 @@ export const api = {
   // Get crypto quotes
   getCryptoQuotes: (symbols: string[]) =>
     fetchAPI<CryptoQuotesResponse>(
-      `/api/crypto/quotes?symbols=${symbols.join(',')}`
+      `/api/crypto/quotes?symbols=${symbols.join(",")}`,
     ),
 
   // Get OHLC data for a crypto symbol
-  getCryptoOHLC: (symbol: string, start?: string, end?: string, interval: string = '15m') => {
+  getCryptoOHLC: (
+    symbol: string,
+    start?: string,
+    end?: string,
+    interval: string = "15m",
+  ) => {
     // Convert symbol format: BTC-USDT -> BTCUSDT for klines endpoint
-    const binanceSymbol = symbol.replace('-', '');
+    const binanceSymbol = symbol.replace("-", "");
     const params = new URLSearchParams();
-    params.append('symbol', binanceSymbol);
-    params.append('interval', interval);
-    if (start) params.append('start', start);
-    if (end) params.append('end', end);
+    params.append("symbol", binanceSymbol);
+    params.append("interval", interval);
+    if (start) params.append("start", start);
+    if (end) params.append("end", end);
     const query = params.toString();
 
     // Use klines endpoint which merges hot cache and cold database
-    return fetchAPI<OHLCRecord[]>(
-      `/api/crypto/klines?${query}`
-    ).then(data => {
-      // Transform klines response to OHLC format
-      return {
-        symbol: symbol,
-        data: data.map((item) => ({
-          date: item.date,
-          open: item.open,
-          high: item.high,
-          low: item.low,
-          close: item.close,
-          volume: item.volume
-        }))
-      };
-    });
+    return fetchAPI<OHLCRecord[]>(`/api/crypto/klines?${query}`).then(
+      (data) => {
+        // Transform klines response to OHLC format
+        return {
+          symbol: symbol,
+          data: data.map((item) => ({
+            date: item.date,
+            open: item.open,
+            high: item.high,
+            low: item.low,
+            close: item.close,
+            volume: item.volume,
+          })),
+        };
+      },
+    );
   },
 };
 

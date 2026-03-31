@@ -1,25 +1,25 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect } from 'react';
-import { Send } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { ResultCard } from './ResultCard';
-import { api } from '@/lib/api';
-import { useToast } from '@/hooks/use-toast';
-import type { SSEEvent } from '@/lib/types';
+import { useState, useRef, useEffect } from "react";
+import { Send } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { ResultCard } from "./ResultCard";
+import { api } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import type { SSEEvent } from "@/lib/types";
 
 interface ChatPanelProps {
   selectedStock: string | null;
 }
 
 export function ChatPanel({ selectedStock }: ChatPanelProps) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState<string[]>([]);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
-  const [submittedQuery, setSubmittedQuery] = useState('');
-  const [submittedSymbol, setSubmittedSymbol] = useState('');
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [submittedSymbol, setSubmittedSymbol] = useState("");
   const eventSourceRef = useRef<EventSource | null>(null);
   const { toast } = useToast();
 
@@ -32,7 +32,7 @@ export function ChatPanel({ selectedStock }: ChatPanelProps) {
 
   const placeholder = selectedStock
     ? `Ask about ${selectedStock}... (e.g., technical analysis, recent news)`
-    : 'Select a stock to start analysis';
+    : "Select a stock to start analysis";
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,37 +54,47 @@ export function ChatPanel({ selectedStock }: ChatPanelProps) {
     es.onmessage = (event) => {
       try {
         const data: SSEEvent = JSON.parse(event.data);
-        if (data.type === 'progress' && data.message) {
+        if (data.type === "progress" && data.message) {
           setProgress((prev) => [...prev, data.message!]);
-        } else if (data.type === 'result' && data.data) {
+        } else if (data.type === "result" && data.data) {
           setResult(data.data as Record<string, unknown>);
           es.close();
           setIsAnalyzing(false);
-        } else if (data.type === 'error') {
-          toast({ title: 'Analysis Error', description: data.message, variant: 'destructive' });
+        } else if (data.type === "error") {
+          toast({
+            title: "Analysis Error",
+            description: data.message,
+            variant: "destructive",
+          });
           es.close();
           setIsAnalyzing(false);
         }
       } catch (err) {
-        console.error('Failed to parse SSE event:', err);
+        console.error("Failed to parse SSE event:", err);
       }
     };
 
     es.onerror = () => {
-      toast({ title: 'Connection Error', description: 'Lost connection to server', variant: 'destructive' });
+      toast({
+        title: "Connection Error",
+        description: "Lost connection to server",
+        variant: "destructive",
+      });
       es.close();
       setIsAnalyzing(false);
     };
 
-    setQuery('');
+    setQuery("");
   };
 
   return (
-    <div className="h-full flex flex-col p-4 gap-3">
+    <div className="flex h-full flex-col gap-3 p-4">
       <div>
         <h2 className="text-lg font-semibold">Analysis Chat</h2>
         <p className="text-xs text-muted-foreground">
-          {selectedStock ? `Analyzing ${selectedStock}` : 'Select a stock from the left panel'}
+          {selectedStock
+            ? `Analyzing ${selectedStock}`
+            : "Select a stock from the left panel"}
         </p>
       </div>
 
@@ -100,7 +110,7 @@ export function ChatPanel({ selectedStock }: ChatPanelProps) {
       )}
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="flex gap-2 mt-auto">
+      <form onSubmit={handleSubmit} className="mt-auto flex gap-2">
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}

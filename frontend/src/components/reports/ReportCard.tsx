@@ -1,13 +1,17 @@
 // frontend/src/components/reports/ReportCard.tsx
-'use client';
+"use client";
 
-import { format, formatDistanceToNow, isAfter, subHours } from 'date-fns';
-import { AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
-import { markdownSummary } from '@/lib/strip-markdown';
-import type { AnalysisReport } from '@/lib/mock-data/reports';
+import { format, formatDistanceToNow, isAfter, subHours } from "date-fns";
+import {
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MarkdownRenderer } from "@/components/chat/MarkdownRenderer";
+import { markdownSummary } from "@/lib/strip-markdown";
+import type { AnalysisReport } from "@/lib/mock-data/reports";
 
 interface ReportCardProps {
   report: AnalysisReport;
@@ -19,18 +23,19 @@ function formatTimestamp(iso: string): string {
   if (isAfter(date, cutoff)) {
     return formatDistanceToNow(date, { addSuffix: true });
   }
-  return format(date, 'yyyy-MM-dd HH:mm');
+  return format(date, "yyyy-MM-dd HH:mm");
 }
 
-const TAB_EMPTY = 'No report available.';
+const TAB_EMPTY = "No report available.";
 
 export function ReportCard({ report }: ReportCardProps) {
-  const summary = markdownSummary(report.reports.cio, 200) || 'No summary available.';
+  const summary =
+    markdownSummary(report.reports.cio, 200) || "No summary available.";
 
   return (
-    <AccordionItem value={report.id} className="border rounded-lg px-4">
-      <AccordionTrigger className="hover:no-underline py-4">
-        <div className="flex flex-col gap-1.5 text-left w-full pr-4">
+    <AccordionItem value={report.id} className="rounded-lg border px-4">
+      <AccordionTrigger className="py-4 hover:no-underline">
+        <div className="flex w-full flex-col gap-1.5 pr-4 text-left">
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold">{report.symbol}</span>
             <Badge variant="outline" className="text-xs">
@@ -40,8 +45,10 @@ export function ReportCard({ report }: ReportCardProps) {
               {formatTimestamp(report.timestamp)}
             </span>
           </div>
-          <p className="text-sm truncate text-foreground">{report.query}</p>
-          <p className="text-xs text-muted-foreground line-clamp-2">{summary}</p>
+          <p className="truncate text-sm text-foreground">{report.query}</p>
+          <p className="line-clamp-2 text-xs text-muted-foreground">
+            {summary}
+          </p>
         </div>
       </AccordionTrigger>
 

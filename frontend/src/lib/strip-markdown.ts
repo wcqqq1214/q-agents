@@ -1,4 +1,4 @@
-import removeMd from 'remove-markdown';
+import removeMd from "remove-markdown";
 
 /**
  * Returns a plain-text summary truncated to maxLength characters.
@@ -6,7 +6,7 @@ import removeMd from 'remove-markdown';
  * and code blocks that hand-rolled regexes commonly miss.
  */
 export function markdownSummary(text: string, maxLength = 200): string {
-  const plain = removeMd(text).replace(/\s+/g, ' ').trim();
+  const plain = removeMd(text).replace(/\s+/g, " ").trim();
   if (plain.length <= maxLength) return plain;
-  return plain.slice(0, maxLength).trimEnd() + '...';
+  return plain.slice(0, maxLength).trimEnd() + "...";
 }

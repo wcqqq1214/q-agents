@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { MarkdownRenderer } from './MarkdownRenderer';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface ResultCardProps {
   symbol: string;
@@ -12,27 +12,36 @@ interface ResultCardProps {
   isAnalyzing: boolean;
 }
 
-export function ResultCard({ symbol, query, progress, result, isAnalyzing }: ResultCardProps) {
+export function ResultCard({
+  symbol,
+  query,
+  progress,
+  result,
+  isAnalyzing,
+}: ResultCardProps) {
   return (
-    <Card className="flex-1 overflow-hidden flex flex-col">
+    <Card className="flex flex-1 flex-col overflow-hidden">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <CardTitle className="text-base">{symbol}</CardTitle>
           {isAnalyzing && (
-            <Badge variant="secondary" className="text-xs animate-pulse">
+            <Badge variant="secondary" className="animate-pulse text-xs">
               Analyzing...
             </Badge>
           )}
         </div>
-        <p className="text-xs text-muted-foreground truncate">{query}</p>
+        <p className="truncate text-xs text-muted-foreground">{query}</p>
       </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto flex flex-col space-y-2">
+      <CardContent className="flex flex-1 flex-col space-y-2 overflow-y-auto">
         {/* Progress */}
         {progress.length > 0 && (
           <div className="space-y-1">
             {progress.map((msg, i) => (
-              <p key={i} className="text-xs text-muted-foreground flex items-start gap-1">
-                <span className="text-primary mt-0.5">•</span>
+              <p
+                key={i}
+                className="flex items-start gap-1 text-xs text-muted-foreground"
+              >
+                <span className="mt-0.5 text-primary">•</span>
                 <span>{msg}</span>
               </p>
             ))}
@@ -48,7 +57,7 @@ export function ResultCard({ symbol, query, progress, result, isAnalyzing }: Res
 
         {/* Empty state */}
         {!isAnalyzing && !result?.final_decision && progress.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full py-8 text-center">
+          <div className="flex h-full flex-col items-center justify-center py-8 text-center">
             <p className="text-sm text-muted-foreground">
               Analysis results will appear here.
             </p>

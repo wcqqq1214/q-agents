@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { cn } from '@/lib/utils';
-import { ThemeToggle } from './ThemeToggle';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { ThemeToggle } from "./ThemeToggle";
 
 const navItems = [
-  { href: '/', label: 'Home' },
-  { href: '/reports', label: 'Reports' },
-  { href: '/system', label: 'System' },
-  { href: '/settings', label: 'Settings' },
+  { href: "/", label: "Home" },
+  { href: "/reports", label: "Reports" },
+  { href: "/system", label: "System" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export function Navbar() {
@@ -29,10 +29,10 @@ export function Navbar() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    'text-sm font-medium transition-colors hover:text-primary',
+                    "text-sm font-medium transition-colors hover:text-primary",
                     pathname === item.href
-                      ? 'text-foreground'
-                      : 'text-muted-foreground'
+                      ? "text-foreground"
+                      : "text-muted-foreground",
                   )}
                 >
                   {item.label}

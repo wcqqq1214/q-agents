@@ -127,6 +127,84 @@ def _extract_feature_importance(model: Any, X: pd.DataFrame, top_k: int = 3) -> 
         return []
 
 
+def generate_comparison_report(
+    results: Dict[str, Dict],
+    symbol: str,
+    date_range: tuple[str, str],
+    X: pd.DataFrame,
+    dl_config: DLConfig | None = None,
+) -> Dict[str, Any]:
+    """Generate structured comparison report from multi-model results.
+
+    Args:
+        results: Output from train_all_models()
+        symbol: Stock ticker (e.g., "AAPL")
+        date_range: Tuple (start_date, end_date) in "YYYY-MM-DD" format
+        X: Feature matrix (for validation and feature importance)
+        dl_config: DLConfig instance for PyTorch models
+
+    Returns:
+        Structured report dict with metadata, parameters, metrics, predictions
+
+    Raises:
+        ValueError: If date_range doesn't match X or required data missing
+    """
+    if X.empty:
+        raise ValueError("Feature matrix X is empty")
+
+    # Extract predictions
+    predictions = {
+        model_name: result["prediction"]
+        for model_name, result in results.items()
+    }
+
+    # Extract metrics
+    metrics = {
+        model_name: result["metrics"]
+        for model_name, result in results.items()
+    }
+
+    # Extract parameters
+    parameters = {}
+    for model_name, result in results.items():
+        model = result["model"]
+        try:
+            parameters[model_name] = _extract_parameters(model, model_name, dl_config)
+        except Exception as e:
+            logger.error(f"Failed to extract parameters for {model_name}: {e}")
+            parameters[model_name] = {}
+
+    # Calculate fusion score
+    fusion_score = _calculate_fusion_score(predictions, metrics)
+
+    # Extract feature importance (LightGBM only)
+    feature_importance = {}
+    if "lightgbm" in results:
+        try:
+            lgbm_model = results["lightgbm"]["model"]
+            top_features = _extract_feature_importance(lgbm_model, X, top_k=3)
+            if top_features:
+                feature_importance["lightgbm"] = {"top_features": top_features}
+        except Exception as e:
+            logger.error(f"Failed to extract feature importance: {e}")
+
+    # Build report
+    report = {
+        "metadata": {
+            "symbol": symbol,
+            "date_range": date_range,
+            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "data_points": len(X),
+        },
+        "parameters": parameters,
+        "metrics": metrics,
+        "predictions": {**predictions, "fusion_score": fusion_score},
+        "feature_importance": feature_importance,
+    }
+
+    return report
+
+
 def train_all_models(
     X: pd.DataFrame | None = None,
     y: pd.Series | None = None,

@@ -10,9 +10,9 @@ export interface AnalysisReport {
   timestamp: string; // ISO 8601
   reports: {
     cio: string;
-    quant: string;
-    news: string;
-    social: string;
+    quant: string | null;
+    news: string | null;
+    social: string | null;
   };
 }
 

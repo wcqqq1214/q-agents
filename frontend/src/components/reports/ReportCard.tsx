@@ -25,7 +25,7 @@ function formatTimestamp(iso: string): string {
 const TAB_EMPTY = 'No report available.';
 
 export function ReportCard({ report }: ReportCardProps) {
-  const summary = markdownSummary(report.reports.cio, 200);
+  const summary = markdownSummary(report.reports.cio, 200) || 'No summary available.';
 
   return (
     <AccordionItem value={report.id} className="border rounded-lg px-4">

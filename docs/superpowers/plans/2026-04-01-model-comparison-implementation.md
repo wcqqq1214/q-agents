@@ -62,11 +62,12 @@ def _calculate_fusion_score(predictions: Dict[str, float], metrics: Dict[str, Di
 Add after `_calculate_fusion_score()`:
 
 ```python
-def _extract_feature_importance(model: Any, top_k: int = 3) -> List[Dict[str, Any]]:
+def _extract_feature_importance(model: Any, X: pd.DataFrame, top_k: int = 3) -> List[Dict[str, Any]]:
     """Extract top K feature importances from LightGBM model.
     
     Args:
         model: Trained LGBMClassifier
+        X: Feature matrix (used to get feature names from columns)
         top_k: Number of top features to extract
     
     Returns:
@@ -74,9 +75,14 @@ def _extract_feature_importance(model: Any, top_k: int = 3) -> List[Dict[str, An
     """
     try:
         importances = model.feature_importances_
-        feature_names = model.feature_name_
+        feature_names = X.columns.tolist()  # ← Use X.columns instead of model.feature_name_
         
-        if feature_names is None or len(feature_names) == 0:
+        if len(feature_names) == 0 or len(importances) == 0:
+            return []
+        
+        # Ensure lengths match
+        if len(importances) != len(feature_names):
+            logger.warning(f"Feature count mismatch: {len(importances)} importances vs {len(feature_names)} names")
             return []
         
         top_indices = np.argsort(importances)[-top_k:][::-1]
@@ -87,9 +93,12 @@ def _extract_feature_importance(model: Any, top_k: int = 3) -> List[Dict[str, An
             }
             for i in top_indices
         ]
-    except Exception:
+    except Exception as e:
+        logger.error(f"Failed to extract feature importance: {e}")
         return []
 ```
+
+**CRITICAL:** Use `X.columns.tolist()` instead of `model.feature_name_` to avoid None/missing attribute errors.
 
 - [ ] **Step 3: Commit**
 
@@ -165,7 +174,7 @@ def generate_comparison_report(
     if "lightgbm" in results:
         try:
             lgbm_model = results["lightgbm"]["model"]
-            top_features = _extract_feature_importance(lgbm_model, top_k=3)
+            top_features = _extract_feature_importance(lgbm_model, X, top_k=3)  # ← Pass X as second argument
             if top_features:
                 feature_importance["lightgbm"] = {"top_features": top_features}
         except Exception as e:
@@ -398,11 +407,11 @@ Find the end of `format_comparison_markdown()` function and add before final ret
     # Training time
     line_parts = ["| **训练耗时** |"]
     for model in ["lightgbm", "gru", "lstm"]:
-        time_sec = metrics.get(model, {}).get("training_time_seconds", "N/A")
-        if isinstance(time_sec, float):
+        time_sec = metrics.get(model, {}).get("training_time_seconds", None)
+        if isinstance(time_sec, (int, float)) and time_sec is not None:
             line_parts.append(f" {time_sec:.2f} 秒 |")
         else:
-            line_parts.append(f" {time_sec} |")
+            line_parts.append(f" N/A |")
     lines.append("".join(line_parts))
     lines.append("")
     
@@ -1070,17 +1079,17 @@ Find the return statement around line 94-100 and update metrics dict:
     }
 ```
 
-- [ ] **Step 4: Wrap training loop with time tracking**
+- [ ] **Step 4: Add time tracking around the entire training loop**
 
-Replace the loop starting at line 62:
+Find line 62 where `tss = TimeSeriesSplit(n_splits=n_splits)` starts, and add timing:
 
 ```python
     tss = TimeSeriesSplit(n_splits=n_splits)
     fold_aucs: List[float] = []
     fold_accuracies: List[float] = []
     model: LGBMClassifier | None = None
-    
-    start_time = time.time()
+
+    start_time = time.time()  # ← Add this BEFORE the loop
 
     for train_idx, test_idx in tss.split(X):
         X_train = X.iloc[train_idx]
@@ -1103,8 +1112,10 @@ Replace the loop starting at line 62:
             auc = float("nan")
         fold_aucs.append(auc)
 
-    training_time_seconds = time.time() - start_time
+    training_time_seconds = time.time() - start_time  # ← Add this AFTER the loop (NOT indented inside loop)
 ```
+
+**CRITICAL:** Ensure `training_time_seconds = time.time() - start_time` is at the SAME indentation level as the `for` loop (not inside it).
 
 - [ ] **Step 5: Commit**
 
@@ -1132,27 +1143,39 @@ Add to imports at top of `app/ml/dl_trainer.py`:
 import time
 ```
 
-- [ ] **Step 3: Wrap training loop with time tracking**
+- [ ] **Step 3: Wrap entire training function with time tracking**
 
-Find the main training loop in `train_dl_model()` and wrap it:
+Find the start of `train_dl_model()` function. Add timing at the very beginning (before any loops):
 
 ```python
-    start_time = time.time()
+def train_dl_model(
+    X: pd.DataFrame,
+    y: pd.Series,
+    config: DLConfig | None = None,
+) -> tuple[torch.nn.Module, Dict[str, float | List[float]], RobustScaler]:
+    """Train DL model with time-series cross-validation."""
     
-    for epoch in range(config.max_epochs):
-        # existing training code
-        pass
+    if config is None:
+        config = DLConfig()
     
-    training_time_seconds = time.time() - start_time
+    start_time = time.time()  # ← Add this at the VERY START of the function
+    
+    # ... rest of the function code (tss.split, fold loops, epoch loops, etc.)
 ```
 
-- [ ] **Step 4: Add training_time_seconds to returned metrics**
-
-Find where metrics dict is returned and add:
+Then find where the function returns the metrics dict (typically at the end before `return model, metrics, scaler`), and add:
 
 ```python
+    training_time_seconds = time.time() - start_time  # ← Add this BEFORE the return statement
     metrics["training_time_seconds"] = training_time_seconds
+    
+    return model, metrics, scaler
 ```
+
+**CRITICAL:** 
+- `start_time` must be placed BEFORE the outermost loop (tss.split)
+- `training_time_seconds` must be calculated AFTER all loops complete
+- This captures the TOTAL time for all folds and epochs, matching LightGBM's total time
 
 - [ ] **Step 5: Commit**
 

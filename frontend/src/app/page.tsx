@@ -17,9 +17,9 @@ export default function Home() {
   return (
     <div className="flex gap-4 h-[calc(100vh-8rem)]">
       {/* Left panel */}
-      <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+      <div className="flex-1 flex flex-col gap-4 overflow-hidden min-w-0">
         {/* Top: Stock selector (40% height) */}
-        <div className="h-[40%] overflow-y-auto">
+        <div className="basis-2/5 min-h-0 overflow-y-auto">
           <AssetSelector
             selectedAsset={selectedAsset}
             onAssetSelect={setSelectedAsset}
@@ -29,13 +29,13 @@ export default function Home() {
         </div>
 
         {/* Bottom: K-line chart (60% height) */}
-        <div className="flex-1 overflow-hidden">
+        <div className="basis-3/5 min-h-0 overflow-hidden">
           <KLineChart selectedStock={selectedAsset} assetType={assetType} />
         </div>
       </div>
 
       {/* Right panel: Chat */}
-      <div className="w-[35%] border-l overflow-hidden flex flex-col">
+      <div className="w-1/3 shrink-0 border-l pl-4 overflow-hidden flex flex-col">
         <ChatPanel selectedStock={selectedAsset} />
       </div>
     </div>

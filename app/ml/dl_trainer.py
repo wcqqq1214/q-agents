@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import time
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -66,6 +67,8 @@ def train_dl_model(
     fold_accuracies: List[float] = []
     model: nn.Module | None = None
     last_fold_scaler: object | None = None
+
+    start_time = time.time()
 
     for fold_idx, (train_idx, test_idx) in enumerate(tss.split(X)):
         logger.info(f"Training fold {fold_idx + 1}/{config.n_splits}")
@@ -231,6 +234,9 @@ def train_dl_model(
     if model is None:
         raise ValueError("TimeSeriesSplit produced no folds.")
 
+    # Calculate total training time
+    training_time_seconds = time.time() - start_time
+
     # Aggregate metrics
     mean_auc = float(np.nanmean(fold_aucs))
     mean_accuracy = float(np.mean(fold_accuracies))
@@ -246,6 +252,7 @@ def train_dl_model(
         # Backward compatibility
         "accuracy": mean_accuracy,
         "auc": mean_auc,
+        "training_time_seconds": training_time_seconds,
     }
 
     return model, metrics, last_fold_scaler

@@ -54,6 +54,11 @@ def test_train_dl_model_returns_model_and_metrics():
     assert "auc" in metrics
     assert "accuracy" in metrics
 
+    # Training time tracking
+    assert "training_time_seconds" in metrics
+    assert isinstance(metrics["training_time_seconds"], float)
+    assert metrics["training_time_seconds"] > 0
+
 
 def test_train_dl_model_empty_data():
     """Test train_dl_model raises error on empty data"""

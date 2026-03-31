@@ -68,6 +68,19 @@ interface TrendColorContextValue {
 - 挂载时从 `localStorage.getItem("trend-color-mode")` 读取，默认 `"western"`
 - 切换时写入 localStorage，并在 `document.documentElement` 上 toggle `.cn-mode` class
 - SSR 阶段初始渲染用默认值，`useEffect` 后同步（配合 blocking script 消除 FOUC）
+- 暴露 `isMounted: boolean`，供 Settings Switch 在 hydration 完成前渲染禁用态，避免 UI hydration mismatch
+
+## 常量
+
+将 localStorage key 提取为共享常量，避免 blocking script 与 Provider 之间拼写不一致：
+
+```ts
+// frontend/src/lib/trend-color-constants.ts
+export const TREND_COLOR_KEY = "trend-color-mode";
+export const TREND_COLOR_CN_CLASS = "cn-mode";
+```
+
+Blocking script 和 `TrendColorProvider` 均引用此常量（blocking script 内联时直接使用字符串字面量，但需与常量值保持一致）。
 
 ## 防 FOUC Blocking Script
 
@@ -76,13 +89,19 @@ interface TrendColorContextValue {
 ```html
 <script dangerouslySetInnerHTML={{ __html: `
   try {
-    var m = localStorage.getItem('trend-color-mode');
-    if (m === 'chinese') document.documentElement.classList.add('cn-mode');
+    if (localStorage.getItem('trend-color-mode') === 'chinese')
+      document.documentElement.classList.add('cn-mode');
   } catch(e) {}
 ` }} />
 ```
 
 此脚本在 CSS 加载后、React hydration 前执行，确保首屏渲染时颜色已正确。
+
+由于 blocking script 会在 hydration 前修改 `<html>` 的 class，服务端 HTML 与客户端 DOM 会不一致，需在 `layout.tsx` 的 `<html>` 标签上添加 `suppressHydrationWarning`：
+
+```tsx
+<html lang="en" suppressHydrationWarning>
+```
 
 ## Settings UI
 
@@ -94,6 +113,7 @@ interface TrendColorContextValue {
 - Label: 涨跌色模式
 - 关闭状态: 🌍 绿涨红跌（Western）
 - 开启状态: 🇨🇳 红涨绿跌（Chinese）
+- `isMounted` 为 `false` 时渲染禁用态 Switch（骨架），避免 hydration mismatch
 
 ## Data Flow
 
@@ -119,7 +139,8 @@ localStorage ──→ TrendColorProvider (Context) ──→ setTrendMode()
 | File | Change |
 |------|--------|
 | `globals.css` | 新增 `.cn-mode` 和 `.dark.cn-mode` CSS 变量覆盖 |
-| `TrendColorProvider.tsx` | 新建，Context + localStorage |
+| `trend-color-constants.ts` | 新建，共享 localStorage key 和 class 名常量 |
+| `TrendColorProvider.tsx` | 新建，Context + localStorage + isMounted |
 | `use-trend-color.ts` | 新建，消费 hook |
-| `layout.tsx` | 注册 TrendColorProvider + 注入防闪烁 blocking script |
-| `settings/page.tsx` | 新增 Display Preferences Card |
+| `layout.tsx` | 注册 TrendColorProvider + 注入防闪烁 blocking script + `suppressHydrationWarning` |
+| `settings/page.tsx` | 新增 Display Preferences Card，Switch 使用 isMounted 防 hydration mismatch |

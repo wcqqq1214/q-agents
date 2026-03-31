@@ -26,7 +26,7 @@ export default function ReportsPage() {
           </p>
         </div>
       ) : (
-        <Accordion type="multiple" className="flex flex-col gap-4">
+        <Accordion multiple className="flex flex-col gap-4">
           {sorted.map((report) => (
             <ReportCard key={report.id} report={report} />
           ))}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useTrendColor } from "@/hooks/use-trend-color";
 import {
   createChart,
   IChartApi,
@@ -120,6 +121,7 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
   const { toast } = useToast();
   const [timezoneInfo] = useState(getTimezoneInfo());
   const { resolvedTheme } = useTheme();
+  const { trendMode } = useTrendColor();
 
   // Reset timeRange when assetType changes
   useEffect(() => {
@@ -491,7 +493,7 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
         chartRef.current = null;
       }
     };
-  }, [ohlcData, resolvedTheme]);
+  }, [ohlcData, resolvedTheme, trendMode]);
 
   // Render
   if (!selectedStock) {

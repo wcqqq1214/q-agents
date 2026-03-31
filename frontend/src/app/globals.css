@@ -156,20 +156,22 @@
 }
 
 /* Trend color mode: Chinese convention (red=up, green=down) */
-.cn-mode {
-  --chart-up: 0 84.2% 60.2%;
-  --chart-down: 142.1 76.2% 36.3%;
-  --chart-up-js: hsl(0deg, 84.2%, 60.2%);
-  --chart-down-js: hsl(142.1deg, 76.2%, 36.3%);
-  --chart-up-js-alpha: hsla(0deg, 84.2%, 60.2%, 0.6);
-  --chart-down-js-alpha: hsla(142.1deg, 76.2%, 36.3%, 0.6);
-}
+@layer base {
+  .cn-mode {
+    --chart-up: 0 84.2% 60.2%;
+    --chart-down: 142.1 76.2% 36.3%;
+    --chart-up-js: hsl(0deg, 84.2%, 60.2%);
+    --chart-down-js: hsl(142.1deg, 76.2%, 36.3%);
+    --chart-up-js-alpha: hsla(0deg, 84.2%, 60.2%, 0.6);
+    --chart-down-js-alpha: hsla(142.1deg, 76.2%, 36.3%, 0.6);
+  }
 
-.dark.cn-mode {
-  --chart-up: 0 72.2% 50.6%;
-  --chart-down: 142.1 70.6% 45.3%;
-  --chart-up-js: hsl(0deg, 72.2%, 50.6%);
-  --chart-down-js: hsl(142.1deg, 70.6%, 45.3%);
-  --chart-up-js-alpha: hsla(0deg, 72.2%, 50.6%, 0.6);
-  --chart-down-js-alpha: hsla(142.1deg, 70.6%, 45.3%, 0.6);
+  .dark.cn-mode {
+    --chart-up: 0 72.2% 50.6%;
+    --chart-down: 142.1 70.6% 45.3%;
+    --chart-up-js: hsl(0deg, 72.2%, 50.6%);
+    --chart-down-js: hsl(142.1deg, 70.6%, 45.3%);
+    --chart-up-js-alpha: hsla(0deg, 72.2%, 50.6%, 0.6);
+    --chart-down-js-alpha: hsla(142.1deg, 70.6%, 45.3%, 0.6);
+  }
 }

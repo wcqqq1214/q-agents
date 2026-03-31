@@ -55,7 +55,7 @@ def _extract_parameters(model: Any, model_type: str, dl_config: DLConfig | None 
         raise ValueError(f"Unknown model type: {model_type}")
 
 
-def _calculate_fusion_score(predictions: Dict[str, float], metrics: Dict[str, Dict]) -> float:
+def _calculate_fusion_score(predictions: Dict[str, float], metrics: Dict[str, Dict[str, float]]) -> float:
     """Calculate weighted average fusion score.
 
     Weight = Mean AUC of each model
@@ -66,15 +66,24 @@ def _calculate_fusion_score(predictions: Dict[str, float], metrics: Dict[str, Di
 
     Returns:
         Fusion score (0-1)
+
+    Raises:
+        ValueError: If any model in predictions lacks metrics
     """
-    total_auc = sum(metrics[m]["mean_auc"] for m in predictions.keys() if m in metrics)
+    # Validate all models have metrics
+    missing_models = [m for m in predictions.keys() if m not in metrics]
+    if missing_models:
+        logger.warning(f"Missing metrics for models: {missing_models}. Falling back to simple mean.")
+        return float(np.mean(list(predictions.values())))
+
+    total_auc = sum(metrics[m]["mean_auc"] for m in predictions.keys())
     if total_auc == 0:
+        logger.warning("Total AUC is 0. Falling back to simple mean.")
         return float(np.mean(list(predictions.values())))
 
     fusion = sum(
         predictions[m] * metrics[m]["mean_auc"] / total_auc
         for m in predictions.keys()
-        if m in metrics
     )
     return float(fusion)
 
@@ -95,6 +104,7 @@ def _extract_feature_importance(model: Any, X: pd.DataFrame, top_k: int = 3) -> 
         feature_names = X.columns.tolist()
 
         if len(feature_names) == 0 or len(importances) == 0:
+            logger.warning("Empty feature names or importances")
             return []
 
         # Ensure lengths match
@@ -102,7 +112,9 @@ def _extract_feature_importance(model: Any, X: pd.DataFrame, top_k: int = 3) -> 
             logger.warning(f"Feature count mismatch: {len(importances)} importances vs {len(feature_names)} names")
             return []
 
-        top_indices = np.argsort(importances)[-top_k:][::-1]
+        # Clamp top_k to available features
+        clamped_k = min(top_k, len(importances))
+        top_indices = np.argsort(importances)[-clamped_k:][::-1]
         return [
             {
                 "name": str(feature_names[i]),

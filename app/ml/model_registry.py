@@ -430,7 +430,7 @@ def format_comparison_markdown(report: Dict[str, Any]) -> str:
     lines.append("|------|----------|-----|------|")
 
     # Core perspective
-    lgbm_perspective = parameters.get("lightgbm", ).get("objective", "N/A")
+    lgbm_perspective = parameters.get("lightgbm", {}).get("objective", "N/A")
     gru_perspective = "时间序列"
     lstm_perspective = "时间序列"
     lines.append(f"| Core Perspective | {lgbm_perspective} | {gru_perspective} | {lstm_perspective} |")

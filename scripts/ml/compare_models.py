@@ -25,21 +25,31 @@ if str(_project_root) not in sys.path:
 
 import pandas as pd
 
-# Import feature engineering functions
-from app.ml.feature_engine import build_dataset, load_ohlcv_with_macro, FeatureConfig
+# Import ML modules with error handling
+try:
+    # Import feature engineering functions
+    from app.ml.feature_engine import build_dataset, load_ohlcv_with_macro, FeatureConfig
 
-# Import model registry functions
-from app.ml.model_registry import (
-    generate_comparison_report,
-    format_comparison_markdown,
-    train_all_models,
-)
+    # Import model registry functions
+    from app.ml.model_registry import (
+        generate_comparison_report,
+        format_comparison_markdown,
+        train_all_models,
+    )
 
-# Import DL config for deep learning models
-from app.ml.dl_config import DLConfig
+    # Import DL config for deep learning models
+    from app.ml.dl_config import DLConfig
 
-# Import feature columns
-from app.ml.features import FEATURE_COLS
+    # Import feature columns
+    from app.ml.features import FEATURE_COLS
+except ImportError as e:
+    raise ImportError(
+        f"Failed to import app.ml modules: {e}\n"
+        "This may indicate that MCP servers are not running or dependencies are missing.\n"
+        "Please ensure:\n"
+        "  1. MCP servers are running (bash scripts/startup/start_mcp_servers.sh)\n"
+        "  2. All dependencies are installed (uv pip install -e .)"
+    ) from e
 
 
 # Configure logging

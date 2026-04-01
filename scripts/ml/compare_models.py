@@ -15,7 +15,7 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import List, Tuple
 
 # Add project root to path for imports
 _script_dir = Path(__file__).resolve().parent
@@ -28,20 +28,19 @@ import pandas as pd
 # Import ML modules with error handling
 try:
     # Import feature engineering functions
-    from app.ml.feature_engine import build_dataset, load_ohlcv_with_macro, FeatureConfig
-
-    # Import model registry functions
-    from app.ml.model_registry import (
-        generate_comparison_report,
-        format_comparison_markdown,
-        train_all_models,
-    )
-
     # Import DL config for deep learning models
     from app.ml.dl_config import DLConfig
+    from app.ml.feature_engine import FeatureConfig, build_dataset, load_ohlcv_with_macro
 
     # Import feature columns
     from app.ml.features import FEATURE_COLS
+
+    # Import model registry functions
+    from app.ml.model_registry import (
+        format_comparison_markdown,
+        generate_comparison_report,
+        train_all_models,
+    )
 except ImportError as e:
     raise ImportError(
         f"Failed to import app.ml modules: {e}\n"

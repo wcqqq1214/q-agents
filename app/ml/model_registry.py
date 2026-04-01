@@ -577,7 +577,7 @@ def format_comparison_markdown(report: Dict[str, Any]) -> str:
         fusion_signal = "看涨" if fusion_score > 0.5 else "看跌"
         lines.append(f"| **融合信号** | **{fusion_pct}** | **{fusion_signal}** |\n")
     else:
-        lines.append(f"| **融合信号** | **N/A** | **N/A** |\n")
+        lines.append("| **融合信号** | **N/A** | **N/A** |\n")
 
     # Fusion algorithm explanation
     lines.append("**融合算法**：加权平均，权重 = 各模型的 Mean AUC\n")

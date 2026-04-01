@@ -291,7 +291,7 @@ def main() -> int:
             y=y,
             symbol=None,  # X, y provided directly
             model_types=model_list,
-            dl_config=DLConfig(),
+            dl_config=DLConfig(n_splits=3),
         )
         logger.info(f"Trained {len(results)} models: {list(results.keys())}")
     except ValueError as e:
@@ -310,7 +310,7 @@ def main() -> int:
             symbol=args.symbol.upper(),
             date_range=date_range,
             X=X,
-            dl_config=DLConfig(),
+            dl_config=DLConfig(n_splits=3),
         )
         logger.info("Report generated successfully")
     except ValueError as e:

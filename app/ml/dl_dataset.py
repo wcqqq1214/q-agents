@@ -52,13 +52,21 @@ class TimeSeriesDataset(Dataset):
             return len(self.X) - self.seq_len + 1
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        # Calculate end position
+        end_idx = min(idx + self.seq_len, len(self.X))
+
+        # Slice the sequence
+        X_seq = self.X[idx:end_idx]
+
+        # Pad if shorter than seq_len ( pad with zeros on the left)
+        if len(X_seq) < self.seq_len:
+            pad_len = self.seq_len - len(X_seq)
+            pad = np.zeros((pad_len, X_seq.shape[1]), dtype=X_seq.dtype)
+            X_seq = np.vstack([pad, X_seq])
+
         if self.is_test:
-            # Test mode: X includes lookback, idx=0 corresponds to X[0:15]
-            X_seq = self.X[idx : idx + self.seq_len]
             y_label = self.y[idx]
         else:
-            # Train mode: window [idx:idx+seq_len], label at window end
-            X_seq = self.X[idx : idx + self.seq_len]
             y_label = self.y[idx + self.seq_len - 1]
 
         return (

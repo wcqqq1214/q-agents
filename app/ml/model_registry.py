@@ -360,6 +360,11 @@ def predict_proba_latest_dl(
     scale_cols = [c for c in COLUMNS_TO_SCALE if c in X.columns]
     pass_cols = [c for c in PASSTHROUGH_COLUMNS if c in X.columns]
 
+    # Fallback: if no columns matched, use all columns
+    if not scale_cols and not pass_cols:
+        scale_cols = list(X.columns)
+        pass_cols = []
+
     X_scaled = X.copy()
     if scale_cols:
         # CRITICAL FIX: Use transform() to apply training distribution

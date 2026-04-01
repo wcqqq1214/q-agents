@@ -380,18 +380,32 @@ def predict_proba_latest_dl(
 
 
 def format_comparison_markdown(report: Dict[str, Any]) -> str:
-    """Format comparison report as Markdown (Part 1: Header and Parameters).
+    """Format comparison report as complete Markdown document.
 
-    Generates header, metadata, and parameters sections for model comparison report.
+    Generates a full multi-section Markdown report covering:
+    - Header and report metadata (symbol, date range, data points, generation time)
+    - Model parameter comparison table (data processing, network structure, training config)
+    - Performance metrics table (Mean AUC, Mean Accuracy, Training Time)
+    - Latest prediction signals with fusion score
+    - LightGBM feature importance table (top features by importance score)
+    - Comprehensive assessment (model strengths, fusion recommendation, risk disclaimer)
+
+    The fusion recommendation is dynamically generated based on AUC spread across models:
+    if max AUC - min AUC < 0.05, signals are considered consistent; otherwise highlights
+    the best-performing model.
+
+    Note: This report is a quantitative analysis tool output and does not constitute
+    investment advice.
 
     Args:
         report: Output from generate_comparison_report()
 
     Returns:
-        Formatted Markdown string with header, metadata, and parameters sections
+        Formatted Markdown string covering all sections listed above
 
     Raises:
-        ValueError: If report missing required sections
+        ValueError: If report missing required sections ('metadata', 'parameters',
+            'metrics', or 'predictions')
     """
     if "metadata" not in report:
         raise ValueError("Report missing 'metadata' section")
@@ -567,6 +581,55 @@ def format_comparison_markdown(report: Dict[str, Any]) -> str:
 
     # Fusion algorithm explanation
     lines.append("**融合算法**：加权平均，权重 = 各模型的 Mean AUC\n")
+
+    # Part 3: Feature Importance and Assessment
+
+    # Feature Importance section
+    lines.append("## LightGBM 特征重要性\n")
+    feature_importance = report.get("feature_importance", {})
+    lgbm_fi = feature_importance.get("lightgbm", {})
+    top_features = lgbm_fi.get("top_features", [])
+
+    if top_features:
+        lines.append("| 特征名称 | 重要性得分 |")
+        lines.append("|----------|-----------|")
+        for feat in top_features:
+            feat_name = feat.get("name", "N/A")
+            feat_importance = feat.get("importance", 0)
+            feat_importance_int = int(round(feat_importance))
+            lines.append(f"| {feat_name} | {feat_importance_int} |")
+        lines.append("")
+    else:
+        lines.append("无可用特征重要性数据\n")
+
+    # Comprehensive Assessment section
+    lines.append("## 综合评估\n")
+
+    # Model strengths subsection
+    lines.append("### 各模型优势\n")
+    lines.append("- **LightGBM**: 特征可解释性强，训练速度快")
+    lines.append("- **GRU**: 适合短期时序依赖捕捉")
+    lines.append("- **LSTM**: 擅长长期依赖建模\n")
+
+    # Fusion recommendation subsection
+    lines.append("### 融合建议\n")
+    lines.append("> 注意：本报告为量化分析工具输出，不构成投资建议。\n")
+
+    # Dynamic recommendation based on AUC spread
+    metrics = report.get("metrics", {})
+    auc_values = [
+        v.get("mean_auc")
+        for v in metrics.values()
+        if isinstance(v.get("mean_auc"), (int, float))
+    ]
+    if len(auc_values) >= 2:
+        auc_spread = max(auc_values) - min(auc_values)
+        if auc_spread < 0.05:
+            lines.append("各模型表现相近，融合信号可信度较高")
+        else:
+            lines.append("各模型表现差异较大，建议重点参考 AUC 最高的模型")
+    else:
+        lines.append("各模型表现相近，融合信号可信度较高")
 
     return "\n".join(lines)
 

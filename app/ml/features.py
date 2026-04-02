@@ -198,8 +198,8 @@ def build_features(
         np.nan,
     )
 
-    # Drop rows without enough history
-    df = df.dropna(subset=["ret_10d", "rsi_14"]).reset_index(drop=True)
+    # Drop partial indicator warm-up rows so sequential models never see NaNs.
+    df = df.dropna(subset=FEATURE_COLS).reset_index(drop=True)
 
     if start_date is not None:
         start_ts = pd.Timestamp(start_date)

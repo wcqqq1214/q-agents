@@ -7,6 +7,7 @@ Provides unified interface for training and predicting with multiple models
 from __future__ import annotations
 
 import logging
+import math
 from datetime import datetime
 from typing import Any, Dict, List, Literal
 
@@ -38,6 +39,22 @@ ModelType = Literal["lightgbm", "gru", "lstm"]
 DEFAULT_SYMBOL_TARGET_COL = "target_up_big_move_t3"
 DEFAULT_LIGHTGBM_SCOPE = "panel"
 DEFAULT_DL_SCOPE = "single_symbol"
+
+
+def _is_finite_number(value: Any) -> bool:
+    """Return whether value is a finite real number."""
+
+    if not isinstance(value, (int, float, np.floating)):
+        return False
+    return math.isfinite(float(value))
+
+
+def _format_float(value: Any, precision: int = 4) -> str:
+    """Format finite numeric values, otherwise return N/A."""
+
+    if not _is_finite_number(value):
+        return "N/A"
+    return f"{float(value):.{precision}f}"
 
 
 def _extract_parameters(model: Any, model_type: str, dl_config: DLConfig | None = None) -> Dict[str, Any]:
@@ -89,15 +106,23 @@ def _calculate_fusion_score(predictions: Dict[str, float], metrics: Dict[str, Di
     missing_models = [m for m in predictions.keys() if m not in metrics]
     if missing_models:
         logger.warning(f"Missing metrics for models: {missing_models}. Falling back to simple mean.")
-        return float(np.mean(list(predictions.values())))
+        finite_predictions = [float(pred) for pred in predictions.values() if _is_finite_number(pred)]
+        return float(np.mean(finite_predictions)) if finite_predictions else float("nan")
 
-    total_auc = sum(metrics[m]["mean_auc"] for m in predictions.keys())
+    auc_values = [metrics[m]["mean_auc"] for m in predictions.keys()]
+    if any(not _is_finite_number(auc) for auc in auc_values):
+        logger.warning("Non-finite AUC detected. Falling back to simple mean.")
+        finite_predictions = [float(pred) for pred in predictions.values() if _is_finite_number(pred)]
+        return float(np.mean(finite_predictions)) if finite_predictions else float("nan")
+
+    total_auc = sum(float(metrics[m]["mean_auc"]) for m in predictions.keys())
     if total_auc == 0:
         logger.warning("Total AUC is 0. Falling back to simple mean.")
-        return float(np.mean(list(predictions.values())))
+        finite_predictions = [float(pred) for pred in predictions.values() if _is_finite_number(pred)]
+        return float(np.mean(finite_predictions)) if finite_predictions else float("nan")
 
     fusion = sum(
-        predictions[m] * metrics[m]["mean_auc"] / total_auc
+        float(predictions[m]) * float(metrics[m]["mean_auc"]) / total_auc
         for m in predictions.keys()
     )
     return float(fusion)
@@ -742,9 +767,9 @@ def format_comparison_markdown(report: Dict[str, Any]) -> str:
     gru_auc = metrics.get("gru", {}).get("mean_auc", "N/A")
     lstm_auc = metrics.get("lstm", {}).get("mean_auc", "N/A")
 
-    lgbm_auc_str = f"{lgbm_auc:.4f}" if isinstance(lgbm_auc, (int, float)) else lgbm_auc
-    gru_auc_str = f"{gru_auc:.4f}" if isinstance(gru_auc, (int, float)) else gru_auc
-    lstm_auc_str = f"{lstm_auc:.4f}" if isinstance(lstm_auc, (int, float)) else lstm_auc
+    lgbm_auc_str = _format_float(lgbm_auc)
+    gru_auc_str = _format_float(gru_auc)
+    lstm_auc_str = _format_float(lstm_auc)
     lines.append(f"| Mean AUC | {lgbm_auc_str} | {gru_auc_str} | {lstm_auc_str} |")
 
     # Mean Accuracy
@@ -752,9 +777,9 @@ def format_comparison_markdown(report: Dict[str, Any]) -> str:
     gru_acc = metrics.get("gru", {}).get("mean_accuracy", "N/A")
     lstm_acc = metrics.get("lstm", {}).get("mean_accuracy", "N/A")
 
-    lgbm_acc_str = f"{lgbm_acc:.4f}" if isinstance(lgbm_acc, (int, float)) else lgbm_acc
-    gru_acc_str = f"{gru_acc:.4f}" if isinstance(gru_acc, (int, float)) else gru_acc
-    lstm_acc_str = f"{lstm_acc:.4f}" if isinstance(lstm_acc, (int, float)) else lstm_acc
+    lgbm_acc_str = _format_float(lgbm_acc)
+    gru_acc_str = _format_float(gru_acc)
+    lstm_acc_str = _format_float(lstm_acc)
     lines.append(f"| Mean Accuracy | {lgbm_acc_str} | {gru_acc_str} | {lstm_acc_str} |")
 
     # Training time
@@ -771,9 +796,9 @@ def format_comparison_markdown(report: Dict[str, Any]) -> str:
         metrics.get("lstm", {}).get("training_time", "N/A"),
     )
 
-    lgbm_time_str = f"{lgbm_time:.2f}秒" if isinstance(lgbm_time, (int, float)) else lgbm_time
-    gru_time_str = f"{gru_time:.2f}秒" if isinstance(gru_time, (int, float)) else gru_time
-    lstm_time_str = f"{lstm_time:.2f}秒" if isinstance(lstm_time, (int, float)) else lstm_time
+    lgbm_time_str = f"{float(lgbm_time):.2f}秒" if _is_finite_number(lgbm_time) else "N/A"
+    gru_time_str = f"{float(gru_time):.2f}秒" if _is_finite_number(gru_time) else "N/A"
+    lstm_time_str = f"{float(lstm_time):.2f}秒" if _is_finite_number(lstm_time) else "N/A"
     lines.append(f"| Training Time | {lgbm_time_str} | {gru_time_str} | {lstm_time_str} |\n")
 
     # Predictions section
@@ -785,15 +810,19 @@ def format_comparison_markdown(report: Dict[str, Any]) -> str:
     for model_name in ["lightgbm", "gru", "lstm"]:
         if model_name in predictions and model_name != "fusion_score":
             pred_prob = predictions[model_name]
-            pred_pct = f"{pred_prob * 100:.1f}%"
-            signal = "看涨" if pred_prob > 0.5 else "看跌"
+            if not _is_finite_number(pred_prob):
+                pred_pct = "N/A"
+                signal = "N/A"
+            else:
+                pred_pct = f"{float(pred_prob) * 100:.1f}%"
+                signal = "看涨" if float(pred_prob) > 0.5 else "看跌"
             lines.append(f"| {model_name.upper()} | {pred_pct} | {signal} |")
 
     # Fusion signal
     fusion_score = predictions.get("fusion_score", "N/A")
-    if isinstance(fusion_score, (int, float)):
-        fusion_pct = f"{fusion_score * 100:.1f}%"
-        fusion_signal = "看涨" if fusion_score > 0.5 else "看跌"
+    if _is_finite_number(fusion_score):
+        fusion_pct = f"{float(fusion_score) * 100:.1f}%"
+        fusion_signal = "看涨" if float(fusion_score) > 0.5 else "看跌"
         lines.append(f"| **融合信号** | **{fusion_pct}** | **{fusion_signal}** |\n")
     else:
         lines.append("| **融合信号** | **N/A** | **N/A** |\n")
@@ -885,7 +914,7 @@ def format_comparison_markdown(report: Dict[str, Any]) -> str:
     auc_values = [
         v.get("mean_auc")
         for v in metrics.values()
-        if isinstance(v.get("mean_auc"), (int, float))
+        if _is_finite_number(v.get("mean_auc"))
     ]
     if len(auc_values) >= 2:
         auc_spread = max(auc_values) - min(auc_values)
@@ -915,9 +944,13 @@ def format_predictions_for_agent(results: Dict[str, Dict]) -> str:
         pred = result["prediction"]
 
         lines.append(f"### {model_name.upper()} 分析师")
-        lines.append(f"- **预测概率**: {pred:.2%} {'看涨' if pred > 0.5 else '看跌'}")
-        lines.append(f"- **模型AUC**: {metrics['mean_auc']:.4f}")
-        lines.append(f"- **模型准确率**: {metrics['mean_accuracy']:.4f}")
+        if _is_finite_number(pred):
+            pred_text = f"{float(pred):.2%} {'看涨' if float(pred) > 0.5 else '看跌'}"
+        else:
+            pred_text = "N/A"
+        lines.append(f"- **预测概率**: {pred_text}")
+        lines.append(f"- **模型AUC**: {_format_float(metrics.get('mean_auc'))}")
+        lines.append(f"- **模型准确率**: {_format_float(metrics.get('mean_accuracy'))}")
 
         if model_name == "lightgbm":
             if metrics.get("training_scope") == DEFAULT_LIGHTGBM_SCOPE:

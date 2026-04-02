@@ -61,6 +61,11 @@ def train_dl_model(
         raise ValueError("Feature matrix X or target y is empty.")
     if len(X) != len(y):
         raise ValueError("X and y must have the same number of rows.")
+    if X.isna().any().any():
+        raise ValueError("Feature matrix X contains NaN values.")
+    numeric_values = X.to_numpy(dtype=float, copy=False)
+    if not np.isfinite(numeric_values).all():
+        raise ValueError("Feature matrix X contains non-finite values.")
 
     tss = TimeSeriesSplit(n_splits=config.n_splits)
     fold_aucs: List[float] = []
@@ -229,7 +234,12 @@ def train_dl_model(
 
         try:
             auc = float(roc_auc_score(y_test, y_proba))
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Fold %s AUC unavailable: %s",
+                fold_idx + 1,
+                exc,
+            )
             auc = float("nan")
         fold_aucs.append(auc)
 
@@ -242,7 +252,8 @@ def train_dl_model(
     training_time_seconds = time.time() - start_time
 
     # Aggregate metrics
-    mean_auc = float(np.nanmean(fold_aucs))
+    finite_fold_aucs = [auc for auc in fold_aucs if np.isfinite(auc)]
+    mean_auc = float(np.mean(finite_fold_aucs)) if finite_fold_aucs else float("nan")
     mean_accuracy = float(np.mean(fold_accuracies))
 
     metrics: Dict[str, float | str | List[float]] = {

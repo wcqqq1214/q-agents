@@ -78,3 +78,44 @@ def test_train_dl_model_mismatched_lengths():
 
     with pytest.raises(ValueError, match="same number of rows"):
         train_dl_model(X, y, config)
+
+
+def test_train_dl_model_rejects_nan_features():
+    """Test train_dl_model raises a clear error when X contains NaNs."""
+    X = pd.DataFrame(
+        {
+            "ret_1d": [0.1] * 30,
+            "ret_3d": [0.1] * 30,
+            "ret_5d": [0.1] * 30,
+            "ret_10d": [0.1] * 30,
+            "volatility_5d": [0.1] * 30,
+            "volatility_10d": [0.1] * 30,
+            "volume_ratio_5d": [0.1] * 30,
+            "gap": [0.1] * 30,
+            "ma5_vs_ma20": [0.1] * 30,
+            "rsi_14": [50.0] * 30,
+            "n_articles": [1.0] * 30,
+            "n_relevant": [1.0] * 30,
+            "n_positive": [1.0] * 30,
+            "n_negative": [0.0] * 30,
+            "news_count_3d": [1.0] * 30,
+            "news_count_5d": [1.0] * 30,
+            "news_count_10d": [1.0] * 30,
+            "day_of_week": [1.0] * 30,
+            "has_news": [1.0] * 30,
+            "n_neutral": [0.0] * 30,
+            "sentiment_score": [0.2] * 30,
+            "relevance_ratio": [1.0] * 30,
+            "positive_ratio": [1.0] * 30,
+            "negative_ratio": [0.0] * 30,
+            "sentiment_score_3d": [0.2] * 30,
+            "sentiment_score_5d": [0.2] * 30,
+            "sentiment_score_10d": [0.2] * 30,
+            "sentiment_momentum_3d": [0.0] * 30,
+        }
+    )
+    X.loc[0, "ma5_vs_ma20"] = np.nan
+    y = pd.Series(([0, 1] * 15))
+
+    with pytest.raises(ValueError, match="contains NaN"):
+        train_dl_model(X, y, DLConfig(max_epochs=2, n_splits=2))

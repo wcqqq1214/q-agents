@@ -51,6 +51,16 @@ def test_build_features_respects_date_range(monkeypatch):
     assert df["trade_date"].max() <= pd.Timestamp("2024-02-09")
 
 
+def test_build_features_drops_partial_indicator_rows(monkeypatch):
+    monkeypatch.setattr(ml_features, "_load_ohlc", lambda symbol: _make_mock_ohlc(periods=60))
+    monkeypatch.setattr(ml_features, "_load_news_features", lambda symbol: pd.DataFrame())
+
+    df = ml_features.build_features("AAPL")
+
+    assert not df.empty
+    assert not df[ml_features.FEATURE_COLS].isna().any().any()
+
+
 def test_build_panel_features_concatenates_and_sorts(monkeypatch):
     data_map = {
         "MSFT": pd.DataFrame(

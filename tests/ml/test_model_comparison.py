@@ -165,6 +165,24 @@ class TestCalculateFusionScore:
         expected = (0.50 + 0.60) / 2
         assert abs(fusion - expected) < 0.001
 
+    def test_fusion_score_fallback_nan_auc(self):
+        """Test fallback when any AUC is NaN."""
+        predictions = {
+            "lightgbm": 0.40,
+            "gru": 0.60,
+            "lstm": 0.80,
+        }
+        metrics = {
+            "lightgbm": {"mean_auc": 0.55},
+            "gru": {"mean_auc": float("nan")},
+            "lstm": {"mean_auc": 0.52},
+        }
+
+        fusion = _calculate_fusion_score(predictions, metrics)
+
+        expected = (0.40 + 0.60 + 0.80) / 3
+        assert abs(fusion - expected) < 0.001
+
 
 class TestExtractFeatureImportance:
     """Test feature importance extraction."""
@@ -763,3 +781,29 @@ class TestFormatComparisonMarkdown:
         assert "平均相似度约" in markdown
         assert "MSFT" in markdown
         assert "同股票优先、peer group 次优先、全市场兜底" in markdown
+
+    def test_markdown_formats_nan_metrics_as_na(self):
+        report = {
+            "metadata": {
+                "symbol": "AAPL",
+                "date_range": ("2024-01-01", "2024-12-31"),
+                "generated_at": "2026-04-01 10:30:00",
+                "data_points": 252,
+            },
+            "parameters": {},
+            "metrics": {
+                "lightgbm": {"mean_auc": 0.54, "mean_accuracy": 0.52, "training_time": 2.3},
+                "gru": {"mean_auc": float("nan"), "mean_accuracy": 0.51, "training_time": 10.0},
+            },
+            "predictions": {
+                "lightgbm": 0.54,
+                "gru": 0.48,
+                "fusion_score": float("nan"),
+            },
+            "feature_importance": {},
+        }
+
+        markdown = format_comparison_markdown(report)
+
+        assert "| Mean AUC | 0.5400 | N/A | N/A |" in markdown
+        assert "| **融合信号** | **N/A** | **N/A** |" in markdown

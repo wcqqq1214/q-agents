@@ -33,6 +33,7 @@ from dotenv import load_dotenv
 load_dotenv(project_root / ".env")
 
 from app.database.schema import get_conn, init_db
+from app.services.market_calendar import count_nyse_trading_days, find_missing_trading_day_gaps
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -86,21 +87,30 @@ def get_downloaded_dates(symbol: str) -> Set[date]:
     return dates
 
 
+def _to_yfinance_end_date(end_date: date) -> str:
+    """Convert an inclusive end date into yfinance's exclusive end date."""
+    return (end_date + timedelta(days=1)).isoformat()
+
+
 def download_year_data(symbol: str, year: int, conn) -> int:
     """Download data for a specific year using yfinance."""
-    start_date = f"{year}-01-01"
-    end_date = f"{year}-12-31"
+    start_date = date(year, 1, 1)
+    end_date = date(year, 12, 31)
 
     today = date.today()
-    if date.fromisoformat(end_date) > today:
-        end_date = today.isoformat()
+    if end_date > today:
+        end_date = today
 
     try:
         logger.info(f"  下载 {symbol} {year}...")
 
         # Download data using yfinance
         ticker = yf.Ticker(symbol)
-        df = ticker.history(start=start_date, end=end_date, auto_adjust=True)
+        df = ticker.history(
+            start=start_date.isoformat(),
+            end=_to_yfinance_end_date(end_date),
+            auto_adjust=True,
+        )
 
         if df.empty:
             logger.warning(f"  {symbol} {year}: 无数据")
@@ -163,7 +173,7 @@ def download_year_data(symbol: str, year: int, conn) -> int:
 
 
 def detect_gaps(symbol: str, start_date: date, end_date: date) -> List[Tuple[date, date]]:
-    """Detect gaps in downloaded data (excluding weekends)."""
+    """Detect gaps in downloaded data using the NYSE trading calendar."""
     conn = get_conn()
 
     query = """
@@ -178,35 +188,18 @@ def detect_gaps(symbol: str, start_date: date, end_date: date) -> List[Tuple[dat
     downloaded_dates = {date.fromisoformat(row[0]) for row in cursor.fetchall()}
     conn.close()
 
-    # Find gaps (skip weekends)
-    gaps = []
-    current = start_date
-    gap_start = None
-
-    while current <= end_date:
-        # Skip weekends (Saturday=5, Sunday=6)
-        if current.weekday() < 5:
-            if current not in downloaded_dates:
-                if gap_start is None:
-                    gap_start = current
-            else:
-                if gap_start is not None:
-                    gaps.append((gap_start, current - timedelta(days=1)))
-                    gap_start = None
-        current += timedelta(days=1)
-
-    # Handle gap at the end
-    if gap_start is not None:
-        gaps.append((gap_start, end_date))
-
-    return gaps
+    return find_missing_trading_day_gaps(downloaded_dates, start_date, end_date)
 
 
 def fill_gap(symbol: str, gap_start: date, gap_end: date, conn) -> int:
     """Fill a single gap in data using yfinance."""
     try:
         ticker = yf.Ticker(symbol)
-        df = ticker.history(start=gap_start.isoformat(), end=gap_end.isoformat(), auto_adjust=True)
+        df = ticker.history(
+            start=gap_start.isoformat(),
+            end=_to_yfinance_end_date(gap_end),
+            auto_adjust=True,
+        )
 
         if df.empty:
             return 0
@@ -315,7 +308,7 @@ async def main():
 
                 # Count existing data
                 year_dates = {d for d in downloaded_dates if year_start <= d <= year_end}
-                expected_days = (year_end - year_start).days + 1
+                expected_days = count_nyse_trading_days(year_start, year_end)
 
                 if len(year_dates) > expected_days * 0.9:
                     logger.info(f"  {symbol} {year}: 已有 {len(year_dates)} 天数据，跳过")
@@ -379,8 +372,8 @@ async def main():
 
     print("\n提示：")
     print("- 使用 yfinance 下载，免费无限制")
-    print("- 自动跳过已下载的年份（90%阈值）")
-    print("- 自动检测并填补数据gap")
+    print("- 基于 NYSE 交易日自动跳过已覆盖年份（90%阈值）")
+    print("- 自动检测并填补交易日 gap，节假日会跳过")
     print("- 每次请求后等待1秒避免速率限制")
     print("- 重新运行此脚本会自动跳过已下载的数据")
     print("- WAL 模式已启用，写入性能已优化")

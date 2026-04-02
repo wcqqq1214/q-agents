@@ -4,6 +4,8 @@ import logging
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 
+from app.services.market_calendar import is_nyse_trading_day
+
 logger = logging.getLogger(__name__)
 
 US_EASTERN = ZoneInfo("America/New_York")
@@ -15,8 +17,8 @@ def is_trading_hours() -> bool:
     """Return True when the current US Eastern time is within trading hours."""
     now_et = datetime.now(US_EASTERN)
 
-    if now_et.weekday() >= 5:
-        logger.debug(f"Weekend detected: {now_et.strftime('%A')}")
+    if not is_nyse_trading_day(now_et.date()):
+        logger.debug(f"Market closed day detected: {now_et.date()}")
         return False
 
     current_time = now_et.time()
@@ -30,21 +32,12 @@ def is_trading_hours() -> bool:
 
 def is_us_holiday() -> bool:
     """Return True when today is a US market holiday."""
-    try:
-        import pandas_market_calendars as mcal
-
-        nyse = mcal.get_calendar("NYSE")
-        now_et = datetime.now(US_EASTERN)
-        today = now_et.date()
-        schedule = nyse.valid_days(start_date=today, end_date=today)
-        is_holiday = len(schedule) == 0
-        if is_holiday:
-            logger.info(f"US market holiday detected: {today}")
-        return is_holiday
-    except ImportError:
-        logger.warning("pandas_market_calendars not installed, using basic weekend check")
-        now_et = datetime.now(US_EASTERN)
-        return now_et.weekday() >= 5
+    now_et = datetime.now(US_EASTERN)
+    today = now_et.date()
+    is_holiday = not is_nyse_trading_day(today)
+    if is_holiday:
+        logger.info(f"US market holiday detected: {today}")
+    return is_holiday
 
 
 def should_update_stocks() -> bool:

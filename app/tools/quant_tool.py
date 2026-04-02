@@ -6,13 +6,13 @@ from typing import Any, Dict, TypedDict, cast
 from langchain_core.tools import tool
 
 from app.ml.features import PANEL_FEATURE_COLS, TEXT_BLOB_COL, build_panel_features
-from app.ml.signal_filter import SignalFilterSummary, apply_similarity_signal_filter
 from app.ml.model_trainer import predict_proba_latest, train_lightgbm_panel_with_text
 from app.ml.shap_explainer import (
     ShapSummary,
     build_markdown_report,
     explain_latest_sample,
 )
+from app.ml.signal_filter import SignalFilterSummary, apply_similarity_signal_filter
 from app.ml.similarity import (
     HistoricalSimilaritySummary,
     find_similar_historical_periods,
@@ -130,7 +130,9 @@ def _run_ml_quant_analysis_impl(ticker: str) -> MlQuantResult:
             raise ValueError(f"No feature rows available for {normalized!r}.")
 
         latest_feature_rows = latest_rows[PANEL_FEATURE_COLS].reset_index(drop=True)
-        latest_text_features = transform_text_svd_features(latest_rows[TEXT_BLOB_COL], text_artifacts)
+        latest_text_features = transform_text_svd_features(
+            latest_rows[TEXT_BLOB_COL], text_artifacts
+        )
         latest_feature_rows = latest_feature_rows.join(latest_text_features.reset_index(drop=True))
         latest_X = latest_feature_rows.tail(1)
         prob_up = predict_proba_latest(model, latest_X)
@@ -139,12 +141,18 @@ def _run_ml_quant_analysis_impl(ticker: str) -> MlQuantResult:
         similarity_history = (
             train_df[["symbol", "trade_date", "close", PANEL_TARGET_COL]]
             .reset_index(drop=True)
-            .join(train_feature_matrix.drop(columns=["symbol"], errors="ignore").reset_index(drop=True))
+            .join(
+                train_feature_matrix.drop(columns=["symbol"], errors="ignore").reset_index(
+                    drop=True
+                )
+            )
         )
         similarity_query = (
             latest_rows[["symbol", "trade_date", "close"]]
             .reset_index(drop=True)
-            .join(latest_feature_rows.drop(columns=["symbol"], errors="ignore").reset_index(drop=True))
+            .join(
+                latest_feature_rows.drop(columns=["symbol"], errors="ignore").reset_index(drop=True)
+            )
         )
         historical_similarity = find_similar_historical_periods(
             similarity_history,

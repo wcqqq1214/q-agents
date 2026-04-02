@@ -130,7 +130,9 @@ def apply_similarity_signal_filter(
         }
 
     model_direction = direction_from_probability(raw_probability)
-    historical_matches = int(historical_similarity.get("n_matches", 0)) if historical_similarity else 0
+    historical_matches = (
+        int(historical_similarity.get("n_matches", 0)) if historical_similarity else 0
+    )
 
     similarity_avg_return_3d: float | None = None
     if historical_similarity:
@@ -139,9 +141,7 @@ def apply_similarity_signal_filter(
             similarity_avg_return_3d = float(raw_avg)
 
     similarity_direction = (
-        direction_from_avg_return(similarity_avg_return_3d)
-        if historical_matches > 0
-        else "neutral"
+        direction_from_avg_return(similarity_avg_return_3d) if historical_matches > 0 else "neutral"
     )
 
     if historical_matches <= 0:

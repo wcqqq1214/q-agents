@@ -319,7 +319,12 @@ def train_lightgbm_panel_with_text(
     categorical_features: Sequence[str] | None = None,
     n_splits: int = 5,
     text_n_components: int = DEFAULT_TEXT_SVD_COMPONENTS,
-) -> Tuple[LGBMClassifier, Dict[str, float | str | List[float] | int], TextSVDArtifacts | None, pd.DataFrame]:
+) -> Tuple[
+    LGBMClassifier,
+    Dict[str, float | str | List[float] | int],
+    TextSVDArtifacts | None,
+    pd.DataFrame,
+]:
     """Train a panel LightGBM with fold-isolated TF-IDF + SVD text features."""
 
     if len(X) != len(text_series):
@@ -373,7 +378,9 @@ def train_lightgbm_panel_with_text(
             n_components=text_n_components,
         )
         X_train = _combine_feature_frames(X_train_num, X_train_text)
-        X_test = _combine_feature_frames(X_test_num, X_test_text if X_test_text is not None else X_train_text.iloc[0:0])
+        X_test = _combine_feature_frames(
+            X_test_num, X_test_text if X_test_text is not None else X_train_text.iloc[0:0]
+        )
 
         model = _fit_lightgbm_classifier(X_train, y_train, categorical_features)
 

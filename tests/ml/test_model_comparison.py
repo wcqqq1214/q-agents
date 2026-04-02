@@ -96,7 +96,11 @@ class TestGenerateComparisonReport:
                 "metrics": {"mean_auc": 0.54, "mean_accuracy": 0.52, "training_time": 2.34},
                 "prediction": 0.542,
                 "feature_matrix": pd.DataFrame(
-                    {"symbol": ["AAPL", "MSFT"], "sentiment_score": [0.2, -0.1], "ret_1d_residual": [0.01, -0.02]}
+                    {
+                        "symbol": ["AAPL", "MSFT"],
+                        "sentiment_score": [0.2, -0.1],
+                        "ret_1d_residual": [0.01, -0.02],
+                    }
                 ),
             }
         }
@@ -117,7 +121,9 @@ class TestGenerateComparisonReport:
     def test_generate_report_empty_x(self):
         with pytest.raises(ValueError, match="Feature matrix X is empty"):
             generate_comparison_report(
-                results={"lightgbm": {"model": Mock(), "metrics": {"mean_auc": 0.54}, "prediction": 0.5}},
+                results={
+                    "lightgbm": {"model": Mock(), "metrics": {"mean_auc": 0.54}, "prediction": 0.5}
+                },
                 symbol="AAPL",
                 date_range=("2024-01-01", "2024-12-31"),
                 X=pd.DataFrame(),
@@ -126,7 +132,9 @@ class TestGenerateComparisonReport:
     def test_generate_report_invalid_date_range_type(self):
         with pytest.raises(ValueError, match="date_range must be tuple"):
             generate_comparison_report(
-                results={"lightgbm": {"model": Mock(), "metrics": {"mean_auc": 0.54}, "prediction": 0.5}},
+                results={
+                    "lightgbm": {"model": Mock(), "metrics": {"mean_auc": 0.54}, "prediction": 0.5}
+                },
                 symbol="AAPL",
                 date_range="2024-01-01",
                 X=pd.DataFrame(np.random.randn(10, 3)),
@@ -190,7 +198,9 @@ class TestFormatComparisonMarkdown:
                 "data_points": 252,
             },
             "parameters": {"lightgbm": {"objective": "binary", "learning_rate": 0.01}},
-            "metrics": {"lightgbm": {"mean_auc": 0.54, "mean_accuracy": 0.52, "training_time": 2.34}},
+            "metrics": {
+                "lightgbm": {"mean_auc": 0.54, "mean_accuracy": 0.52, "training_time": 2.34}
+            },
             "predictions": {"lightgbm": 0.542, "fusion_score": 0.542},
             "feature_importance": {},
         }

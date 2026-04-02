@@ -62,11 +62,15 @@ def fit_text_svd_features(
     """
 
     train_series = _normalize_text_series(train_text)
-    transform_series = _normalize_text_series(transform_text) if transform_text is not None else None
+    transform_series = (
+        _normalize_text_series(transform_text) if transform_text is not None else None
+    )
 
     train_zero = _zero_text_features(train_series.index, n_components)
     transform_zero = (
-        _zero_text_features(transform_series.index, n_components) if transform_series is not None else None
+        _zero_text_features(transform_series.index, n_components)
+        if transform_series is not None
+        else None
     )
 
     try:
@@ -116,12 +120,14 @@ def transform_text_svd_features(
     """Transform text using existing TF-IDF + SVD artifacts."""
 
     series = _normalize_text_series(text)
-    out = _zero_text_features(series.index, DEFAULT_TEXT_SVD_COMPONENTS if artifacts is None else artifacts.n_components)
+    out = _zero_text_features(
+        series.index, DEFAULT_TEXT_SVD_COMPONENTS if artifacts is None else artifacts.n_components
+    )
 
     if artifacts is None:
         return out
 
     tfidf = artifacts.vectorizer.transform(series.tolist())
     matrix = artifacts.svd.transform(tfidf)
-    out.iloc[:, :matrix.shape[1]] = matrix
+    out.iloc[:, : matrix.shape[1]] = matrix
     return out

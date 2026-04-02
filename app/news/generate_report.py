@@ -126,7 +126,9 @@ def _build_news_markdown(report: Dict[str, Any]) -> str:
 
     lines.extend(["", "## Key Points"])
     if key_points:
-        lines.extend(f"- {point}" for point in key_points[:6] if isinstance(point, str) and point.strip())
+        lines.extend(
+            f"- {point}" for point in key_points[:6] if isinstance(point, str) and point.strip()
+        )
     else:
         lines.append("- No key points were extracted.")
 

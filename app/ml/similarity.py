@@ -198,7 +198,9 @@ def find_similar_historical_periods(
         )
 
     candidates = endpoints.loc[candidate_mask].copy()
-    candidates = candidates.dropna(subset=["window_start_date", "future_return_3d", *feature_columns])
+    candidates = candidates.dropna(
+        subset=["window_start_date", "future_return_3d", *feature_columns]
+    )
     if candidates.empty:
         return HistoricalSimilaritySummary(
             window_size=effective_window_size,
@@ -223,13 +225,19 @@ def find_similar_historical_periods(
     std = np.nanstd(candidate_matrix, axis=0)
     std[std == 0] = 1.0
 
-    candidate_matrix = np.nan_to_num((candidate_matrix - mean) / std, nan=0.0, posinf=0.0, neginf=0.0)
+    candidate_matrix = np.nan_to_num(
+        (candidate_matrix - mean) / std, nan=0.0, posinf=0.0, neginf=0.0
+    )
     query_vector = np.nan_to_num((query_vector - mean) / std, nan=0.0, posinf=0.0, neginf=0.0)
     scores = cosine_similarity(candidate_matrix, query_vector).ravel()
 
     scored = candidates.assign(
         similarity=scores,
-        peer_group=candidates["symbol"].astype(str).str.upper().map(peer_group_map).fillna("unknown"),
+        peer_group=candidates["symbol"]
+        .astype(str)
+        .str.upper()
+        .map(peer_group_map)
+        .fillna("unknown"),
     ).sort_values("similarity", ascending=False)
     same_symbol_scored = pd.DataFrame(columns=scored.columns)
     peer_group_scored = pd.DataFrame(columns=scored.columns)
@@ -238,7 +246,9 @@ def find_similar_historical_periods(
         same_symbol_scored = scored.loc[scored["symbol"].astype(str) == query_symbol]
         non_same_symbol = scored.loc[scored["symbol"].astype(str) != query_symbol]
         if query_peer_group != "unknown":
-            peer_group_scored = non_same_symbol.loc[non_same_symbol["peer_group"] == query_peer_group]
+            peer_group_scored = non_same_symbol.loc[
+                non_same_symbol["peer_group"] == query_peer_group
+            ]
             market_scored = non_same_symbol.loc[non_same_symbol["peer_group"] != query_peer_group]
         else:
             market_scored = non_same_symbol
@@ -257,7 +267,10 @@ def find_similar_historical_periods(
         symbol = str(row.symbol)
         if query_symbol and symbol == query_symbol:
             scope = "same_symbol"
-        elif query_peer_group != "unknown" and getattr(row, "peer_group", "unknown") == query_peer_group:
+        elif (
+            query_peer_group != "unknown"
+            and getattr(row, "peer_group", "unknown") == query_peer_group
+        ):
             scope = "peer_group"
         else:
             scope = "market"
@@ -277,7 +290,9 @@ def find_similar_historical_periods(
 
     similarity_values = [match["similarity"] for match in matches]
     future_returns = [match["future_return_3d"] for match in matches]
-    positive_rate = float(np.mean([match["positive_outcome"] for match in matches])) if matches else 0.0
+    positive_rate = (
+        float(np.mean([match["positive_outcome"] for match in matches])) if matches else 0.0
+    )
     target_hit_rate = float(np.mean([match["target_hit"] for match in matches])) if matches else 0.0
     same_symbol_matches = sum(1 for match in matches if match.get("scope") == "same_symbol")
     peer_group_matches = sum(1 for match in matches if match.get("scope") == "peer_group")

@@ -58,7 +58,9 @@ def _build_social_markdown(report: Dict[str, Any]) -> str:
     ]
 
     if keywords:
-        lines.extend(f"- `{keyword}`" for keyword in keywords[:5] if isinstance(keyword, str) and keyword)
+        lines.extend(
+            f"- `{keyword}`" for keyword in keywords[:5] if isinstance(keyword, str) and keyword
+        )
     else:
         lines.append("- No dominant keywords were extracted.")
 

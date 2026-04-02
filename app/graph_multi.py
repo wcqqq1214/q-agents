@@ -143,13 +143,13 @@ def _format_quant_report_for_cio(quant_obj: Dict[str, Any]) -> str:
     trend = quant_obj.get("trend", "neutral")
     summary = quant_obj.get("summary", "")
     levels = quant_obj.get("levels", {}) if isinstance(quant_obj.get("levels"), dict) else {}
-    indicators = quant_obj.get("indicators", {}) if isinstance(quant_obj.get("indicators"), dict) else {}
+    indicators = (
+        quant_obj.get("indicators", {}) if isinstance(quant_obj.get("indicators"), dict) else {}
+    )
     ml_quant = quant_obj.get("ml_quant", {}) if isinstance(quant_obj.get("ml_quant"), dict) else {}
     ml_metrics = ml_quant.get("metrics", {}) if isinstance(ml_quant.get("metrics"), dict) else {}
     signal_filter = (
-        ml_quant.get("signal_filter", {})
-        if isinstance(ml_quant.get("signal_filter"), dict)
-        else {}
+        ml_quant.get("signal_filter", {}) if isinstance(ml_quant.get("signal_filter"), dict) else {}
     )
 
     lines.append("Quant technical summary:")
@@ -194,7 +194,9 @@ def _format_quant_report_for_cio(quant_obj: Dict[str, Any]) -> str:
 def _format_news_report_for_cio(news_obj: Dict[str, Any]) -> str:
     """Convert the news report into a structured prompt block for CIO."""
 
-    key_points = news_obj.get("key_points", []) if isinstance(news_obj.get("key_points"), list) else []
+    key_points = (
+        news_obj.get("key_points", []) if isinstance(news_obj.get("key_points"), list) else []
+    )
     sources = news_obj.get("sources", []) if isinstance(news_obj.get("sources"), list) else []
     markets = (
         news_obj.get("polymarket_markets", [])
@@ -250,7 +252,9 @@ def _format_social_report_for_cio(social_obj: Dict[str, Any]) -> str:
     """Convert the social report into a structured prompt block for CIO."""
 
     meta = social_obj.get("meta", {}) if isinstance(social_obj.get("meta"), dict) else {}
-    keywords = social_obj.get("keywords", []) if isinstance(social_obj.get("keywords"), list) else []
+    keywords = (
+        social_obj.get("keywords", []) if isinstance(social_obj.get("keywords"), list) else []
+    )
 
     lines: List[str] = [
         "Social sentiment summary:",
@@ -525,8 +529,12 @@ def _parallel_runner(state: AgentState) -> Dict[str, Any]:
         news_obj = cast(Dict[str, Any], fut_news.result())
         social_obj = cast(Dict[str, Any], fut_social.result())
 
-        quant_report = str(quant_obj.get("markdown_report") or json.dumps(quant_obj, ensure_ascii=False))
-        news_report = str(news_obj.get("markdown_report") or json.dumps(news_obj, ensure_ascii=False))
+        quant_report = str(
+            quant_obj.get("markdown_report") or json.dumps(quant_obj, ensure_ascii=False)
+        )
+        news_report = str(
+            news_obj.get("markdown_report") or json.dumps(news_obj, ensure_ascii=False)
+        )
         social_report = str(
             social_obj.get("markdown_report") or json.dumps(social_obj, ensure_ascii=False)
         )

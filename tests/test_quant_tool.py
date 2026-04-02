@@ -55,28 +55,48 @@ def test_run_ml_quant_analysis_includes_historical_similarity(monkeypatch):
             "sentiment_score_residual": [0.25, -0.25, 0.45, -0.45],
             "news_count_3d_residual": [0.5, -0.5, 0.5, -0.5],
             "ret_1d_residual": [0.05, -0.05, 0.15, -0.15],
-            "news_text_blob": ["iphone demand", "macro slowdown", "services growth", "cloud pressure"],
+            "news_text_blob": [
+                "iphone demand",
+                "macro slowdown",
+                "services growth",
+                "cloud pressure",
+            ],
             "target_up_big_move_t3": [1, 0, 1, 0],
         }
     )
 
     monkeypatch.setattr(quant_tool, "build_panel_features", lambda: panel_df.copy())
 
-    def fake_train_lightgbm_panel_with_text(X, y, trade_dates, text_series, categorical_features=None):
+    def fake_train_lightgbm_panel_with_text(
+        X, y, trade_dates, text_series, categorical_features=None
+    ):
         feature_matrix = X.copy()
         for i in range(10):
             feature_matrix[f"text_svd_{i}"] = 0.0
-        return object(), {
-            "mean_auc": 0.61,
-            "mean_accuracy": 0.56,
-            "text_svd_components": 10,
-            "per_ticker_auc": {"AAPL": 0.64, "MSFT": 0.58},
-            "per_ticker_accuracy": {"AAPL": 0.61, "MSFT": 0.54},
-            "per_ticker_eval_rows": {"AAPL": 22, "MSFT": 22},
-        }, None, feature_matrix
+        return (
+            object(),
+            {
+                "mean_auc": 0.61,
+                "mean_accuracy": 0.56,
+                "text_svd_components": 10,
+                "per_ticker_auc": {"AAPL": 0.64, "MSFT": 0.58},
+                "per_ticker_accuracy": {"AAPL": 0.61, "MSFT": 0.54},
+                "per_ticker_eval_rows": {"AAPL": 22, "MSFT": 22},
+            },
+            None,
+            feature_matrix,
+        )
 
-    monkeypatch.setattr(quant_tool, "train_lightgbm_panel_with_text", fake_train_lightgbm_panel_with_text)
-    monkeypatch.setattr(quant_tool, "transform_text_svd_features", lambda text, artifacts: pd.DataFrame(0.0, index=text.index, columns=[f"text_svd_{i}" for i in range(10)]))
+    monkeypatch.setattr(
+        quant_tool, "train_lightgbm_panel_with_text", fake_train_lightgbm_panel_with_text
+    )
+    monkeypatch.setattr(
+        quant_tool,
+        "transform_text_svd_features",
+        lambda text, artifacts: pd.DataFrame(
+            0.0, index=text.index, columns=[f"text_svd_{i}" for i in range(10)]
+        ),
+    )
     monkeypatch.setattr(quant_tool, "predict_proba_latest", lambda model, X: 0.73)
     monkeypatch.setattr(
         quant_tool,
@@ -190,21 +210,36 @@ def test_run_ml_quant_analysis_degrades_to_event_driven_only_for_weak_auc(monkey
 
     monkeypatch.setattr(quant_tool, "build_panel_features", lambda: panel_df.copy())
 
-    def fake_train_lightgbm_panel_with_text(X, y, trade_dates, text_series, categorical_features=None):
+    def fake_train_lightgbm_panel_with_text(
+        X, y, trade_dates, text_series, categorical_features=None
+    ):
         feature_matrix = X.copy()
         for i in range(10):
             feature_matrix[f"text_svd_{i}"] = 0.0
-        return object(), {
-            "mean_auc": 0.58,
-            "mean_accuracy": 0.52,
-            "text_svd_components": 10,
-            "per_ticker_auc": {"NVDA": 0.52, "MSFT": 0.58},
-            "per_ticker_accuracy": {"NVDA": 0.43, "MSFT": 0.55},
-            "per_ticker_eval_rows": {"NVDA": 22, "MSFT": 22},
-        }, None, feature_matrix
+        return (
+            object(),
+            {
+                "mean_auc": 0.58,
+                "mean_accuracy": 0.52,
+                "text_svd_components": 10,
+                "per_ticker_auc": {"NVDA": 0.52, "MSFT": 0.58},
+                "per_ticker_accuracy": {"NVDA": 0.43, "MSFT": 0.55},
+                "per_ticker_eval_rows": {"NVDA": 22, "MSFT": 22},
+            },
+            None,
+            feature_matrix,
+        )
 
-    monkeypatch.setattr(quant_tool, "train_lightgbm_panel_with_text", fake_train_lightgbm_panel_with_text)
-    monkeypatch.setattr(quant_tool, "transform_text_svd_features", lambda text, artifacts: pd.DataFrame(0.0, index=text.index, columns=[f"text_svd_{i}" for i in range(10)]))
+    monkeypatch.setattr(
+        quant_tool, "train_lightgbm_panel_with_text", fake_train_lightgbm_panel_with_text
+    )
+    monkeypatch.setattr(
+        quant_tool,
+        "transform_text_svd_features",
+        lambda text, artifacts: pd.DataFrame(
+            0.0, index=text.index, columns=[f"text_svd_{i}" for i in range(10)]
+        ),
+    )
     monkeypatch.setattr(quant_tool, "predict_proba_latest", lambda model, X: 0.73)
     monkeypatch.setattr(
         quant_tool,

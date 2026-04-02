@@ -130,7 +130,12 @@ def test_train_all_models_symbol_uses_panel_for_lightgbm(monkeypatch):
             "trade_date": pd.to_datetime(["2024-01-02", "2024-01-02", "2024-01-03", "2024-01-03"]),
             "close": [100.0, 200.0, 103.0, 198.0],
             "signal": [0.1, -0.1, 0.2, -0.2],
-            "news_text_blob": ["iphone demand", "macro slowdown", "services growth", "cloud pressure"],
+            "news_text_blob": [
+                "iphone demand",
+                "macro slowdown",
+                "services growth",
+                "cloud pressure",
+            ],
             "target_up_big_move_t3": [1, 0, 1, 0],
         }
     )
@@ -152,16 +157,27 @@ def test_train_all_models_symbol_uses_panel_for_lightgbm(monkeypatch):
         calls["lightgbm_text"] = list(text_series)
         feature_matrix = X.copy()
         feature_matrix["text_svd_0"] = 0.0
-        return object(), {
-            "mean_auc": 0.61,
-            "mean_accuracy": 0.56,
-            "per_ticker_auc": {"AAPL": 0.63, "MSFT": 0.58},
-            "per_ticker_accuracy": {"AAPL": 0.60, "MSFT": 0.55},
-            "per_ticker_eval_rows": {"AAPL": 24, "MSFT": 24},
-        }, object(), feature_matrix
+        return (
+            object(),
+            {
+                "mean_auc": 0.61,
+                "mean_accuracy": 0.56,
+                "per_ticker_auc": {"AAPL": 0.63, "MSFT": 0.58},
+                "per_ticker_accuracy": {"AAPL": 0.60, "MSFT": 0.55},
+                "per_ticker_eval_rows": {"AAPL": 24, "MSFT": 24},
+            },
+            object(),
+            feature_matrix,
+        )
 
-    monkeypatch.setattr(model_registry, "train_lightgbm_panel_with_text", fake_train_lightgbm_panel_with_text)
-    monkeypatch.setattr(model_registry, "transform_text_svd_features", lambda text, artifacts: pd.DataFrame({"text_svd_0": [0.0] * len(text)}))
+    monkeypatch.setattr(
+        model_registry, "train_lightgbm_panel_with_text", fake_train_lightgbm_panel_with_text
+    )
+    monkeypatch.setattr(
+        model_registry,
+        "transform_text_svd_features",
+        lambda text, artifacts: pd.DataFrame({"text_svd_0": [0.0] * len(text)}),
+    )
     monkeypatch.setattr(model_registry, "predict_proba_latest", lambda model, X: 0.73)
     monkeypatch.setattr(
         model_registry,
@@ -181,7 +197,12 @@ def test_train_all_models_symbol_uses_panel_for_lightgbm(monkeypatch):
     assert results["lightgbm"]["metrics"]["requested_symbol"] == "AAPL"
     assert results["lightgbm"]["metrics"]["requested_symbol_auc"] == 0.63
     assert results["lightgbm"]["metrics"]["requested_symbol_eval_rows"] == 24
-    assert calls["lightgbm_text"] == ["iphone demand", "macro slowdown", "services growth", "cloud pressure"]
+    assert calls["lightgbm_text"] == [
+        "iphone demand",
+        "macro slowdown",
+        "services growth",
+        "cloud pressure",
+    ]
     assert results["lightgbm"]["historical_similarity"]["n_matches"] == 2
 
 
@@ -221,7 +242,11 @@ def test_train_all_models_symbol_passes_date_range(monkeypatch):
             X.assign(text_svd_0=0.0),
         ),
     )
-    monkeypatch.setattr(model_registry, "transform_text_svd_features", lambda text, artifacts: pd.DataFrame({"text_svd_0": [0.0] * len(text)}))
+    monkeypatch.setattr(
+        model_registry,
+        "transform_text_svd_features",
+        lambda text, artifacts: pd.DataFrame({"text_svd_0": [0.0] * len(text)}),
+    )
     monkeypatch.setattr(model_registry, "predict_proba_latest", lambda model, X: 0.73)
 
     results = train_all_models(

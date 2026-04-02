@@ -64,4 +64,3 @@ def test_generate_report_includes_markdown_report(tmp_path, monkeypatch):
 
     saved = json.loads(Path(tmp_path, "news.json").read_text(encoding="utf-8"))
     assert saved["markdown_report"] == report["markdown_report"]
-

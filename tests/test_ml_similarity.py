@@ -92,7 +92,9 @@ def test_find_similar_historical_periods_prioritizes_same_symbol_then_peer_group
             }
         )
 
-    for idx, (date, signal, close) in enumerate(zip(peer_dates, amzn_signal, amzn_close, strict=False)):
+    for idx, (date, signal, close) in enumerate(
+        zip(peer_dates, amzn_signal, amzn_close, strict=False)
+    ):
         rows.append(
             {
                 "symbol": "AMZN",
@@ -146,7 +148,11 @@ def test_build_markdown_report_includes_historical_similarity_block():
     markdown = build_markdown_report(
         ticker="AAPL",
         prob_up=0.67,
-        metrics={"mean_accuracy": 0.58, "mean_auc": 0.61, "train_test_split": "PanelTimeSeriesSplit_n5"},
+        metrics={
+            "mean_accuracy": 0.58,
+            "mean_auc": 0.61,
+            "train_test_split": "PanelTimeSeriesSplit_n5",
+        },
         shap_summary={
             "top_positive": [{"feature": "ret_1d_residual", "value": 0.12, "shap": 0.08}],
             "top_negative": [{"feature": "market_volatility_5d", "value": 0.3, "shap": -0.05}],

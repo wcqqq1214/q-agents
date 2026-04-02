@@ -140,7 +140,9 @@ def _fallback_levels_from_indicators(indicators: Dict[str, Any]) -> Dict[str, fl
     return {"support": support, "resistance": resistance}
 
 
-def _fallback_summary_from_indicators(asset: str, indicators: Dict[str, Any], trend: TrendLabel) -> str:
+def _fallback_summary_from_indicators(
+    asset: str, indicators: Dict[str, Any], trend: TrendLabel
+) -> str:
     """Build a deterministic English fallback summary from local indicators."""
 
     if "error" in indicators:
@@ -182,15 +184,11 @@ def _build_quant_markdown(report: Dict[str, Any]) -> str:
     trend = _format_markdown_value(report.get("trend"))
     summary = str(report.get("summary") or "No technical summary available.")
     levels = report.get("levels", {}) if isinstance(report.get("levels"), dict) else {}
-    indicators = (
-        report.get("indicators", {}) if isinstance(report.get("indicators"), dict) else {}
-    )
+    indicators = report.get("indicators", {}) if isinstance(report.get("indicators"), dict) else {}
     ml_quant = report.get("ml_quant", {}) if isinstance(report.get("ml_quant"), dict) else {}
     ml_metrics = ml_quant.get("metrics", {}) if isinstance(ml_quant.get("metrics"), dict) else {}
     signal_filter = (
-        ml_quant.get("signal_filter", {})
-        if isinstance(ml_quant.get("signal_filter"), dict)
-        else {}
+        ml_quant.get("signal_filter", {}) if isinstance(ml_quant.get("signal_filter"), dict) else {}
     )
 
     lines = [
@@ -247,7 +245,9 @@ def _build_quant_markdown(report: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _summarize_quant_snapshot(asset: str, indicators: Dict[str, Any]) -> tuple[TrendLabel, Dict[str, Any], str]:
+def _summarize_quant_snapshot(
+    asset: str, indicators: Dict[str, Any]
+) -> tuple[TrendLabel, Dict[str, Any], str]:
     """Produce a robust quant summary with retry and deterministic fallback."""
 
     system = (
@@ -284,9 +284,13 @@ def _summarize_quant_snapshot(asset: str, indicators: Dict[str, Any]) -> tuple[T
             levels_raw = obj.get("levels")
             levels = levels_raw if isinstance(levels_raw, dict) else {}
             summary = obj.get("summary")
-            summary_str = str(summary).strip() if isinstance(summary, str) and summary.strip() else ""
+            summary_str = (
+                str(summary).strip() if isinstance(summary, str) and summary.strip() else ""
+            )
             if not summary_str:
-                summary_str = _fallback_summary_from_indicators(asset, indicators, cast(TrendLabel, trend))
+                summary_str = _fallback_summary_from_indicators(
+                    asset, indicators, cast(TrendLabel, trend)
+                )
             return cast(TrendLabel, trend), levels, summary_str
         except Exception as exc:  # noqa: BLE001
             last_error = exc

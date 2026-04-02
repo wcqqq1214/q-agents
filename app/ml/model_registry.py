@@ -15,12 +15,12 @@ import numpy as np
 import pandas as pd
 
 from app.ml.features import PANEL_FEATURE_COLS, TEXT_BLOB_COL, build_panel_features
-from app.ml.signal_filter import apply_similarity_signal_filter
 from app.ml.model_trainer import (
     predict_proba_latest,
     train_lightgbm,
     train_lightgbm_panel_with_text,
 )
+from app.ml.signal_filter import apply_similarity_signal_filter
 from app.ml.similarity import HistoricalSimilaritySummary, find_similar_historical_periods
 from app.ml.text_features import transform_text_svd_features
 
@@ -78,7 +78,9 @@ def _ml_policy_label(policy: Any) -> str:
     }.get(str(policy), "PRIMARY_SIGNAL（可作为主信号）")
 
 
-def _extract_requested_symbol_metrics(metrics: Dict[str, Any], symbol: str | None) -> Dict[str, Any]:
+def _extract_requested_symbol_metrics(
+    metrics: Dict[str, Any], symbol: str | None
+) -> Dict[str, Any]:
     """Return single-symbol OOS metrics derived from panel evaluation artifacts."""
 
     if not symbol:
@@ -102,12 +104,16 @@ def _extract_requested_symbol_metrics(metrics: Dict[str, Any], symbol: str | Non
     per_ticker_eval_rows = metrics.get("per_ticker_eval_rows", {})
     if isinstance(per_ticker_eval_rows, dict):
         symbol_eval_rows = per_ticker_eval_rows.get(symbol_norm)
-        if isinstance(symbol_eval_rows, (int, float, np.integer, np.floating)) and math.isfinite(float(symbol_eval_rows)):
+        if isinstance(symbol_eval_rows, (int, float, np.integer, np.floating)) and math.isfinite(
+            float(symbol_eval_rows)
+        ):
             payload["requested_symbol_eval_rows"] = int(symbol_eval_rows)
 
     unavailable = metrics.get("per_ticker_auc_unavailable", [])
     if isinstance(unavailable, list):
-        payload["requested_symbol_auc_unavailable"] = symbol_norm in {str(item).strip().upper() for item in unavailable}
+        payload["requested_symbol_auc_unavailable"] = symbol_norm in {
+            str(item).strip().upper() for item in unavailable
+        }
 
     return payload
 
@@ -123,7 +129,9 @@ def _normalize_model_types(model_types: List[str] | None) -> List[ModelType]:
     if model_types is None:
         return ["lightgbm"]
 
-    normalized = [str(model_type).strip().lower() for model_type in model_types if str(model_type).strip()]
+    normalized = [
+        str(model_type).strip().lower() for model_type in model_types if str(model_type).strip()
+    ]
     if not normalized:
         return ["lightgbm"]
 
@@ -145,7 +153,9 @@ def _extract_parameters(model: Any, model_type: str, _unused: Any = None) -> Dic
     return model.get_params()
 
 
-def _calculate_fusion_score(predictions: Dict[str, float], metrics: Dict[str, Dict[str, float]]) -> float:
+def _calculate_fusion_score(
+    predictions: Dict[str, float], metrics: Dict[str, Dict[str, float]]
+) -> float:
     """Return the aggregate score across available models.
 
     With the repository now standardized on a single LightGBM model, the
@@ -170,7 +180,8 @@ def _calculate_fusion_score(predictions: Dict[str, float], metrics: Dict[str, Di
     weighted_pairs = [
         (float(predictions[model_name]), float(metrics[model_name]["mean_auc"]))
         for model_name in predictions
-        if _is_finite_number(predictions[model_name]) and _is_finite_number(metrics[model_name].get("mean_auc"))
+        if _is_finite_number(predictions[model_name])
+        and _is_finite_number(metrics[model_name].get("mean_auc"))
     ]
     if not weighted_pairs:
         return float(np.mean(finite_predictions))
@@ -182,7 +193,9 @@ def _calculate_fusion_score(predictions: Dict[str, float], metrics: Dict[str, Di
     return float(sum(pred * auc / total_auc for pred, auc in weighted_pairs))
 
 
-def _extract_feature_importance(model: Any, X: pd.DataFrame, top_k: int = 3) -> List[Dict[str, Any]]:
+def _extract_feature_importance(
+    model: Any, X: pd.DataFrame, top_k: int = 3
+) -> List[Dict[str, Any]]:
     """Extract top K feature importances from LightGBM model."""
 
     try:
@@ -276,7 +289,9 @@ def _build_historical_similarity_summary(
     query = (
         symbol_rows[["symbol", "trade_date", "close"]]
         .reset_index(drop=True)
-        .join(symbol_feature_matrix.drop(columns=["symbol"], errors="ignore").reset_index(drop=True))
+        .join(
+            symbol_feature_matrix.drop(columns=["symbol"], errors="ignore").reset_index(drop=True)
+        )
     )
 
     try:
@@ -308,7 +323,9 @@ def generate_comparison_report(
     if X.empty:
         raise ValueError("Feature matrix X is empty")
     if not isinstance(date_range, tuple) or len(date_range) != 2:
-        raise ValueError(f"date_range must be tuple of (start_date, end_date), got {type(date_range)}")
+        raise ValueError(
+            f"date_range must be tuple of (start_date, end_date), got {type(date_range)}"
+        )
 
     start_date, end_date = date_range
     if not isinstance(start_date, str) or not isinstance(end_date, str):
@@ -319,14 +336,8 @@ def generate_comparison_report(
     if "lightgbm" not in results:
         raise ValueError("results missing 'lightgbm'")
 
-    predictions = {
-        model_name: result["prediction"]
-        for model_name, result in results.items()
-    }
-    metrics = {
-        model_name: result["metrics"]
-        for model_name, result in results.items()
-    }
+    predictions = {model_name: result["prediction"] for model_name, result in results.items()}
+    metrics = {model_name: result["metrics"] for model_name, result in results.items()}
 
     lgbm_metrics = metrics["lightgbm"]
     if "mean_auc" not in lgbm_metrics:
@@ -347,7 +358,9 @@ def generate_comparison_report(
             fusion_score,
             historical_similarity,
             requested_symbol_auc=lgbm_metrics.get("requested_symbol_auc"),
-            requested_symbol_auc_unavailable=bool(lgbm_metrics.get("requested_symbol_auc_unavailable")),
+            requested_symbol_auc_unavailable=bool(
+                lgbm_metrics.get("requested_symbol_auc_unavailable")
+            ),
         )
 
     feature_importance: Dict[str, Any] = {}
@@ -440,13 +453,15 @@ def train_all_models(
             and lgbm_text is not None
             and lgbm_symbol_rows is not None
         ):
-            lgbm_model, lgbm_metrics, text_artifacts, lgbm_feature_matrix = train_lightgbm_panel_with_text(
-                lgbm_X,
-                lgbm_y,
-                lgbm_trade_dates,
-                lgbm_text,
-                categorical_features=["symbol"],
-                n_splits=5,
+            lgbm_model, lgbm_metrics, text_artifacts, lgbm_feature_matrix = (
+                train_lightgbm_panel_with_text(
+                    lgbm_X,
+                    lgbm_y,
+                    lgbm_trade_dates,
+                    lgbm_text,
+                    categorical_features=["symbol"],
+                    n_splits=5,
+                )
             )
             symbol_text_features = transform_text_svd_features(
                 lgbm_symbol_rows[TEXT_BLOB_COL],
@@ -481,7 +496,9 @@ def train_all_models(
             lgbm_pred,
             historical_similarity,
             requested_symbol_auc=lgbm_metrics.get("requested_symbol_auc"),
-            requested_symbol_auc_unavailable=bool(lgbm_metrics.get("requested_symbol_auc_unavailable")),
+            requested_symbol_auc_unavailable=bool(
+                lgbm_metrics.get("requested_symbol_auc_unavailable")
+            ),
         )
         results["lightgbm"] = {
             "model": lgbm_model,
@@ -548,15 +565,21 @@ def format_comparison_markdown(report: Dict[str, Any]) -> str:
     lines.append(f"| Mean Accuracy | {_format_float(metrics.get('mean_accuracy'))} |")
     requested_symbol = metrics.get("requested_symbol", metadata.get("symbol"))
     lines.append(f"| 当前标的 OOS AUC | {_format_float(metrics.get('requested_symbol_auc'))} |")
-    lines.append(f"| 当前标的 OOS Accuracy | {_format_float(metrics.get('requested_symbol_accuracy'))} |")
+    lines.append(
+        f"| 当前标的 OOS Accuracy | {_format_float(metrics.get('requested_symbol_accuracy'))} |"
+    )
     requested_eval_rows = metrics.get("requested_symbol_eval_rows")
-    if isinstance(requested_eval_rows, (int, float, np.integer, np.floating)) and math.isfinite(float(requested_eval_rows)):
+    if isinstance(requested_eval_rows, (int, float, np.integer, np.floating)) and math.isfinite(
+        float(requested_eval_rows)
+    ):
         requested_eval_rows_str = str(int(requested_eval_rows))
     else:
         requested_eval_rows_str = "N/A"
     lines.append(f"| 当前标的验证样本数 | {requested_eval_rows_str} |")
     training_time = metrics.get("training_time_seconds", metrics.get("training_time", "N/A"))
-    training_time_str = f"{float(training_time):.2f}秒" if _is_finite_number(training_time) else "N/A"
+    training_time_str = (
+        f"{float(training_time):.2f}秒" if _is_finite_number(training_time) else "N/A"
+    )
     lines.append(f"| Training Time | {training_time_str} |")
     lines.append(f"| Cross Validation | {metrics.get('train_test_split', 'N/A')} |\n")
     if metrics.get("requested_symbol_auc_unavailable") and requested_symbol:
@@ -580,8 +603,12 @@ def format_comparison_markdown(report: Dict[str, Any]) -> str:
     }.get(str(alignment), "暂无确认")
     position_multiplier = predictions.get("position_multiplier")
     ml_policy = predictions.get("ml_policy", report.get("signal_filter", {}).get("ml_policy"))
-    lines.append(f"| LightGBM 概率 | {_format_percent_from_probability(lightgbm_pred)} ({lightgbm_signal if _is_finite_number(lightgbm_pred) else 'N/A'}) |")
-    lines.append(f"| 综合信号 | {_format_percent_from_probability(fusion_score)} ({composite_signal if _is_finite_number(fusion_score) else 'N/A'}) |\n")
+    lines.append(
+        f"| LightGBM 概率 | {_format_percent_from_probability(lightgbm_pred)} ({lightgbm_signal if _is_finite_number(lightgbm_pred) else 'N/A'}) |"
+    )
+    lines.append(
+        f"| 综合信号 | {_format_percent_from_probability(fusion_score)} ({composite_signal if _is_finite_number(fusion_score) else 'N/A'}) |\n"
+    )
     if _is_finite_number(position_multiplier):
         lines.append(
             f"当前综合信号已叠加历史相似度双重确认，状态为 **{alignment_label}**，"
@@ -669,11 +696,17 @@ def format_comparison_markdown(report: Dict[str, Any]) -> str:
             "unavailable": "暂无相似度确认，维持基础仓位",
         }.get(str(signal_filter.get("alignment", "unavailable")), "暂无相似度确认，维持基础仓位")
         if ml_policy == "event_driven_only":
-            lines.append("- 相似度双重确认结果：方向虽有共振，但已被单票 OOS AUC 风控覆盖，不建议依据 ML 信号加仓。")
-            lines.append("- 当前单票 OOS AUC 偏弱，ML 方向性信号已停用，应由事件/新闻/基本面模块接管。")
+            lines.append(
+                "- 相似度双重确认结果：方向虽有共振，但已被单票 OOS AUC 风控覆盖，不建议依据 ML 信号加仓。"
+            )
+            lines.append(
+                "- 当前单票 OOS AUC 偏弱，ML 方向性信号已停用，应由事件/新闻/基本面模块接管。"
+            )
         elif ml_policy == "auxiliary_only":
             lines.append(f"- 相似度双重确认结果：{alignment_label}。")
-            lines.append("- 当前单票 OOS AUC 仅达辅助级别，ML 结果只能作为辅助手段，不能单独触发交易。")
+            lines.append(
+                "- 当前单票 OOS AUC 仅达辅助级别，ML 结果只能作为辅助手段，不能单独触发交易。"
+            )
         else:
             lines.append(f"- 相似度双重确认结果：{alignment_label}。")
             lines.append("- 当前单票 OOS AUC 达到主信号标准，ML 概率可作为主要参考之一。")

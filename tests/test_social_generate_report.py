@@ -5,6 +5,34 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import app.social.generate_report as social_generate_report
+from app.social.ingest_meta import extract_ingest_meta_from_text
+
+
+def test_extract_ingest_meta_from_text_parses_expected_fields():
+    text = "\n".join(
+        [
+            "Asset: NVDA",
+            "Window: 24h",
+            "Subreddits: stocks, wallstreetbets",
+            "Source: json",
+            "PostCount: 42",
+            "CommentCount: 512",
+            "GeneratedAt(UTC): 2026-04-03T00:00:00+00:00",
+            "",
+            "payload starts here",
+        ]
+    )
+
+    meta = extract_ingest_meta_from_text(text)
+
+    assert meta == {
+        "source": "json",
+        "subreddits": ["stocks", "wallstreetbets"],
+        "post_count": 42,
+        "comment_count": 512,
+        "generated_at_utc": "2026-04-03T00:00:00+00:00",
+        "window": "24h",
+    }
 
 
 def test_generate_report_includes_markdown_report(tmp_path, monkeypatch):
@@ -15,7 +43,7 @@ def test_generate_report_includes_markdown_report(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         social_generate_report,
-        "_extract_ingest_meta_from_text",
+        "extract_ingest_meta_from_text",
         lambda text: {
             "source": "json",
             "window": "24h",

@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any, Dict, TypedDict, cast
 
 from app.reporting.writer import write_json
-from app.social.entrypoint import _extract_ingest_meta_from_text
 from app.social.export_tools import build_social_report
+from app.social.ingest_meta import extract_ingest_meta_from_text
 from app.social.nlp_tools import analyze_reddit_text
 from app.social.reddit.tools import get_reddit_discussion
 
@@ -93,7 +93,7 @@ def generate_report(asset: str, run_dir: str) -> SocialBundle:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     corpus = cast(str, get_reddit_discussion.invoke({"asset": asset_norm}))
-    ingest_meta = _extract_ingest_meta_from_text(corpus)
+    ingest_meta = extract_ingest_meta_from_text(corpus)
     ingest_meta["generated_at_utc"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
     nlp_result = cast(

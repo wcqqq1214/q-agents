@@ -8,6 +8,7 @@ import pandas as pd
 import shap
 from lightgbm import LGBMClassifier
 
+from app.ml.signal_filter import SignalFilterSummary, apply_similarity_signal_filter
 from app.ml.similarity import HistoricalSimilaritySummary
 
 
@@ -156,6 +157,7 @@ def build_markdown_report(
     metrics: Dict[str, Any],
     shap_summary: ShapSummary,
     historical_similarity: HistoricalSimilaritySummary | None = None,
+    signal_filter: SignalFilterSummary | None = None,
     *,
     target_label: str = "下一交易日上涨",
     model_label: str = "LightGBM",
@@ -187,6 +189,8 @@ def build_markdown_report(
     """
 
     probability_pct = prob_up * 100.0
+    signal_filter = signal_filter or apply_similarity_signal_filter(prob_up, historical_similarity)
+    final_prob_pct = float(signal_filter["adjusted_probability"]) * 100.0
     acc = metrics.get("mean_accuracy", metrics.get("accuracy"))
     auc = metrics.get("mean_auc", metrics.get("auc"))
     acc_str = f"{acc:.3f}" if isinstance(acc, (float, int)) else "N/A"
@@ -225,6 +229,17 @@ def build_markdown_report(
     lines.append(
         f"- **历史表现（{validation_note}）**：平均 Accuracy ≈ {acc_str}，AUC ≈ {auc_str} "
         "(仅供参考，不构成收益承诺)。"
+    )
+    alignment_label = {
+        "confirmed": "方向共振",
+        "contradicted": "方向冲突",
+        "neutral": "方向中性",
+        "unavailable": "暂无相似度确认",
+    }.get(signal_filter["alignment"], "暂无相似度确认")
+    final_direction = "看涨" if float(signal_filter["adjusted_probability"]) >= 0.5 else "看跌"
+    lines.append(
+        f"- **最终交易信号**：相似度过滤后概率约 {final_prob_pct:.1f}% ，方向为 **{final_direction}**；"
+        f"当前属于 **{alignment_label}**，建议仓位系数约 **{float(signal_filter['position_multiplier']):.2f}x**。"
     )
     requested_symbol = str(metrics.get("requested_symbol", ticker)).upper()
     requested_symbol_auc = metrics.get("requested_symbol_auc")

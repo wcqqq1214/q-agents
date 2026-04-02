@@ -63,6 +63,11 @@ def test_format_predictions_for_agent():
                 "requested_symbol_auc": 0.64,
             },
             "prediction": 0.73,
+            "signal_filter": {
+                "adjusted_probability": 0.7875,
+                "alignment": "confirmed",
+                "position_multiplier": 1.25,
+            },
         }
     }
 
@@ -73,6 +78,7 @@ def test_format_predictions_for_agent():
     assert "73.00%" in markdown
     assert "AAPL" in markdown
     assert "0.6400" in markdown
+    assert "最终交易信号" in markdown
 
 
 def test_format_predictions_for_agent_includes_historical_similarity():
@@ -87,9 +93,14 @@ def test_format_predictions_for_agent_includes_historical_similarity():
                 "requested_symbol_auc_unavailable": True,
             },
             "prediction": 0.73,
+            "signal_filter": {
+                "adjusted_probability": 0.615,
+                "alignment": "contradicted",
+                "position_multiplier": 0.5,
+            },
             "historical_similarity": {
                 "n_matches": 2,
-                "avg_future_return_3d": 0.024,
+                "avg_future_return_3d": -0.024,
                 "target_hit_rate": 0.5,
                 "same_symbol_matches": 1,
                 "peer_group_matches": 1,
@@ -109,6 +120,7 @@ def test_format_predictions_for_agent_includes_historical_similarity():
     assert "MSFT" in markdown
     assert "同股票 1 个、peer group 1 个、全市场补充 0 个" in markdown
     assert "暂不可用" in markdown
+    assert "方向冲突" in markdown
 
 
 def test_train_all_models_symbol_uses_panel_for_lightgbm(monkeypatch):
@@ -243,8 +255,17 @@ def test_format_comparison_markdown_includes_requested_symbol_metrics():
                 "requested_symbol_eval_rows": 48,
             }
         },
-        "predictions": {"lightgbm": 0.58, "fusion_score": 0.58},
+        "predictions": {
+            "lightgbm": 0.58,
+            "fusion_score": 0.60,
+            "signal_alignment": "confirmed",
+            "position_multiplier": 1.25,
+        },
         "feature_importance": {},
+        "signal_filter": {
+            "alignment": "confirmed",
+            "position_multiplier": 1.25,
+        },
     }
 
     markdown = model_registry.format_comparison_markdown(report)
@@ -252,3 +273,4 @@ def test_format_comparison_markdown_includes_requested_symbol_metrics():
     assert "当前标的 OOS AUC" in markdown
     assert "0.6200" in markdown
     assert "48" in markdown
+    assert "建议仓位系数" in markdown

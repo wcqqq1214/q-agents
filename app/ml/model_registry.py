@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from app.ml.features import PANEL_FEATURE_COLS, TEXT_BLOB_COL, build_panel_features
+from app.ml.signal_filter import apply_similarity_signal_filter
 from app.ml.model_trainer import (
     predict_proba_latest,
     train_lightgbm,
@@ -316,6 +317,10 @@ def generate_comparison_report(
         "lightgbm": _extract_parameters(lgbm_model, "lightgbm"),
     }
     fusion_score = _calculate_fusion_score(predictions, metrics)
+    historical_similarity = results["lightgbm"].get("historical_similarity")
+    signal_filter = results["lightgbm"].get("signal_filter")
+    if not isinstance(signal_filter, dict):
+        signal_filter = apply_similarity_signal_filter(fusion_score, historical_similarity)
 
     feature_importance: Dict[str, Any] = {}
     lgbm_X = results["lightgbm"].get("feature_matrix", X)
@@ -334,12 +339,15 @@ def generate_comparison_report(
         "metrics": metrics,
         "predictions": {
             "lightgbm": predictions["lightgbm"],
-            "fusion_score": fusion_score,
+            "fusion_score": float(signal_filter["adjusted_probability"]),
+            "raw_fusion_score": fusion_score,
+            "signal_alignment": signal_filter["alignment"],
+            "position_multiplier": float(signal_filter["position_multiplier"]),
         },
         "feature_importance": feature_importance,
+        "signal_filter": signal_filter,
     }
 
-    historical_similarity = results["lightgbm"].get("historical_similarity")
     if historical_similarity:
         report["historical_similarity"] = historical_similarity
 
@@ -440,11 +448,13 @@ def train_all_models(
             lgbm_feature_matrix = lgbm_X
             historical_similarity = None
 
+        signal_filter = apply_similarity_signal_filter(lgbm_pred, historical_similarity)
         results["lightgbm"] = {
             "model": lgbm_model,
             "metrics": lgbm_metrics,
             "prediction": lgbm_pred,
             "feature_matrix": lgbm_feature_matrix,
+            "signal_filter": signal_filter,
         }
         if historical_similarity:
             results["lightgbm"]["historical_similarity"] = historical_similarity
@@ -526,9 +536,23 @@ def format_comparison_markdown(report: Dict[str, Any]) -> str:
     fusion_score = predictions.get("fusion_score")
     lightgbm_signal = "看涨" if _is_finite_number(lightgbm_pred) and float(lightgbm_pred) > 0.5 else "看跌"
     composite_signal = "看涨" if _is_finite_number(fusion_score) and float(fusion_score) > 0.5 else "看跌"
+    alignment = predictions.get("signal_alignment", "unavailable")
+    alignment_label = {
+        "confirmed": "方向共振",
+        "contradicted": "方向冲突",
+        "neutral": "方向中性",
+        "unavailable": "暂无确认",
+    }.get(str(alignment), "暂无确认")
+    position_multiplier = predictions.get("position_multiplier")
     lines.append(f"| LightGBM 概率 | {_format_percent_from_probability(lightgbm_pred)} ({lightgbm_signal if _is_finite_number(lightgbm_pred) else 'N/A'}) |")
     lines.append(f"| 综合信号 | {_format_percent_from_probability(fusion_score)} ({composite_signal if _is_finite_number(fusion_score) else 'N/A'}) |\n")
-    lines.append("当前系统已统一为单一 LightGBM 面板模型，综合信号等同于模型输出。\n")
+    if _is_finite_number(position_multiplier):
+        lines.append(
+            f"当前综合信号已叠加历史相似度双重确认，状态为 **{alignment_label}**，"
+            f"建议仓位系数约 **{float(position_multiplier):.2f}x**。\n"
+        )
+    else:
+        lines.append("当前系统已统一为单一 LightGBM 面板模型，综合信号等同于模型输出。\n")
 
     lines.append("## LightGBM 特征重要性\n")
     top_features = report.get("feature_importance", {}).get("lightgbm", {}).get("top_features", [])
@@ -598,6 +622,15 @@ def format_comparison_markdown(report: Dict[str, Any]) -> str:
         lines.append(
             f"- 当前标的 `{requested_symbol}` 的单票 AUC 暂不可用，说明验证期标签分布过于单边。"
         )
+    signal_filter = report.get("signal_filter", {})
+    if isinstance(signal_filter, dict):
+        alignment_label = {
+            "confirmed": "方向共振，可适度提高仓位",
+            "contradicted": "方向冲突，建议主动降仓",
+            "neutral": "方向中性，维持基础仓位",
+            "unavailable": "暂无相似度确认，维持基础仓位",
+        }.get(str(signal_filter.get("alignment", "unavailable")), "暂无相似度确认，维持基础仓位")
+        lines.append(f"- 相似度双重确认结果：{alignment_label}。")
     if _is_finite_number(mean_auc):
         if float(mean_auc) >= 0.60:
             lines.append("- 模型区分度较强，可以把概率信号作为优先参考。")
@@ -630,6 +663,21 @@ def format_predictions_for_agent(results: Dict[str, Dict]) -> str:
     lines.append(f"- **预测概率**: {pred_text}")
     lines.append(f"- **模型AUC**: {_format_float(metrics.get('mean_auc'))}")
     lines.append(f"- **模型准确率**: {_format_float(metrics.get('mean_accuracy'))}")
+    signal_filter = result.get("signal_filter")
+    if not isinstance(signal_filter, dict):
+        signal_filter = apply_similarity_signal_filter(pred, result.get("historical_similarity"))
+    if isinstance(signal_filter, dict):
+        adjusted_probability = signal_filter.get("adjusted_probability")
+        alignment_label = {
+            "confirmed": "方向共振",
+            "contradicted": "方向冲突",
+            "neutral": "方向中性",
+            "unavailable": "暂无确认",
+        }.get(str(signal_filter.get("alignment", "unavailable")), "暂无确认")
+        if _is_finite_number(adjusted_probability):
+            lines.append(
+                f"- **最终交易信号**: {float(adjusted_probability):.2%}，{alignment_label}，建议仓位系数 {float(signal_filter.get('position_multiplier', 1.0)):.2f}x"
+            )
     requested_symbol = metrics.get("requested_symbol")
     if _is_finite_number(metrics.get("requested_symbol_auc")) and requested_symbol:
         lines.append(

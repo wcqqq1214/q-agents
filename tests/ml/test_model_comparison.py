@@ -175,6 +175,9 @@ class TestGenerateComparisonReport:
 
         assert report["historical_similarity"]["n_matches"] == 2
         assert report["historical_similarity"]["matches"][0]["symbol"] == "MSFT"
+        assert report["predictions"]["fusion_score"] > report["predictions"]["lightgbm"]
+        assert report["predictions"]["signal_alignment"] == "confirmed"
+        assert report["predictions"]["position_multiplier"] == 1.25
 
 
 class TestFormatComparisonMarkdown:

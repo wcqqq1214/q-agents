@@ -117,9 +117,14 @@ def test_run_ml_quant_analysis_includes_historical_similarity(monkeypatch):
     result = quant_tool._run_ml_quant_analysis_impl("aapl")
 
     assert result["prediction"] == "up_big_move"
+    assert result["final_prediction"] == "up_big_move"
+    assert result["final_prob_up"] > result["prob_up"]
+    assert result["signal_filter"]["alignment"] == "confirmed"
+    assert result["signal_filter"]["position_multiplier"] == 1.25
     assert result["historical_similarity"]["n_matches"] == 2
     assert result["historical_similarity"]["matches"][0]["symbol"] == "MSFT"
     assert result["metrics"]["requested_symbol_auc"] == 0.64
     assert "历史相似阶段" in result["markdown_report"]
     assert "单票外样本表现" in result["markdown_report"]
+    assert "最终交易信号" in result["markdown_report"]
     assert "同股票优先、peer group 次优先、全市场兜底" in result["markdown_report"]

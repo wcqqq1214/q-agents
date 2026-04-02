@@ -182,3 +182,4 @@ def test_build_markdown_report_includes_historical_similarity_block():
     assert "MSFT" in markdown
     assert "随后 3 日收益" in markdown
     assert "同股票优先、peer group 次优先、全市场兜底" in markdown
+    assert "最终交易信号" in markdown

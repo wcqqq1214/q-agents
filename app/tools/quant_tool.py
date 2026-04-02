@@ -6,6 +6,7 @@ from typing import Any, Dict, TypedDict, cast
 from langchain_core.tools import tool
 
 from app.ml.features import PANEL_FEATURE_COLS, TEXT_BLOB_COL, build_panel_features
+from app.ml.signal_filter import SignalFilterSummary, apply_similarity_signal_filter
 from app.ml.model_trainer import predict_proba_latest, train_lightgbm_panel_with_text
 from app.ml.shap_explainer import (
     ShapSummary,
@@ -40,6 +41,10 @@ class MlQuantResult(TypedDict, total=False):
         prob_up: Estimated probability that the configured upside-event target
             occurs.
         prediction: Discrete label derived from ``prob_up``.
+        final_prob_up: Probability after the similarity-confirmation filter.
+        final_prediction: Final discrete label after the similarity filter.
+        signal_filter: Compact description of whether historical similarity
+            confirmed or contradicted the raw model direction.
         metrics: Dictionary with basic hold-out evaluation metrics such as
             accuracy and AUC.
         shap_insights: Compact SHAP summary as returned by
@@ -58,6 +63,9 @@ class MlQuantResult(TypedDict, total=False):
     data_source: str
     prob_up: float
     prediction: str
+    final_prob_up: float
+    final_prediction: str
+    signal_filter: SignalFilterSummary
     metrics: Dict[str, Any]
     shap_insights: ShapSummary
     markdown_report: str
@@ -138,6 +146,7 @@ def _run_ml_quant_analysis_impl(ticker: str) -> MlQuantResult:
             similarity_query,
             target_col=PANEL_TARGET_COL,
         )
+        signal_filter = apply_similarity_signal_filter(prob_up, historical_similarity)
 
         metrics = cast(Dict[str, Any], dict(metrics))
         metrics["n_symbols"] = int(train_df["symbol"].nunique())
@@ -163,6 +172,7 @@ def _run_ml_quant_analysis_impl(ticker: str) -> MlQuantResult:
             metrics=metrics,
             shap_summary=shap_summary,
             historical_similarity=historical_similarity,
+            signal_filter=signal_filter,
             target_label=PANEL_TARGET_LABEL,
             model_label="LightGBM Panel",
         )
@@ -177,9 +187,14 @@ def _run_ml_quant_analysis_impl(ticker: str) -> MlQuantResult:
         return base
 
     prediction = "up_big_move" if prob_up >= 0.5 else "no_up_big_move"
+    final_prob_up = float(signal_filter["adjusted_probability"])
+    final_prediction = "up_big_move" if final_prob_up >= 0.5 else "no_up_big_move"
 
     base["prob_up"] = float(prob_up)
     base["prediction"] = prediction
+    base["final_prob_up"] = final_prob_up
+    base["final_prediction"] = final_prediction
+    base["signal_filter"] = signal_filter
     base["metrics"] = cast(Dict[str, Any], metrics)
     base["shap_insights"] = shap_summary
     base["historical_similarity"] = historical_similarity
@@ -234,6 +249,12 @@ def run_ml_quant_analysis(ticker: str) -> MlQuantResult:
           than 2% within the next 3 trading days.
         - ``prediction``: ``\"up_big_move\"`` if ``prob_up >= 0.5`` else
           ``\"no_up_big_move\"``.
+        - ``final_prob_up``: Similarity-filtered probability used for the final
+          trading signal.
+        - ``final_prediction``: Final label after the similarity filter.
+        - ``signal_filter``: Whether historical similarity confirmed or
+          contradicted the raw model direction, plus a suggested position
+          multiplier.
         - ``metrics``: Dictionary with ``mean_auc``, ``mean_accuracy``,
           ``fold_aucs``, ``train_test_split`` (e.g. PanelTimeSeriesSplit_n5), and
           backward-compatible ``accuracy``/``auc``.

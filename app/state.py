@@ -16,7 +16,7 @@ class AgentState(TypedDict):
         run_id: Per-run identifier (YYYYMMDD_HHMMSS).
         run_dir: Per-run output directory path (data/reports/{run_id}_{asset}/).
         quant_report_obj/news_report_obj/social_report_obj: Structured dicts for CIO bundling.
-        quant_report_path/news_report_path/social_report_path/cio_report_path: Report file paths.
+        quant_report_path/news_report_path/social_report_path/cio_report_path/report_path: Report file paths.
         final_decision: Synthesized report from CIO_Agent (no tools).
     """
 
@@ -33,4 +33,5 @@ class AgentState(TypedDict):
     news_report_path: NotRequired[str]
     social_report_path: NotRequired[str]
     cio_report_path: NotRequired[str]
+    report_path: NotRequired[str]
     final_decision: NotRequired[str]

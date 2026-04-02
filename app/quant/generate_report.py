@@ -9,6 +9,7 @@ The output is structured JSON in English for agent-to-agent consumption.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Literal, TypedDict, cast
@@ -22,6 +23,7 @@ from app.tools.local_tools import get_local_stock_data
 from app.tools.quant_tool import run_ml_quant_analysis
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 TrendLabel = Literal["bullish", "bearish", "neutral"]
@@ -35,6 +37,7 @@ class QuantBundle(TypedDict, total=False):
     indicators: Dict[str, Any]
     levels: Dict[str, Any]
     summary: str
+    ml_quant: Dict[str, Any]
     report_path: str
 
 
@@ -85,6 +88,138 @@ def _extract_json_object(text: str) -> Dict[str, Any]:
     raise ValueError("No valid JSON object found in model output.")
 
 
+def _safe_float(value: Any) -> float | None:
+    """Return a float for numeric-like values; otherwise ``None``."""
+
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _fallback_trend_from_indicators(indicators: Dict[str, Any]) -> TrendLabel:
+    """Infer a coarse trend label directly from indicator values."""
+
+    last_close = _safe_float(indicators.get("last_close"))
+    sma_20 = _safe_float(indicators.get("sma_20"))
+    macd_line = _safe_float(indicators.get("macd_line"))
+    macd_signal = _safe_float(indicators.get("macd_signal"))
+
+    bullish = (
+        last_close is not None
+        and sma_20 is not None
+        and macd_line is not None
+        and macd_signal is not None
+        and last_close >= sma_20
+        and macd_line >= macd_signal
+    )
+    bearish = (
+        last_close is not None
+        and sma_20 is not None
+        and macd_line is not None
+        and macd_signal is not None
+        and last_close < sma_20
+        and macd_line < macd_signal
+    )
+    if bullish:
+        return "bullish"
+    if bearish:
+        return "bearish"
+    return "neutral"
+
+
+def _fallback_levels_from_indicators(indicators: Dict[str, Any]) -> Dict[str, float | None]:
+    """Infer simple support and resistance levels from available indicators."""
+
+    support = _safe_float(indicators.get("bb_lower"))
+    resistance = _safe_float(indicators.get("bb_upper"))
+    if support is None:
+        support = _safe_float(indicators.get("sma_20"))
+    if resistance is None:
+        resistance = _safe_float(indicators.get("sma_20"))
+    return {"support": support, "resistance": resistance}
+
+
+def _fallback_summary_from_indicators(asset: str, indicators: Dict[str, Any], trend: TrendLabel) -> str:
+    """Build a deterministic English fallback summary from local indicators."""
+
+    if "error" in indicators:
+        return f"{asset} fallback summary: local technical snapshot unavailable; rely on raw quant indicators and ML block."
+
+    price_relation = "near"  # Default keeps summary short if data is partial.
+    last_close = _safe_float(indicators.get("last_close"))
+    sma_20 = _safe_float(indicators.get("sma_20"))
+    if last_close is not None and sma_20 is not None:
+        if last_close > sma_20:
+            price_relation = "above"
+        elif last_close < sma_20:
+            price_relation = "below"
+
+    macd_line = _safe_float(indicators.get("macd_line"))
+    macd_signal = _safe_float(indicators.get("macd_signal"))
+    macd_bias = "mixed"
+    if macd_line is not None and macd_signal is not None:
+        macd_bias = "positive MACD" if macd_line >= macd_signal else "negative MACD"
+
+    return f"{asset} fallback technical view: {trend}, price {price_relation} SMA20, {macd_bias}; check embedded ML block before trading."
+
+
+def _summarize_quant_snapshot(asset: str, indicators: Dict[str, Any]) -> tuple[TrendLabel, Dict[str, Any], str]:
+    """Produce a robust quant summary with retry and deterministic fallback."""
+
+    system = (
+        "You are a technical analyst. Given an indicators snapshot JSON, produce a strict JSON object with keys:\n"
+        "- trend: bullish|bearish|neutral\n"
+        "- levels: {support: number|null, resistance: number|null}\n"
+        "- summary: one English sentence (<= 25 words)\n"
+        "Output ONLY JSON."
+    )
+    base_prompt = (
+        f"Asset: {asset}\nIndicators JSON:\n{json.dumps(indicators, ensure_ascii=False)}\n"
+    )
+
+    llm = create_llm()
+    last_error: Exception | None = None
+
+    for attempt in range(2):
+        prompt = base_prompt
+        if attempt > 0 and last_error is not None:
+            prompt += (
+                "\nYour previous response could not be parsed as the required JSON object.\n"
+                f"Parser error: {type(last_error).__name__}: {last_error}\n"
+                "Return ONLY valid JSON that matches the schema."
+            )
+        try:
+            resp = llm.invoke([SystemMessage(content=system), HumanMessage(content=prompt)])
+            content = cast(str, getattr(resp, "content", "") or "").strip()
+            obj = _extract_json_object(content)
+
+            trend = obj.get("trend", "neutral")
+            if trend not in ("bullish", "bearish", "neutral"):
+                trend = "neutral"
+
+            levels_raw = obj.get("levels")
+            levels = levels_raw if isinstance(levels_raw, dict) else {}
+            summary = obj.get("summary")
+            summary_str = str(summary).strip() if isinstance(summary, str) and summary.strip() else ""
+            if not summary_str:
+                summary_str = _fallback_summary_from_indicators(asset, indicators, cast(TrendLabel, trend))
+            return cast(TrendLabel, trend), levels, summary_str
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+
+    trend = _fallback_trend_from_indicators(indicators)
+    levels = _fallback_levels_from_indicators(indicators)
+    summary = _fallback_summary_from_indicators(asset, indicators, trend)
+    if last_error is not None:
+        logger.warning(
+            "Quant summary generation fell back to deterministic rules for %s after parse failure: %s: %s",
+            asset,
+            type(last_error).__name__,
+            last_error,
+        )
+    return trend, levels, summary
+
+
 def generate_report(asset: str, run_dir: str) -> QuantBundle:
     """Generate the Quant report and persist it as `quant.json` inside run_dir."""
 
@@ -105,30 +240,7 @@ def generate_report(asset: str, run_dir: str) -> QuantBundle:
     # Determine actual data source
     actual_source = "local_database" if "error" not in indicators else "unknown"
 
-    system = (
-        "You are a technical analyst. Given an indicators snapshot JSON, produce a strict JSON object with keys:\n"
-        "- trend: bullish|bearish|neutral\n"
-        "- levels: {support: number|null, resistance: number|null}\n"
-        "- summary: one English sentence (<= 25 words)\n"
-        "Output ONLY JSON."
-    )
-    prompt = (
-        f"Asset: {asset_norm}\nIndicators JSON:\n{json.dumps(indicators, ensure_ascii=False)}\n"
-    )
-
-    llm = create_llm()
-    resp = llm.invoke([SystemMessage(content=system), HumanMessage(content=prompt)])
-    content = cast(str, getattr(resp, "content", "") or "").strip()
-    obj = _extract_json_object(content)
-
-    trend = obj.get("trend", "neutral")
-    if trend not in ("bullish", "bearish", "neutral"):
-        trend = "neutral"
-
-    levels_raw = obj.get("levels")
-    levels = levels_raw if isinstance(levels_raw, dict) else {}
-    summary = obj.get("summary")
-    summary_str = str(summary).strip() if isinstance(summary, str) and summary.strip() else ""
+    trend, levels, summary_str = _summarize_quant_snapshot(asset_norm, indicators)
 
     # Run the ML quant analysis tool to enrich the bundle with an ml_quant block.
     try:

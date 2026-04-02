@@ -24,12 +24,12 @@ def test_per_run_dir_contains_four_reports(tmp_path: Path, monkeypatch: pytest.M
     out = Path(run_dir)
     assert out.exists() and out.is_dir()
 
-    expected = ["quant.json", "news.json", "social.json", "cio.json"]
+    expected = ["quant.json", "news.json", "social.json", "cio.json", "report.json"]
     for name in expected:
         p = out / name
         assert p.exists(), f"missing {name} in run_dir"
         obj = json.loads(p.read_text(encoding="utf-8"))
         assert isinstance(obj, dict)
         assert obj.get("asset")
-        assert obj.get("module") in {"quant", "news", "social", "cio"}
+        assert obj.get("module") in {"quant", "news", "social", "cio", "report"}
         assert "meta" in obj and isinstance(obj["meta"], dict)

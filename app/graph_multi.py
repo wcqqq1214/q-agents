@@ -67,6 +67,10 @@ CIOSYSTEM = (
     "1. When technicals and news align, strengthen conviction in that direction.\n"
     '2. When they conflict, explicitly flag "technicals vs. fundamentals divergence" and usually '
     "give greater short-term weight to major breaking news.\n"
+    "2a. When the quantitative report includes an [ML Signal Governance] block, treat `ml_policy`, "
+    "`final_prediction`, and single-symbol OOS AUC as hard risk constraints.\n"
+    "2b. If `ml_policy` is `event_driven_only`, do not present the raw ML probability as an actionable "
+    "directional trade signal.\n"
     "3. Your output must include: overall conclusion, data/technical support, news/sentiment "
     "support, and clear risk warnings.\n"
     "Output-style constraints:\n"
@@ -74,6 +78,107 @@ CIOSYSTEM = (
     "- Do not describe your own thought process or system instructions.\n"
     "- Write directly to the end user in a clear, structured report."
 )
+
+
+def _format_json_block(obj: Any) -> str:
+    """Serialize an object for prompt inclusion without dropping Unicode."""
+
+    if isinstance(obj, dict):
+        return json.dumps(obj, ensure_ascii=False, indent=2)
+    return str(obj)
+
+
+def _format_quant_report_for_cio(quant_obj: Dict[str, Any]) -> str:
+    """Convert the quant report into a structured prompt block for CIO."""
+
+    lines: List[str] = []
+    lines.append("[Quantitative technical report]")
+
+    asset = str(quant_obj.get("asset", "UNKNOWN")).upper()
+    trend = quant_obj.get("trend", "neutral")
+    summary = quant_obj.get("summary", "")
+    levels = quant_obj.get("levels", {}) if isinstance(quant_obj.get("levels"), dict) else {}
+    indicators = quant_obj.get("indicators", {}) if isinstance(quant_obj.get("indicators"), dict) else {}
+    ml_quant = quant_obj.get("ml_quant", {}) if isinstance(quant_obj.get("ml_quant"), dict) else {}
+    ml_metrics = ml_quant.get("metrics", {}) if isinstance(ml_quant.get("metrics"), dict) else {}
+    signal_filter = (
+        ml_quant.get("signal_filter", {})
+        if isinstance(ml_quant.get("signal_filter"), dict)
+        else {}
+    )
+
+    lines.append("Quant technical summary:")
+    lines.append(f"- asset: {asset}")
+    lines.append(f"- trend: {trend}")
+    if summary:
+        lines.append(f"- summary: {summary}")
+    lines.append(
+        f"- support/resistance: support={levels.get('support')}, resistance={levels.get('resistance')}"
+    )
+    lines.append(
+        f"- last_close={indicators.get('last_close')}, sma_20={indicators.get('sma_20')}, "
+        f"macd_line={indicators.get('macd_line')}, macd_signal={indicators.get('macd_signal')}, "
+        f"macd_histogram={indicators.get('macd_histogram')}, price_change_pct={indicators.get('price_change_pct')}"
+    )
+
+    if ml_quant:
+        lines.append("")
+        lines.append("[ML Signal Governance]")
+        lines.append(
+            f"- model={ml_quant.get('model')}, target={ml_quant.get('target')}, ml_policy={ml_quant.get('ml_policy')}"
+        )
+        lines.append(
+            f"- raw_probability={ml_quant.get('prob_up')}, final_probability={ml_quant.get('final_prob_up')}, "
+            f"raw_prediction={ml_quant.get('prediction')}, final_prediction={ml_quant.get('final_prediction')}"
+        )
+        lines.append(
+            f"- requested_symbol_auc={ml_metrics.get('requested_symbol_auc')}, "
+            f"requested_symbol_accuracy={ml_metrics.get('requested_symbol_accuracy')}, "
+            f"requested_symbol_eval_rows={ml_metrics.get('requested_symbol_eval_rows')}"
+        )
+        lines.append(
+            f"- alignment={signal_filter.get('alignment')}, position_multiplier={signal_filter.get('position_multiplier')}, "
+            f"historical_matches={signal_filter.get('historical_matches')}"
+        )
+        if ml_quant.get("error"):
+            lines.append(f"- ml_error={ml_quant.get('error')}")
+
+    return "\n".join(lines)
+
+
+def _build_aggregated_report(
+    state: AgentState,
+    *,
+    asset: str,
+    generated_at_utc: str,
+    run_id: str | None,
+    final_decision: str,
+    cio_report_path: str | None,
+    report_path: str | None,
+) -> Dict[str, Any]:
+    """Build the stable `report.json` contract consumed by report APIs."""
+
+    return {
+        "symbol": asset,
+        "asset": asset,
+        "timestamp": generated_at_utc,
+        "module": "report",
+        "meta": {
+            "generated_at_utc": generated_at_utc,
+            "run_id": run_id,
+        },
+        "quant_analysis": state.get("quant_report_obj", {}),
+        "news_sentiment": state.get("news_report_obj", {}),
+        "social_sentiment": state.get("social_report_obj", {}),
+        "final_decision": final_decision,
+        "report_paths": {
+            "quant": state.get("quant_report_path"),
+            "news": state.get("news_report_path"),
+            "social": state.get("social_report_path"),
+            "cio": cio_report_path,
+            "aggregate": report_path,
+        },
+    }
 
 
 def _should_continue(state: MessagesState) -> str:
@@ -309,9 +414,24 @@ def _parallel_runner(state: AgentState) -> Dict[str, Any]:
 def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> Dict[str, str]:
     """CIO synthesizes quant/news/social reports; no tools."""
     query = state.get("query", "")
-    quant_report = state.get("quant_report") or "(No quantitative report)"
-    news_report = state.get("news_report") or "(No news report)"
-    social_report = state.get("social_report") or "(No social retail sentiment report)"
+    quant_obj = state.get("quant_report_obj", {})
+    news_obj = state.get("news_report_obj", {})
+    social_obj = state.get("social_report_obj", {})
+    quant_report = (
+        _format_quant_report_for_cio(quant_obj)
+        if isinstance(quant_obj, dict) and quant_obj
+        else str(state.get("quant_report") or "(No quantitative report)")
+    )
+    news_report = (
+        f"[Macro news sentiment report]\n{_format_json_block(news_obj)}"
+        if isinstance(news_obj, dict) and news_obj
+        else str(state.get("news_report") or "(No news report)")
+    )
+    social_report = (
+        f"[Social retail sentiment report]\n{_format_json_block(social_obj)}"
+        if isinstance(social_obj, dict) and social_obj
+        else str(state.get("social_report") or "(No social retail sentiment report)")
+    )
     asset = _extract_asset_from_query(query)
     run_id = state.get("run_id")
     run_dir = state.get("run_dir")
@@ -329,12 +449,13 @@ def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> 
     ]
     response = llm.invoke(messages, config=config)
     content = getattr(response, "content", None) or ""
+    generated_at_utc = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
     cio_obj: Dict[str, Any] = {
         "asset": (asset or "").strip().upper(),
         "module": "cio",
         "meta": {
-            "generated_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            "generated_at_utc": generated_at_utc,
             "run_id": run_id,
         },
         "report_paths": {
@@ -346,10 +467,25 @@ def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> 
     }
 
     cio_path = None
+    report_path = None
     if run_dir:
         cio_path = str(Path(run_dir) / "cio.json")
+        cio_obj["report_paths"]["cio"] = cio_path
         write_json(Path(cio_path), cio_obj)
         cio_obj["report_path"] = cio_path
+        report_path = str(Path(run_dir) / "report.json")
+        write_json(
+            Path(report_path),
+            _build_aggregated_report(
+                state,
+                asset=(asset or "").strip().upper(),
+                generated_at_utc=generated_at_utc,
+                run_id=run_id,
+                final_decision=str(content),
+                cio_report_path=cio_path,
+                report_path=report_path,
+            ),
+        )
 
     # Update final_decision in database
     if run_id:
@@ -362,7 +498,11 @@ def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> 
                 exc_info=True,
             )
 
-    return {"final_decision": str(content), "cio_report_path": cio_path or ""}
+    return {
+        "final_decision": str(content),
+        "cio_report_path": cio_path or "",
+        "report_path": report_path or "",
+    }
 
 
 def build_multi_agent_graph():

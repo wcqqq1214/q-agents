@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import time
 from typing import Dict, List, Sequence, Tuple
 
@@ -57,6 +58,69 @@ def _combine_feature_frames(X: pd.DataFrame, text_features: pd.DataFrame) -> pd.
     base = X.reset_index(drop=True)
     text = text_features.reset_index(drop=True)
     return pd.concat([base, text], axis=1)
+
+
+def _safe_binary_auc(y_true: pd.Series | np.ndarray, proba: Sequence[float] | np.ndarray) -> float:
+    """Return ROC AUC when both classes exist; otherwise return NaN."""
+
+    y_series = pd.Series(y_true).reset_index(drop=True)
+    if y_series.nunique(dropna=False) < 2:
+        return float("nan")
+
+    try:
+        return float(roc_auc_score(y_series, np.asarray(proba)))
+    except Exception:
+        return float("nan")
+
+
+def _build_panel_oof_frame(
+    X_test: pd.DataFrame,
+    y_test: pd.Series,
+    trade_dates: pd.Series,
+    y_pred: Sequence[int] | np.ndarray,
+    proba: Sequence[float] | np.ndarray,
+) -> pd.DataFrame:
+    """Build an out-of-fold evaluation frame for panel metrics."""
+
+    frame = pd.DataFrame(
+        {
+            "trade_date": pd.to_datetime(pd.Series(trade_dates)).reset_index(drop=True),
+            "y_true": pd.Series(y_test).reset_index(drop=True).astype(int),
+            "y_pred": pd.Series(y_pred).reset_index(drop=True).astype(int),
+            "y_proba": pd.Series(proba).reset_index(drop=True).astype(float),
+        }
+    )
+    if "symbol" in X_test.columns:
+        frame["symbol"] = X_test["symbol"].astype(str).reset_index(drop=True)
+    return frame
+
+
+def _summarize_panel_symbol_metrics(
+    oof_frame: pd.DataFrame,
+) -> tuple[Dict[str, float], Dict[str, float], Dict[str, int], List[str]]:
+    """Aggregate per-symbol OOS metrics from concatenated panel test folds."""
+
+    if oof_frame.empty or "symbol" not in oof_frame.columns:
+        return {}, {}, {}, []
+
+    per_ticker_auc: Dict[str, float] = {}
+    per_ticker_accuracy: Dict[str, float] = {}
+    per_ticker_eval_rows: Dict[str, int] = {}
+    per_ticker_auc_unavailable: List[str] = []
+
+    grouped = oof_frame.groupby("symbol", sort=True, observed=False)
+    for symbol, group in grouped:
+        symbol_key = str(symbol)
+        per_ticker_eval_rows[symbol_key] = int(len(group))
+        per_ticker_accuracy[symbol_key] = float(accuracy_score(group["y_true"], group["y_pred"]))
+
+        auc = _safe_binary_auc(group["y_true"], group["y_proba"])
+        if math.isfinite(auc):
+            per_ticker_auc[symbol_key] = auc
+        else:
+            per_ticker_auc_unavailable.append(symbol_key)
+
+    return per_ticker_auc, per_ticker_accuracy, per_ticker_eval_rows, per_ticker_auc_unavailable
 
 
 def train_lightgbm(
@@ -174,6 +238,7 @@ def train_lightgbm_panel(
     tss = TimeSeriesSplit(n_splits=n_splits)
     fold_aucs: List[float] = []
     fold_accuracies: List[float] = []
+    oof_frames: List[pd.DataFrame] = []
 
     start_time = time.time()
     for train_idx, test_idx in tss.split(unique_dates):
@@ -195,10 +260,20 @@ def train_lightgbm_panel(
 
         try:
             proba = model.predict_proba(X_test)[:, 1]
-            auc = float(roc_auc_score(y_test, proba))
         except Exception:
-            auc = float("nan")
+            proba = np.full(len(X_test), np.nan)
+
+        auc = _safe_binary_auc(y_test, proba)
         fold_aucs.append(auc)
+        oof_frames.append(
+            _build_panel_oof_frame(
+                X_test,
+                y_test,
+                date_series.loc[test_mask],
+                y_pred,
+                proba,
+            )
+        )
 
     if not fold_accuracies:
         raise ValueError("Panel TimeSeriesSplit produced no folds.")
@@ -208,6 +283,10 @@ def train_lightgbm_panel(
 
     mean_auc = float(np.nanmean(fold_aucs))
     mean_accuracy = float(np.mean(fold_accuracies))
+    oof_frame = pd.concat(oof_frames, ignore_index=True) if oof_frames else pd.DataFrame()
+    per_ticker_auc, per_ticker_accuracy, per_ticker_eval_rows, per_ticker_auc_unavailable = (
+        _summarize_panel_symbol_metrics(oof_frame)
+    )
 
     metrics: Dict[str, float | str | List[float] | int] = {
         "mean_auc": mean_auc,
@@ -222,6 +301,12 @@ def train_lightgbm_panel(
         "auc": mean_auc,
         "training_time_seconds": training_time_seconds,
     }
+    if per_ticker_eval_rows:
+        metrics["per_ticker_auc"] = per_ticker_auc
+        metrics["per_ticker_accuracy"] = per_ticker_accuracy
+        metrics["per_ticker_eval_rows"] = per_ticker_eval_rows
+        if per_ticker_auc_unavailable:
+            metrics["per_ticker_auc_unavailable"] = per_ticker_auc_unavailable
     return model, metrics
 
 
@@ -266,6 +351,7 @@ def train_lightgbm_panel_with_text(
     tss = TimeSeriesSplit(n_splits=n_splits)
     fold_aucs: List[float] = []
     fold_accuracies: List[float] = []
+    oof_frames: List[pd.DataFrame] = []
 
     start_time = time.time()
     for train_idx, test_idx in tss.split(unique_dates):
@@ -297,10 +383,20 @@ def train_lightgbm_panel_with_text(
 
         try:
             proba = model.predict_proba(X_test)[:, 1]
-            auc = float(roc_auc_score(y_test, proba))
         except Exception:
-            auc = float("nan")
+            proba = np.full(len(X_test), np.nan)
+
+        auc = _safe_binary_auc(y_test, proba)
         fold_aucs.append(auc)
+        oof_frames.append(
+            _build_panel_oof_frame(
+                X_test_num,
+                y_test,
+                date_series.loc[test_mask],
+                y_pred,
+                proba,
+            )
+        )
 
     if not fold_accuracies:
         raise ValueError("Panel TimeSeriesSplit produced no folds.")
@@ -316,6 +412,10 @@ def train_lightgbm_panel_with_text(
 
     mean_auc = float(np.nanmean(fold_aucs))
     mean_accuracy = float(np.mean(fold_accuracies))
+    oof_frame = pd.concat(oof_frames, ignore_index=True) if oof_frames else pd.DataFrame()
+    per_ticker_auc, per_ticker_accuracy, per_ticker_eval_rows, per_ticker_auc_unavailable = (
+        _summarize_panel_symbol_metrics(oof_frame)
+    )
 
     metrics: Dict[str, float | str | List[float] | int] = {
         "mean_auc": mean_auc,
@@ -331,6 +431,12 @@ def train_lightgbm_panel_with_text(
         "auc": mean_auc,
         "training_time_seconds": training_time_seconds,
     }
+    if per_ticker_eval_rows:
+        metrics["per_ticker_auc"] = per_ticker_auc
+        metrics["per_ticker_accuracy"] = per_ticker_accuracy
+        metrics["per_ticker_eval_rows"] = per_ticker_eval_rows
+        if per_ticker_auc_unavailable:
+            metrics["per_ticker_auc_unavailable"] = per_ticker_auc_unavailable
     return model, metrics, text_artifacts, X_full
 
 

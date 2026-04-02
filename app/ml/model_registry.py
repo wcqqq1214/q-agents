@@ -54,6 +54,40 @@ def _format_percent_from_probability(value: Any) -> str:
     return f"{float(value) * 100:.1f}%"
 
 
+def _extract_requested_symbol_metrics(metrics: Dict[str, Any], symbol: str | None) -> Dict[str, Any]:
+    """Return single-symbol OOS metrics derived from panel evaluation artifacts."""
+
+    if not symbol:
+        return {}
+
+    symbol_norm = str(symbol).strip().upper()
+    payload: Dict[str, Any] = {"requested_symbol": symbol_norm}
+
+    per_ticker_auc = metrics.get("per_ticker_auc", {})
+    if isinstance(per_ticker_auc, dict):
+        symbol_auc = per_ticker_auc.get(symbol_norm)
+        if _is_finite_number(symbol_auc):
+            payload["requested_symbol_auc"] = float(symbol_auc)
+
+    per_ticker_accuracy = metrics.get("per_ticker_accuracy", {})
+    if isinstance(per_ticker_accuracy, dict):
+        symbol_accuracy = per_ticker_accuracy.get(symbol_norm)
+        if _is_finite_number(symbol_accuracy):
+            payload["requested_symbol_accuracy"] = float(symbol_accuracy)
+
+    per_ticker_eval_rows = metrics.get("per_ticker_eval_rows", {})
+    if isinstance(per_ticker_eval_rows, dict):
+        symbol_eval_rows = per_ticker_eval_rows.get(symbol_norm)
+        if isinstance(symbol_eval_rows, (int, float, np.integer, np.floating)) and math.isfinite(float(symbol_eval_rows)):
+            payload["requested_symbol_eval_rows"] = int(symbol_eval_rows)
+
+    unavailable = metrics.get("per_ticker_auc_unavailable", [])
+    if isinstance(unavailable, list):
+        payload["requested_symbol_auc_unavailable"] = symbol_norm in {str(item).strip().upper() for item in unavailable}
+
+    return payload
+
+
 def _normalize_model_types(model_types: List[str] | None) -> List[ModelType]:
     """Validate supported model types.
 
@@ -273,6 +307,9 @@ def generate_comparison_report(
     lgbm_metrics = metrics["lightgbm"]
     if "mean_auc" not in lgbm_metrics:
         raise ValueError("Model lightgbm missing 'mean_auc' in metrics")
+    lgbm_metrics = dict(lgbm_metrics)
+    lgbm_metrics.update(_extract_requested_symbol_metrics(lgbm_metrics, symbol))
+    metrics["lightgbm"] = lgbm_metrics
 
     lgbm_model = results["lightgbm"]["model"]
     parameters = {
@@ -388,6 +425,7 @@ def train_all_models(
             lgbm_metrics = dict(lgbm_metrics)
             lgbm_metrics["training_scope"] = DEFAULT_LIGHTGBM_SCOPE
             lgbm_metrics["target"] = DEFAULT_SYMBOL_TARGET_COL
+            lgbm_metrics.update(_extract_requested_symbol_metrics(lgbm_metrics, symbol_norm))
             historical_similarity = _build_historical_similarity_summary(
                 train_df=lgbm_train_df if lgbm_train_df is not None else pd.DataFrame(),
                 train_feature_matrix=lgbm_feature_matrix,
@@ -463,10 +501,23 @@ def format_comparison_markdown(report: Dict[str, Any]) -> str:
     lines.append("|------|------|")
     lines.append(f"| Mean AUC | {_format_float(metrics.get('mean_auc'))} |")
     lines.append(f"| Mean Accuracy | {_format_float(metrics.get('mean_accuracy'))} |")
+    requested_symbol = metrics.get("requested_symbol", metadata.get("symbol"))
+    lines.append(f"| 当前标的 OOS AUC | {_format_float(metrics.get('requested_symbol_auc'))} |")
+    lines.append(f"| 当前标的 OOS Accuracy | {_format_float(metrics.get('requested_symbol_accuracy'))} |")
+    requested_eval_rows = metrics.get("requested_symbol_eval_rows")
+    if isinstance(requested_eval_rows, (int, float, np.integer, np.floating)) and math.isfinite(float(requested_eval_rows)):
+        requested_eval_rows_str = str(int(requested_eval_rows))
+    else:
+        requested_eval_rows_str = "N/A"
+    lines.append(f"| 当前标的验证样本数 | {requested_eval_rows_str} |")
     training_time = metrics.get("training_time_seconds", metrics.get("training_time", "N/A"))
     training_time_str = f"{float(training_time):.2f}秒" if _is_finite_number(training_time) else "N/A"
     lines.append(f"| Training Time | {training_time_str} |")
     lines.append(f"| Cross Validation | {metrics.get('train_test_split', 'N/A')} |\n")
+    if metrics.get("requested_symbol_auc_unavailable") and requested_symbol:
+        lines.append(
+            f"注：`{requested_symbol}` 在当前外样本折中缺少正负双边标签，单票 AUC 暂不可用。\n"
+        )
 
     lines.append("## 最新预测信号\n")
     lines.append("| 项目 | 数值 |")
@@ -537,6 +588,16 @@ def format_comparison_markdown(report: Dict[str, Any]) -> str:
     lines.append("## 综合评估\n")
     lines.append("- 当前量化系统已统一为单一 LightGBM 面板模型。")
     mean_auc = metrics.get("mean_auc")
+    requested_symbol_auc = metrics.get("requested_symbol_auc")
+    if _is_finite_number(requested_symbol_auc) and requested_symbol:
+        lines.append(
+            f"- 当前标的 `{requested_symbol}` 的外样本 AUC 为 {_format_float(requested_symbol_auc)}，"
+            "应优先以此判断单票信号可信度。"
+        )
+    elif metrics.get("requested_symbol_auc_unavailable") and requested_symbol:
+        lines.append(
+            f"- 当前标的 `{requested_symbol}` 的单票 AUC 暂不可用，说明验证期标签分布过于单边。"
+        )
     if _is_finite_number(mean_auc):
         if float(mean_auc) >= 0.60:
             lines.append("- 模型区分度较强，可以把概率信号作为优先参考。")
@@ -569,6 +630,13 @@ def format_predictions_for_agent(results: Dict[str, Dict]) -> str:
     lines.append(f"- **预测概率**: {pred_text}")
     lines.append(f"- **模型AUC**: {_format_float(metrics.get('mean_auc'))}")
     lines.append(f"- **模型准确率**: {_format_float(metrics.get('mean_accuracy'))}")
+    requested_symbol = metrics.get("requested_symbol")
+    if _is_finite_number(metrics.get("requested_symbol_auc")) and requested_symbol:
+        lines.append(
+            f"- **当前标的OOS AUC**: `{requested_symbol}` = {_format_float(metrics.get('requested_symbol_auc'))}"
+        )
+    elif metrics.get("requested_symbol_auc_unavailable") and requested_symbol:
+        lines.append(f"- **当前标的OOS AUC**: `{requested_symbol}` 暂不可用（验证期单边标签）")
 
     if metrics.get("training_scope") == DEFAULT_LIGHTGBM_SCOPE:
         lines.append("- **分析依据**: 基于全市场 panel 因子、市场残差、文本 SVD 和近期动量")

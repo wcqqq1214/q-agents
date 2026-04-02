@@ -181,6 +181,10 @@ def test_train_lightgbm_panel_with_categorical_symbol():
     assert metrics["train_test_split"] == "PanelTimeSeriesSplit_n3"
     assert metrics["cv_unit"] == "trade_date"
     assert metrics["n_unique_dates"] == 120
+    assert set(metrics["per_ticker_auc"]) == {"AAPL", "MSFT"}
+    assert set(metrics["per_ticker_accuracy"]) == {"AAPL", "MSFT"}
+    assert metrics["per_ticker_eval_rows"]["AAPL"] > 0
+    assert metrics["per_ticker_eval_rows"]["MSFT"] > 0
 
     proba = predict_proba_latest(model, X.tail(1))
     assert isinstance(proba, float)

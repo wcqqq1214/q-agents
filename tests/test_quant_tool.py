@@ -66,7 +66,14 @@ def test_run_ml_quant_analysis_includes_historical_similarity(monkeypatch):
         feature_matrix = X.copy()
         for i in range(10):
             feature_matrix[f"text_svd_{i}"] = 0.0
-        return object(), {"mean_auc": 0.61, "mean_accuracy": 0.56, "text_svd_components": 10}, None, feature_matrix
+        return object(), {
+            "mean_auc": 0.61,
+            "mean_accuracy": 0.56,
+            "text_svd_components": 10,
+            "per_ticker_auc": {"AAPL": 0.64, "MSFT": 0.58},
+            "per_ticker_accuracy": {"AAPL": 0.61, "MSFT": 0.54},
+            "per_ticker_eval_rows": {"AAPL": 22, "MSFT": 22},
+        }, None, feature_matrix
 
     monkeypatch.setattr(quant_tool, "train_lightgbm_panel_with_text", fake_train_lightgbm_panel_with_text)
     monkeypatch.setattr(quant_tool, "transform_text_svd_features", lambda text, artifacts: pd.DataFrame(0.0, index=text.index, columns=[f"text_svd_{i}" for i in range(10)]))
@@ -112,5 +119,7 @@ def test_run_ml_quant_analysis_includes_historical_similarity(monkeypatch):
     assert result["prediction"] == "up_big_move"
     assert result["historical_similarity"]["n_matches"] == 2
     assert result["historical_similarity"]["matches"][0]["symbol"] == "MSFT"
+    assert result["metrics"]["requested_symbol_auc"] == 0.64
     assert "历史相似阶段" in result["markdown_report"]
+    assert "单票外样本表现" in result["markdown_report"]
     assert "同股票优先、peer group 次优先、全市场兜底" in result["markdown_report"]

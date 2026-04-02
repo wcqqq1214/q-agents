@@ -226,6 +226,28 @@ def build_markdown_report(
         f"- **历史表现（{validation_note}）**：平均 Accuracy ≈ {acc_str}，AUC ≈ {auc_str} "
         "(仅供参考，不构成收益承诺)。"
     )
+    requested_symbol = str(metrics.get("requested_symbol", ticker)).upper()
+    requested_symbol_auc = metrics.get("requested_symbol_auc")
+    requested_symbol_accuracy = metrics.get("requested_symbol_accuracy")
+    requested_symbol_eval_rows = metrics.get("requested_symbol_eval_rows")
+    if isinstance(requested_symbol_auc, (float, int)):
+        ticker_auc_str = f"{float(requested_symbol_auc):.3f}"
+        ticker_acc_str = (
+            f"{float(requested_symbol_accuracy):.3f}"
+            if isinstance(requested_symbol_accuracy, (float, int))
+            else "N/A"
+        )
+        sample_note = ""
+        if isinstance(requested_symbol_eval_rows, (float, int)):
+            sample_note = f"，验证样本数约 {int(requested_symbol_eval_rows)} 条"
+        lines.append(
+            f"- **单票外样本表现**：`{requested_symbol}` 的 OOS AUC ≈ {ticker_auc_str}，"
+            f"Accuracy ≈ {ticker_acc_str}{sample_note}。"
+        )
+    elif metrics.get("requested_symbol_auc_unavailable"):
+        lines.append(
+            f"- **单票外样本表现**：`{requested_symbol}` 在当前验证窗口中标签过于单边，OOS AUC 暂不可用。"
+        )
     lines.append("")
     lines.append("### 核心看多驱动力（Top 正向特征）")
     lines.append("")

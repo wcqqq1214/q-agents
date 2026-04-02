@@ -142,6 +142,21 @@ def _run_ml_quant_analysis_impl(ticker: str) -> MlQuantResult:
         metrics = cast(Dict[str, Any], dict(metrics))
         metrics["n_symbols"] = int(train_df["symbol"].nunique())
         metrics["text_features"] = metrics.get("text_svd_components", 0)
+        metrics["requested_symbol"] = normalized
+        per_ticker_auc = metrics.get("per_ticker_auc", {})
+        if isinstance(per_ticker_auc, dict) and normalized in per_ticker_auc:
+            metrics["requested_symbol_auc"] = float(per_ticker_auc[normalized])
+        per_ticker_accuracy = metrics.get("per_ticker_accuracy", {})
+        if isinstance(per_ticker_accuracy, dict) and normalized in per_ticker_accuracy:
+            metrics["requested_symbol_accuracy"] = float(per_ticker_accuracy[normalized])
+        per_ticker_eval_rows = metrics.get("per_ticker_eval_rows", {})
+        if isinstance(per_ticker_eval_rows, dict) and normalized in per_ticker_eval_rows:
+            metrics["requested_symbol_eval_rows"] = int(per_ticker_eval_rows[normalized])
+        per_ticker_auc_unavailable = metrics.get("per_ticker_auc_unavailable", [])
+        if isinstance(per_ticker_auc_unavailable, list):
+            metrics["requested_symbol_auc_unavailable"] = normalized in {
+                str(item).strip().upper() for item in per_ticker_auc_unavailable
+            }
         markdown = build_markdown_report(
             ticker=normalized,
             prob_up=prob_up,

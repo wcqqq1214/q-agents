@@ -4,15 +4,16 @@
 
 ---
 
-基于 Python 3.13、LangChain 与 LangGraph 的多智能体金融分析系统。采用 Fan-out / Fan-in 拓扑——Quant、News、Social 三个智能体并行执行，最终由 CIO 智能体汇总生成投资建议。
+基于 Python 3.13、LangChain 与 LangGraph 的多智能体金融分析系统。采用 Fan-out / Fan-in 拓扑：Quant、News、Social 三个智能体并行执行，最终由 CIO 智能体汇总生成投资建议。仓库同时包含 FastAPI 后端、Next.js 前端、按次运行归档的报告产物，以及可选的 Redis / ARQ 后台任务支持。
 
 ## 功能特性
 
 - **多智能体架构**: Quant / News / Social 智能体并行，CIO 汇总分析
-- **市场数据**: 实时报价与历史数据，含技术指标（SMA、MACD、布林带）
+- **股票 + 加密资产工作台**: 股票报价来自 MCP 服务，加密报价来自热缓存，并为两类资产提供 OHLC 图表接口
+- **可读报告归档**: 每次运行都会在 `data/reports/{run_id}_{asset}/` 下写出 `report.json`、各智能体 JSON 以及可读 markdown
 - **新闻情报**: 多源聚合（DuckDuckGo、Tavily）与情绪分析
 - **社交情绪**: Reddit 讨论分析，获取散户投资者情绪
-- **机器学习预测**: LightGBM 模型，支持 SHAP 可解释性与时间序列交叉验证
+- **ML 信号治理**: LightGBM 模型，支持 SHAP 可解释性、单标的 OOS 指标与相似度感知过滤
 - **事件记忆（RAG）**: ChromaDB 驱动的历史市场事件语义检索
 
 ## 技术栈
@@ -22,6 +23,9 @@
 - **机器学习 / 数据**: `pandas`, `numpy`, `lightgbm`, `shap`, `scikit-learn`, `pandas-ta`
 - **数据源**: `yfinance`, `tavily-python`, `ddgs`（DuckDuckGo）— 均经 MCP 服务器
 - **向量数据库**: `chromadb`, `langchain-chroma`
+- **后端**: `fastapi`, `uvicorn`, `httpx`, `apscheduler`
+- **队列 / 缓存**: `redis`, `arq`（可选）
+- **前端**: Next.js 16、React 19、Tailwind CSS 4、shadcn/ui
 - **配置**: `python-dotenv`
 
 ## 快速开始
@@ -57,13 +61,24 @@ cp .env.example .env
 | 密钥 | 来源 | 是否必需 |
 |------|------|----------|
 | `CLAUDE_API_KEY` | [Anthropic Console](https://console.anthropic.com/) | 是 |
-| `OPENAI_API_KEY` | [OpenAI Platform](https://platform.openai.com/) | 是（embeddings）|
+| `MINIMAX_API_KEY` | [MiniMax Platform](https://www.minimaxi.com/platform) | 是 |
 | `TAVILY_API_KEY` | [Tavily](https://tavily.com/) | 是 |
 | `POLYGON_API_KEY` | [Polygon.io](https://polygon.io/) | 可选 |
+| `OKX_DEMO_API_KEY` / `OKX_DEMO_SECRET_KEY` / `OKX_DEMO_PASSPHRASE` | OKX | 可选 |
 
-可选配置：`LLM_PROVIDER`（`claude` / `openai`，默认 `claude`）、`LLM_TEMPERATURE`（默认 `0.0`）、`EMBEDDING_PROVIDER`（默认 `openai`）。
+常用可选配置：`CLAUDE_BASE_URL`、`CLAUDE_MODEL`、`MINIMAX_BASE_URL`、`MINIMAX_EMBEDDING_MODEL`、`MCP_MARKET_DATA_URL`、`MCP_NEWS_SEARCH_URL`、`USE_PROXY`、`REDIS_ENABLED`、`REDIS_URL`、`NEXT_PUBLIC_API_URL`。
 
-### 4. 启动所有服务
+设置 API/UI 里仍然保留 `OPENAI_API_KEY` 字段用于兼容，但当前 embedding 流程实际读取的是 `.env` 中的 `MINIMAX_*` 配置。
+
+### 4. 可选：启动 Redis 后台任务依赖
+
+```bash
+docker compose up -d
+```
+
+即使 Redis 不可用，后端也会回退到进程内执行定时/后台任务。
+
+### 5. 启动所有服务
 
 ```bash
 bash scripts/startup/start_all.sh
@@ -84,11 +99,14 @@ bash scripts/startup/stop_all.sh
 
 | 服务 | 地址 |
 |------|------|
-| 前端 | http://localhost:3000 |
+| 前端（首页） | http://localhost:3000 |
+| 前端 Reports | http://localhost:3000/reports |
+| 前端 System | http://localhost:3000/system |
+| 前端 Settings | http://localhost:3000/settings |
 | API | http://localhost:8080 |
 | API 文档（Swagger）| http://localhost:8080/docs |
 
-通过 Web UI 提交股票分析查询，结果通过 SSE 实时流式返回，并保存至 `data/reports/{run_id}_{asset}/`。
+可在首页切换股票与加密资产观察列表、查看 OHLC 图表，并提交分析查询。分析结果通过 SSE 返回，每次完成的运行都会保存到 `data/reports/{run_id}_{asset}/`。
 
 ## 脚本参考
 
@@ -108,6 +126,7 @@ bash scripts/startup/stop_all.sh
 | 脚本 | 说明 |
 |------|------|
 | `run_ml_quant_metrics.py` | 训练和评估 LightGBM 模型 |
+| `compare_models.py` | 为单个标的生成 markdown ML 评估报告 |
 | `batch_process.py` | 批量分析多个股票代码 |
 | `process_layer1.py` | 运行 LLM 新闻相关性过滤 |
 
@@ -134,6 +153,14 @@ bash scripts/startup/stop_all.sh
 |------|------|
 | `manual_run.py` | 交互式 CLI 查询 |
 | `test_dataflows.py` | 测试数据提供商连接 |
+
+### 后台任务
+
+```bash
+uv run arq app.tasks.WorkerSettings
+```
+
+启动可选的 ARQ Worker，用于 Redis 支撑的后台任务，例如定时 OHLC 更新。
 
 ## MCP 服务器
 
@@ -184,18 +211,31 @@ ps aux | grep mcp_servers
 ### FastAPI 后端
 - `app/api/main.py` — 应用入口
 - `app/api/routes/analyze.py` — 分析端点
+- `app/api/routes/reports.py` — 报告列表与详情端点
+- `app/api/routes/system.py` — MCP 健康状态端点
+- `app/api/routes/settings.py` — 运行时配置端点
 - `app/api/routes/stocks.py` — 股票数据端点
+- `app/api/routes/ohlc.py` — 股票历史 OHLC 与元数据端点
 - `app/api/routes/crypto.py` — 加密货币端点
+- `app/api/routes/crypto_klines.py` — 合并热/冷数据的加密 K 线端点
 - `app/api/routes/history.py` — 智能体执行历史
 - `app/api/routes/okx.py` — OKX 交易所集成
 - `app/database/` — SQLite 模式、智能体历史、OHLC 存储
 
 ### 机器学习与量化分析
 - `app/ml/model_trainer.py` — LightGBM 训练，支持时间序列交叉验证
+- `app/ml/model_registry.py` — 模型编排、对比报告与评分辅助
 - `app/ml/feature_engine.py` — 特征工程管道
 - `app/ml/features.py` — 技术指标特征
+- `app/ml/signal_filter.py` — 相似度感知的信号治理
+- `app/ml/similarity.py` — 历史相似样本检索
+- `app/ml/text_features.py` — 文本衍生特征
 - `app/ml/shap_explainer.py` — SHAP 可解释性
-- `app/ml/generate_report.py` — 机器学习预测报告
+
+### 后台任务与实时数据
+- `app/services/realtime_agent.py` — 加密热缓存预热与刷新循环
+- `app/tasks/update_ohlc.py` — 定时日线 OHLC 更新任务
+- `app/tasks/worker_settings.py` — ARQ Worker 配置
 
 ### RAG 与事件记忆
 - `app/rag/build_event_memory.py` — 构建 ChromaDB 事件记忆
@@ -211,6 +251,7 @@ ps aux | grep mcp_servers
 ### 前端（Next.js）
 - `frontend/src/app/` — Next.js 应用目录
 - `frontend/src/components/` — React 组件
+- `frontend/src/lib/api.ts` — 带类型的前端 API 客户端
 - `frontend/tsconfig.json` — TypeScript 严格模式已启用
 - `frontend/eslint.config.mjs` — ESLint 配置，含 TypeScript 规则（禁止显式 `any`）
 
@@ -269,6 +310,11 @@ pnpm lint                     # 运行 ESLint
 pnpm lint:fix                 # 自动修复 ESLint 问题
 pnpm type-check               # TypeScript 类型检查
 ```
+
+## 更多文档
+
+- [docs/PROXY_CONFIGURATION.md](docs/PROXY_CONFIGURATION.md) — WSL2 / Linux / macOS / Windows 代理配置
+- [docs/okx-api-guide.md](docs/okx-api-guide.md) — OKX API 配置与端点说明
 
 ## 贡献
 

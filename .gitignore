@@ -45,7 +45,7 @@ Thumbs.db
 *.log
 
 # Data directory (databases, reports, ChromaDB)
-data/
+/data/
 !app/data/
 app/data/*.db
 app/data/*.db-shm

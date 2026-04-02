@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config_manager import config_manager
 from app.database.agent_history import init_db as init_agent_history_db
 from app.database.crypto_ohlc import get_max_date
+from app.mcp_client.connection_manager import get_mcp_connection_manager
 from app.services.batch_downloader import download_daily_data
 from app.services.realtime_agent import update_hot_cache_loop, warmup_hot_cache
 from app.services.stock_updater import update_stocks_intraday
@@ -200,6 +201,8 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     # Startup
     logger.info("Starting Finance Agent API...")
+    mcp_manager = get_mcp_connection_manager()
+    app.state.mcp_connection_manager = mcp_manager
 
     # Prewarm Redis connection pool before any concurrent operations
     from app.services.redis_client import get_redis_client, ping_redis
@@ -213,6 +216,12 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Redis prewarm failed (will use fallback): {exc}")
 
     app.state.arq_pool = await create_arq_pool()
+
+    try:
+        await mcp_manager.ensure_all_started()
+        logger.info("✓ MCP servers loaded from %s", mcp_manager.config_path)
+    except Exception as exc:
+        logger.warning("MCP bootstrap failed, lazy reconnect will be used: %s", exc)
 
     # Initialize agent history database
     db_path = os.getenv("AGENT_HISTORY_DB_PATH", "data/agent_history.db")
@@ -290,6 +299,7 @@ async def lifespan(app: FastAPI):
             logger.info("✓ Stock catchup task cancelled")
 
     scheduler.shutdown()
+    await mcp_manager.shutdown_managed_servers()
     await close_arq_pool(getattr(app.state, "arq_pool", None))
     logger.info("✓ Scheduler stopped")
 

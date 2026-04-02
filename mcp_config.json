@@ -1,0 +1,44 @@
+{
+  "mcpServers": {
+    "market_data": {
+      "transport": "streamable_http",
+      "url": "http://127.0.0.1:8000/mcp",
+      "health_url": "http://127.0.0.1:8000/health",
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "-m",
+        "mcp_servers.market_data.main"
+      ],
+      "cwd": ".",
+      "env": {
+        "MCP_MARKET_DATA_HOST": "127.0.0.1",
+        "MCP_MARKET_DATA_PORT": "8000"
+      },
+      "heartbeat_interval_seconds": 10.0,
+      "startup_timeout_seconds": 20.0,
+      "restart_backoff_seconds": 1.0
+    },
+    "news_search": {
+      "transport": "streamable_http",
+      "url": "http://127.0.0.1:8001/mcp",
+      "health_url": "http://127.0.0.1:8001/health",
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "-m",
+        "mcp_servers.news_search.main"
+      ],
+      "cwd": ".",
+      "env": {
+        "MCP_NEWS_SEARCH_HOST": "127.0.0.1",
+        "MCP_NEWS_SEARCH_PORT": "8001"
+      },
+      "heartbeat_interval_seconds": 10.0,
+      "startup_timeout_seconds": 20.0,
+      "restart_backoff_seconds": 1.0
+    }
+  }
+}

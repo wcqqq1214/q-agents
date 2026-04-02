@@ -1,26 +1,30 @@
 # app/dataflows/config.py
 import os
 
+from app.mcp_client.config import get_configured_mcp_server_base_urls
+
+_MCP_SERVER_URLS = get_configured_mcp_server_base_urls()
+
 DEFAULT_CONFIG = {
-    # 数据提供商配置（类别级）
+    # Data provider selection by category.
     "data_vendors": {
         "stock_data": "mcp",
         "technical_indicators": "mcp",
         "news": "mcp",
         "fundamentals": "yfinance",
     },
-    # 工具级覆盖（可选）
+    # Optional tool-level overrides.
     "tool_vendors": {},
-    # 备用提供商（降级策略）
+    # Fallback provider used when the primary vendor fails.
     "fallback_vendor": "yfinance",
-    # MCP 服务器地址
+    # MCP server base URLs.
     "mcp_servers": {
-        "market_data": os.getenv("MCP_MARKET_DATA_URL", "http://localhost:8000"),
-        "news_search": os.getenv("MCP_NEWS_SEARCH_URL", "http://localhost:8001"),
+        "market_data": _MCP_SERVER_URLS.get("market_data", "http://localhost:8000"),
+        "news_search": _MCP_SERVER_URLS.get("news_search", "http://localhost:8001"),
     },
-    # Redis 缓存
+    # Redis cache.
     "redis_url": os.getenv("REDIS_URL", "redis://localhost:6379"),
-    # API 密钥
+    # API keys.
     "api_keys": {
         "polygon": os.getenv("POLYGON_API_KEY"),
         "alpha_vantage": os.getenv("ALPHA_VANTAGE_API_KEY"),

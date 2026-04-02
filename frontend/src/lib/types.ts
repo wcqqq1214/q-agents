@@ -61,14 +61,19 @@ export interface SSEEvent {
 }
 
 export interface MCPStatus {
-  market_data: ServiceStatus;
-  news_search: ServiceStatus;
+  market_data?: ServiceStatus;
+  news_search?: ServiceStatus;
+  servers: Record<string, ServiceStatus>;
 }
 
 export interface ServiceStatus {
   available: boolean;
   url: string;
   error?: string;
+  managed?: boolean;
+  pid?: number;
+  tool_count?: number;
+  restart_count?: number;
 }
 
 export interface HealthResponse {

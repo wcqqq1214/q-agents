@@ -27,8 +27,6 @@ QUOTE_CACHE_TTL = 60  # seconds - increased to reduce Yahoo Finance API calls
 
 async def _fetch_single_quote(symbol: str) -> StockQuote:
     """Fetch quote for a single symbol, returning error field on failure."""
-    import os
-
     from app.mcp_client.finance_client import _call_get_us_stock_quote_async
 
     # Check cache first
@@ -38,11 +36,10 @@ async def _fetch_single_quote(symbol: str) -> StockQuote:
             logger.debug(f"Returning cached quote for {symbol}")
             return cached_quote
 
-    url = os.environ.get("MCP_MARKET_DATA_URL", "http://127.0.0.1:8000/mcp")
     name = MAGNIFICENT_SEVEN.get(symbol, symbol)
 
     try:
-        data = await _call_get_us_stock_quote_async(symbol, url)
+        data = await _call_get_us_stock_quote_async(symbol)
         # Set logo path if available
         logo_path = f"/logos/{symbol}.png" if symbol in MAGNIFICENT_SEVEN else None
         quote = StockQuote(

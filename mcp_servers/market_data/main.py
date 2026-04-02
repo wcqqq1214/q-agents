@@ -21,11 +21,13 @@ from typing import Any, Optional, cast
 import pandas as pd
 import yfinance as yf
 from dotenv import load_dotenv
+from fastapi import FastAPI
 from mcp.server.fastmcp import FastMCP
 
 # Load environment variables from .env file
 load_dotenv()
 
+from mcp_servers.common.tool_errors import build_tool_error_payload
 from mcp_servers.market_data.indicators import (
     compute_bollinger_bands,
     compute_macd,
@@ -78,6 +80,9 @@ def _fetch_quote_impl(ticker: str) -> dict[str, Any]:
                 "Ticker symbol is empty. Please provide a valid US stock "
                 "ticker such as 'AAPL' or 'MSFT'."
             ),
+            "error_type": "InvalidInput",
+            "retryable": False,
+            "retry_after_seconds": None,
         }
 
     quote: dict[str, Any] = {
@@ -268,10 +273,12 @@ def _fetch_quote_impl(ticker: str) -> dict[str, Any]:
             )
 
     except Exception as exc:
-        quote["error"] = (
-            f"Failed to fetch quote data from Yahoo Finance: {type(exc).__name__}: {exc}"
+        quote = build_tool_error_payload(
+            provider_name="Yahoo Finance",
+            tool_name="get_us_stock_quote",
+            exc=exc,
+            base_payload=quote,
         )
-        quote["timestamp"] = _now_iso_utc8()
 
     return quote
 
@@ -300,7 +307,13 @@ def _get_stock_data_impl(ticker: str, period: str = "3mo") -> dict[str, Any]:
     """Fetch history via yfinance and compute SMA, MACD, Bollinger; return last-bar snapshot."""
     normalized = (ticker or "").strip().upper()
     if not normalized:
-        return {"ticker": "", "error": "Empty ticker."}
+        return {
+            "ticker": "",
+            "error": "Ticker is empty. Provide a valid ticker such as AAPL or MSFT.",
+            "error_type": "InvalidInput",
+            "retryable": False,
+            "retry_after_seconds": None,
+        }
 
     try:
         t = yf.Ticker(normalized)
@@ -308,7 +321,10 @@ def _get_stock_data_impl(ticker: str, period: str = "3mo") -> dict[str, Any]:
         if hist is None or hist.empty:
             return {
                 "ticker": normalized,
-                "error": "No history returned for this ticker/period.",
+                "error": "No history returned for this ticker and period.",
+                "error_type": "NoData",
+                "retryable": False,
+                "retry_after_seconds": None,
             }
 
         close = cast(pd.Series, hist["Close"].astype(float))
@@ -330,10 +346,12 @@ def _get_stock_data_impl(ticker: str, period: str = "3mo") -> dict[str, Any]:
             "period_rows": int(len(close)),
         }
     except Exception as exc:
-        return {
-            "ticker": normalized,
-            "error": f"{type(exc).__name__}: {exc}",
-        }
+        return build_tool_error_payload(
+            provider_name="Yahoo Finance",
+            tool_name="get_stock_data",
+            exc=exc,
+            base_payload={"ticker": normalized},
+        )
 
 
 @mcp.tool()
@@ -359,7 +377,14 @@ def _get_stock_history_impl(ticker: str, start_date: str, end_date: str) -> dict
     """Fetch historical OHLC data via yfinance."""
     normalized = (ticker or "").strip().upper()
     if not normalized:
-        return {"ticker": "", "error": "Empty ticker."}
+        return {
+            "ticker": "",
+            "data": [],
+            "error": "Ticker is empty. Provide a valid ticker such as AAPL or MSFT.",
+            "error_type": "InvalidInput",
+            "retryable": False,
+            "retry_after_seconds": None,
+        }
 
     try:
         t = yf.Ticker(normalized)
@@ -370,6 +395,9 @@ def _get_stock_history_impl(ticker: str, start_date: str, end_date: str) -> dict
                 "ticker": normalized,
                 "data": [],
                 "error": f"No data available for {normalized} in range {start_date} to {end_date}",
+                "error_type": "NoData",
+                "retryable": False,
+                "retry_after_seconds": None,
             }
 
         # Convert DataFrame to list of dicts
@@ -397,11 +425,12 @@ def _get_stock_history_impl(ticker: str, start_date: str, end_date: str) -> dict
             "data": data,
         }
     except Exception as exc:
-        return {
-            "ticker": normalized,
-            "data": [],
-            "error": f"{type(exc).__name__}: {exc}",
-        }
+        return build_tool_error_payload(
+            provider_name="Yahoo Finance",
+            tool_name="get_stock_history",
+            exc=exc,
+            base_payload={"ticker": normalized, "data": []},
+        )
 
 
 @mcp.tool()
@@ -426,6 +455,23 @@ def get_stock_history(ticker: str, start_date: str, end_date: str) -> dict[str, 
     return _get_stock_history_impl(ticker, start_date, end_date)
 
 
+def build_app() -> FastAPI:
+    """Create an ASGI app with MCP and health endpoints."""
+
+    app = FastAPI()
+
+    @app.get("/health")
+    async def health() -> dict[str, str]:
+        return {
+            "status": "ok",
+            "server": "market_data",
+            "timestamp": _now_iso_utc8(),
+        }
+
+    app.mount("/", mcp.streamable_http_app())
+    return app
+
+
 def main() -> None:
     """Run the MCP server with streamable HTTP transport."""
     import uvicorn
@@ -436,8 +482,7 @@ def main() -> None:
     )
     host = os.environ.get("MCP_MARKET_DATA_HOST", "127.0.0.1")
     port = int(os.environ.get("MCP_MARKET_DATA_PORT", "8000"))
-    app = mcp.streamable_http_app()
-    uvicorn.run(app, host=host, port=port)
+    uvicorn.run(build_app(), host=host, port=port)
 
 
 if __name__ == "__main__":

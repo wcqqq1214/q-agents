@@ -35,11 +35,16 @@ class ServiceStatus(BaseModel):
     available: bool
     url: str
     error: Optional[str] = None
+    managed: bool = False
+    pid: Optional[int] = None
+    tool_count: int = 0
+    restart_count: int = 0
 
 
 class MCPStatus(BaseModel):
-    market_data: ServiceStatus
-    news_search: ServiceStatus
+    market_data: Optional[ServiceStatus] = None
+    news_search: Optional[ServiceStatus] = None
+    servers: Dict[str, ServiceStatus] = Field(default_factory=dict)
 
 
 class HealthResponse(BaseModel):
@@ -85,11 +90,11 @@ class StockQuotesResponse(BaseModel):
     quotes: List[StockQuote]
 
 
-# OKX相关模型
+# OKX-related models
 
 
 class OKXOrderRequest(BaseModel):
-    """OKX下单请求"""
+    """OKX order request."""
 
     inst_id: str
     side: str  # buy/sell
@@ -101,7 +106,7 @@ class OKXOrderRequest(BaseModel):
 
 
 class OKXBalance(BaseModel):
-    """OKX账户余额"""
+    """OKX account balance."""
 
     currency: str
     available: str
@@ -110,7 +115,7 @@ class OKXBalance(BaseModel):
 
 
 class OKXPosition(BaseModel):
-    """OKX持仓信息"""
+    """OKX position details."""
 
     inst_id: str
     position_side: str  # long/short/net
@@ -122,7 +127,7 @@ class OKXPosition(BaseModel):
 
 
 class OKXOrderResponse(BaseModel):
-    """OKX订单响应"""
+    """OKX order response."""
 
     order_id: str
     client_order_id: str
@@ -138,7 +143,7 @@ class OKXOrderResponse(BaseModel):
 
 
 class OKXTicker(BaseModel):
-    """OKX Ticker数据"""
+    """OKX ticker data."""
 
     inst_id: str
     last: str

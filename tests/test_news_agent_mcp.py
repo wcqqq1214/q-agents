@@ -72,13 +72,15 @@ def test_mcp_server_required():
 
     if (
         "mcp_servers/market_data/main.py" in result.stdout
+        or "mcp_servers.market_data.main" in result.stdout
         or "mcp_servers/news_search/main.py" in result.stdout
+        or "mcp_servers.news_search.main" in result.stdout
     ):
         print("✓ MCP servers are running")
         return True
     else:
         print("⚠ MCP servers are NOT running")
-        print("  Start them with: bash scripts/start_mcp_servers.sh")
+        print("  Start them with: bash scripts/startup/start_mcp_servers.sh")
         return False
 
 

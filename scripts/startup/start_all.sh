@@ -23,9 +23,7 @@ if check_port 8000 || check_port 8001; then
     echo "MCP servers already running (ports 8000/8001 in use)"
 else
     echo "Starting MCP servers..."
-    bash "$SCRIPT_DIR/start_mcp_servers.sh" &
-    MCP_PID=$!
-    sleep 3
+    bash "$SCRIPT_DIR/start_mcp_servers.sh"
 fi
 
 # Check and start FastAPI

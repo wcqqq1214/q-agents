@@ -15,6 +15,10 @@ import { useTheme } from "next-themes";
 import { TimeRangeSelector } from "./TimeRangeSelector";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import {
+  STOCK_POLL_INTERVAL_MS,
+  canRefreshOnVisibility,
+} from "@/lib/visibility-refresh";
 import type { TimeRange, OHLCRecord } from "@/lib/types";
 
 interface KLineChartProps {
@@ -113,6 +117,8 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const legendRef = useRef<HTMLDivElement>(null);
+  const lastRequestStartedAtRef = useRef<number | null>(null);
+  const requestInFlightRef = useRef(false);
   const { toast } = useToast();
   const [timezoneInfo] = useState(getTimezoneInfo());
   const { resolvedTheme } = useTheme();
@@ -131,6 +137,8 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
       return;
     }
 
+    lastRequestStartedAtRef.current = Date.now();
+    requestInFlightRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -196,13 +204,50 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
         variant: "destructive",
       });
     } finally {
+      requestInFlightRef.current = false;
       setLoading(false);
     }
   }, [selectedStock, timeRange, assetType, toast]);
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (assetType !== "stocks" || !selectedStock) {
+      return;
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
+      if (
+        canRefreshOnVisibility({
+          now: Date.now(),
+          lastRequestStartedAt: lastRequestStartedAtRef.current,
+          inFlight: requestInFlightRef.current,
+        })
+      ) {
+        void fetchData();
+      }
+    };
+
+    // 300000 ms (5 minutes)
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void fetchData();
+      }
+    }, STOCK_POLL_INTERVAL_MS);
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [assetType, fetchData, selectedStock]);
 
   // Create and update chart
   useEffect(() => {

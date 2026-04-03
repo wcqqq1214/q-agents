@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StockCard } from "../stock/StockCard";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
+import {
+  STOCK_POLL_INTERVAL_MS,
+  canRefreshOnVisibility,
+} from "@/lib/visibility-refresh";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { StockInfo, CryptoQuote } from "@/lib/types";
@@ -16,7 +20,6 @@ const CRYPTO_SYMBOLS = [
   { symbol: "BTC-USDT", name: "Bitcoin" },
   { symbol: "ETH-USDT", name: "Ethereum" },
 ];
-const REFRESH_INTERVAL = 120000; // 2 minutes - reduced frequency to avoid rate limits
 
 interface AssetSelectorProps {
   selectedAsset: string | null;
@@ -36,6 +39,8 @@ export function AssetSelector({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
+  const lastRequestStartedAtRef = useRef<number | null>(null);
+  const requestInFlightRef = useRef(false);
 
   const fetchStockQuotes = useCallback(
     async (isManual = false) => {
@@ -82,32 +87,56 @@ export function AssetSelector({
 
   const fetchQuotes = useCallback(
     async (isManual = false) => {
+      lastRequestStartedAtRef.current = Date.now();
+      requestInFlightRef.current = true;
+
       if (assetType === "crypto") {
-        await fetchCryptoQuotes(isManual);
+        try {
+          await fetchCryptoQuotes(isManual);
+        } finally {
+          requestInFlightRef.current = false;
+        }
       } else {
-        await fetchStockQuotes(isManual);
+        try {
+          await fetchStockQuotes(isManual);
+        } finally {
+          requestInFlightRef.current = false;
+        }
       }
     },
     [assetType, fetchCryptoQuotes, fetchStockQuotes],
   );
 
   useEffect(() => {
-    fetchQuotes();
+    void fetchQuotes();
 
-    const interval = setInterval(() => {
+    // 300000 ms (5 minutes)
+    const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") {
-        fetchQuotes();
+        void fetchQuotes();
       }
-    }, REFRESH_INTERVAL);
+    }, STOCK_POLL_INTERVAL_MS);
 
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") fetchQuotes();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
+      if (
+        canRefreshOnVisibility({
+          now: Date.now(),
+          lastRequestStartedAt: lastRequestStartedAtRef.current,
+          inFlight: requestInFlightRef.current,
+        })
+      ) {
+        void fetchQuotes();
+      }
     };
-    document.addEventListener("visibilitychange", handleVisibility);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibility);
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [fetchQuotes]);
 

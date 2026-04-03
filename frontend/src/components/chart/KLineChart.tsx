@@ -536,7 +536,7 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
         chartRef.current = null;
       }
     };
-  }, [ohlcData, resolvedTheme, trendMode]);
+  }, [ohlcData, resolvedTheme, trendMode, timeRange]);
 
   // Render
   if (!selectedStock) {
@@ -549,7 +549,7 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
     );
   }
 
-  if (error) {
+  if (error && ohlcData.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border bg-card">
         <p className="text-sm text-destructive">{error}</p>

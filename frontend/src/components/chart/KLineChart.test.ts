@@ -23,3 +23,15 @@ test("k line chart cleans up interval and visibility listener", () => {
   );
 });
 
+test("k line chart chart-update effect tracks timeRange in dependencies", () => {
+  // ESLint warning in repo indicates the chart-update effect reads timeRange; ensure deps include it.
+  assert.match(
+    source,
+    /\},\s*\[ohlcData,\s*resolvedTheme,\s*trendMode,\s*timeRange\]\s*\);/,
+  );
+});
+
+test("k line chart only shows blocking error state when no data exists", () => {
+  assert.doesNotMatch(source, /if\s*\(error\)\s*\{/);
+  assert.match(source, /if\s*\(error\s*&&\s*ohlcData\.length\s*===\s*0\)\s*\{/);
+});

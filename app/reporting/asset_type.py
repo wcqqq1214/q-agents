@@ -12,10 +12,12 @@ from typing import Literal
 AssetType = Literal["stocks", "crypto"]
 
 # Single source of truth: keep this list in sync wherever symbol routing depends on it.
-CRYPTO_TICKERS = {"BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK"}
+CRYPTO_TICKERS: frozenset[str] = frozenset(
+    {"BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK"}
+)
 
 
-def classify_asset_type(asset: str) -> AssetType:
+def classify_asset_type(asset: str | None) -> AssetType:
     """Classify an asset symbol as crypto or stocks.
 
     Args:
@@ -27,9 +29,10 @@ def classify_asset_type(asset: str) -> AssetType:
     """
 
     normalized = (asset or "").strip().upper()
-    if re.search(r"\b[A-Z]{2,10}-USD\b", normalized):
-        return "crypto"
+    pair = re.search(r"\b([A-Z]{2,10})-USD\b", normalized)
+    if pair:
+        base = pair.group(1)
+        return "crypto" if base in CRYPTO_TICKERS else "stocks"
     if normalized in CRYPTO_TICKERS:
         return "crypto"
     return "stocks"
-

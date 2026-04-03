@@ -122,3 +122,43 @@ def test_cio_node_uses_structured_quant_prompt_and_writes_report_json(
     assert report_obj["reports"]["quant"].startswith("# Quantitative Technical Report")
     assert report_obj["report_paths"]["cio"] == str(cio_path)
     assert report_obj["report_paths"]["aggregate"] == str(report_path)
+
+
+def test_cio_node_writes_crypto_asset_type_into_report_json(tmp_path: Path, monkeypatch) -> None:
+    class FakeLLM:
+        def invoke(self, messages, config=None):
+            return SimpleNamespace(content="CIO final decision")
+
+    monkeypatch.setattr(graph_multi, "create_llm", lambda: FakeLLM())
+
+    state: AgentState = {
+        "query": "Analyze BTC-USD",
+        "run_id": "20260402_100000",
+        "run_dir": str(tmp_path),
+        "quant_report_obj": {
+            "asset": "BTC-USD",
+            "trend": "neutral",
+            "summary": "Technical summary",
+            "markdown_report": "# Quantitative Technical Report\n",
+        },
+        "news_report_obj": {
+            "module": "news",
+            "summary": "Macro headline",
+            "markdown_report": "# Macro News Sentiment Report\n",
+        },
+        "social_report_obj": {
+            "module": "social",
+            "summary": "Retail chatter",
+            "markdown_report": "# Social Retail Sentiment Report\n",
+        },
+        "quant_report_path": str(tmp_path / "quant.json"),
+        "news_report_path": str(tmp_path / "news.json"),
+        "social_report_path": str(tmp_path / "social.json"),
+    }
+
+    graph_multi._cio_node(state)
+
+    report_path = tmp_path / "report.json"
+    report_obj = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report_obj["symbol"] == "BTC-USD"
+    assert report_obj["asset_type"] == "crypto"

@@ -36,6 +36,7 @@ from app.database.message_adapter import convert_messages_to_standard
 from app.llm_config import create_llm
 from app.news.generate_report import generate_report as generate_news_report
 from app.quant.generate_report import generate_report as generate_quant_report
+from app.reporting.asset_type import CRYPTO_TICKERS, classify_asset_type
 from app.reporting.run_context import make_run_dir
 from app.reporting.writer import write_json
 from app.social.generate_report import generate_report as generate_social_report
@@ -286,6 +287,7 @@ def _build_aggregated_report(
     return {
         "symbol": asset,
         "asset": asset,
+        "asset_type": classify_asset_type(asset),
         "query": state.get("query", ""),
         "timestamp": generated_at_utc,
         "module": "report",
@@ -479,10 +481,9 @@ def _extract_asset_from_query(query: str) -> str:
         "SOCIAL",
         "QUANT",
     }
-    crypto = {"BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK"}
 
     for t in tokens:
-        if t in crypto:
+        if t in CRYPTO_TICKERS:
             return t
 
     candidates = [t for t in tokens if t not in stop]

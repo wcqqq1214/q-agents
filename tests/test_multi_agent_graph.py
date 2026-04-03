@@ -114,6 +114,7 @@ def test_cio_node_uses_structured_quant_prompt_and_writes_report_json(
 
     report_obj = json.loads(report_path.read_text(encoding="utf-8"))
     assert report_obj["symbol"] == "NVDA"
+    assert report_obj["asset_type"] == "stocks"
     assert report_obj["query"] == "Analyze NVDA"
     assert report_obj["quant_analysis"]["ml_quant"]["ml_policy"] == "event_driven_only"
     assert report_obj["final_decision"] == "CIO final decision"

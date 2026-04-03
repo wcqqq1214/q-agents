@@ -16,7 +16,9 @@ REPORTS_DIR = Path(__file__).parent.parent.parent.parent / "data" / "reports"
 
 
 def _build_report_response(report_id: str, data: dict) -> Report:
-    symbol = data.get("symbol", "UNKNOWN")
+    symbol = data.get("symbol") or "UNKNOWN"
+    reports_block = data.get("reports")
+    reports_payload = reports_block if isinstance(reports_block, dict) else {}
     return Report(
         id=report_id,
         symbol=symbol,
@@ -27,7 +29,7 @@ def _build_report_response(report_id: str, data: dict) -> Report:
         quant_analysis=data.get("quant_analysis"),
         news_sentiment=data.get("news_sentiment"),
         social_sentiment=data.get("social_sentiment"),
-        reports=ReportTexts(**(data.get("reports") or {})),
+        reports=ReportTexts(**reports_payload),
     )
 
 
@@ -48,7 +50,7 @@ async def get_reports():
             continue
 
         try:
-            with open(report_file, "r") as f:
+            with open(report_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 reports.append(_build_report_response(report_dir.name, data))
         except Exception:
@@ -70,7 +72,7 @@ async def get_report(report_id: str):
         raise HTTPException(status_code=404, detail="Report file not found")
 
     try:
-        with open(report_file, "r") as f:
+        with open(report_file, "r", encoding="utf-8") as f:
             data = json.load(f)
             return _build_report_response(report_id, data)
     except Exception as e:

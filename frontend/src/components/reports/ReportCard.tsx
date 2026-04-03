@@ -11,10 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MarkdownRenderer } from "@/components/chat/MarkdownRenderer";
 import { markdownSummary } from "@/lib/strip-markdown";
-import type { AnalysisReport } from "@/lib/mock-data/reports";
+import type { Report } from "@/lib/types";
 
 interface ReportCardProps {
-  report: AnalysisReport;
+  report: Report;
 }
 
 function formatTimestamp(iso: string): string {
@@ -30,7 +30,8 @@ const TAB_EMPTY = "No report available.";
 
 export function ReportCard({ report }: ReportCardProps) {
   const summary =
-    markdownSummary(report.reports.cio, 200) || "No summary available.";
+    markdownSummary(report.reports.cio ?? "", 200) ||
+    "No summary available.";
 
   return (
     <AccordionItem value={report.id} className="rounded-lg border px-4">
@@ -39,13 +40,15 @@ export function ReportCard({ report }: ReportCardProps) {
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold">{report.symbol}</span>
             <Badge variant="outline" className="text-xs">
-              {report.assetType}
+              {report.asset_type}
             </Badge>
             <span className="ml-auto text-xs text-muted-foreground">
               {formatTimestamp(report.timestamp)}
             </span>
           </div>
-          <p className="truncate text-sm text-foreground">{report.query}</p>
+          <p className="truncate text-sm text-foreground">
+            {report.query || "No query available."}
+          </p>
           <p className="line-clamp-2 text-xs text-muted-foreground">
             {summary}
           </p>

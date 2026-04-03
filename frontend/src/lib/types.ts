@@ -3,20 +3,21 @@
 export interface Report {
   id: string;
   symbol: string;
+  asset_type: "stocks" | "crypto";
   timestamp: string;
-  query?: string;
+  query: string;
   final_decision?: string;
   quant_analysis?: QuantAnalysis;
   news_sentiment?: NewsSentiment;
   social_sentiment?: SocialSentiment;
-  reports?: ReportTexts;
+  reports: ReportTexts;
 }
 
 export interface ReportTexts {
-  cio?: string | null;
-  quant?: string | null;
-  news?: string | null;
-  social?: string | null;
+  cio: string | null;
+  quant: string | null;
+  news: string | null;
+  social: string | null;
 }
 
 export interface QuantAnalysis {

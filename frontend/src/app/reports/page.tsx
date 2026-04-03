@@ -1,15 +1,36 @@
 // frontend/src/app/reports/page.tsx
 "use client";
 
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import type { Report } from "@/lib/types";
 import { Accordion } from "@/components/ui/accordion";
-import { mockReports } from "@/lib/mock-data/reports";
 import { ReportCard } from "@/components/reports/ReportCard";
 
-const sorted = [...mockReports].sort(
-  (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-);
-
 export default function ReportsPage() {
+  const [reports, setReports] = useState<Report[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  async function loadReports() {
+    try {
+      const data = await api.getReports();
+      setReports(
+        [...data].sort(
+          (a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp),
+        ),
+      );
+    } catch (error) {
+      console.error("Failed to load reports", error);
+      setReports([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadReports();
+  }, []);
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -19,7 +40,9 @@ export default function ReportsPage() {
         </p>
       </div>
 
-      {sorted.length === 0 ? (
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading reports...</p>
+      ) : reports.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <p className="text-muted-foreground">
             No analyses yet. Run your first analysis from the main page.
@@ -27,7 +50,7 @@ export default function ReportsPage() {
         </div>
       ) : (
         <Accordion type="multiple" className="flex flex-col gap-4">
-          {sorted.map((report) => (
+          {reports.map((report) => (
             <ReportCard key={report.id} report={report} />
           ))}
         </Accordion>

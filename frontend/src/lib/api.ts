@@ -70,7 +70,10 @@ export const api = {
   mcpStatus: () => fetchAPI<MCPStatus>("/api/mcp/status"),
 
   // Get all reports
-  getReports: () => fetchAPI<Report[]>("/api/reports"),
+  getReports: () =>
+    fetchAPI<Report[]>("/api/reports", {
+      cache: "no-store",
+    }),
 
   // Get single report
   getReport: (id: string) => fetchAPI<Report>(`/api/reports/${id}`),

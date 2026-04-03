@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 PANEL_TARGET_COL = "target_up_big_move_t3"
 PANEL_TARGET_NAME = "future_3d_up_big_move_gt_2pct_panel"
-PANEL_TARGET_LABEL = "未来 3 个交易日出现超过 2% 的上涨异动"
+PANEL_TARGET_LABEL = "an upside move greater than 2% within the next 3 trading days"
 
 
 class MlQuantResult(TypedDict, total=False):
@@ -54,7 +54,7 @@ class MlQuantResult(TypedDict, total=False):
         shap_insights: Compact SHAP summary as returned by
             :func:`explain_latest_sample`, containing top positive and
             negative feature contributions.
-        markdown_report: Human-readable Chinese Markdown report summarizing
+        markdown_report: Human-readable English Markdown report summarizing
             the model's view on the latest market state.
         historical_similarity: Historical analog summary derived from panel
             feature cosine similarity search over recent windows.
@@ -245,7 +245,7 @@ def run_ml_quant_analysis(ticker: str) -> MlQuantResult:
        positive and negative features.
     6. Retrieves historically similar panel windows via cosine similarity on
        recent feature averages, then summarizes their realized forward returns.
-    7. Generates a Chinese Markdown summary with model conclusion, SHAP drivers,
+    7. Generates an English Markdown summary with model conclusion, SHAP drivers,
        and historical analog evidence.
 
     Typical usage:
@@ -288,7 +288,7 @@ def run_ml_quant_analysis(ticker: str) -> MlQuantResult:
           negative features.
         - ``historical_similarity``: Summary of the most similar historical
           panel windows, including average forward return and top matches.
-        - ``markdown_report``: Chinese Markdown explanation suitable for
+        - ``markdown_report``: English Markdown explanation suitable for
           direct inclusion in human-facing or agent-facing reports.
 
         If an error occurs (for example, insufficient local database coverage),

@@ -179,13 +179,13 @@ def test_build_markdown_report_includes_historical_similarity_block():
                 }
             ],
         },
-        target_label="未来 3 个交易日出现超过 2% 的上涨异动",
+        target_label="an upside move greater than 2% within the next 3 trading days",
         model_label="LightGBM Panel",
     )
 
-    assert "历史相似阶段" in markdown
-    assert "平均相似度约" in markdown
+    assert "Historical Analog Windows" in markdown
+    assert "average similarity" in markdown
     assert "MSFT" in markdown
-    assert "随后 3 日收益" in markdown
-    assert "同股票优先、peer group 次优先、全市场兜底" in markdown
-    assert "最终交易信号" in markdown
+    assert "subsequent 3-day return" in markdown
+    assert "same symbol first, then peer group, then market fallback" in markdown
+    assert "Final trading signal" in markdown

@@ -47,10 +47,10 @@ def tmp_chroma_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_init_chroma_db_and_metadata(tmp_chroma_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """init_chroma_db should persist docs with correct metadata."""
 
-    # Patch OpenAIEmbeddings used inside init_chroma_db to avoid network calls.
+    # Patch embeddings used inside init_chroma_db to avoid network calls.
     import app.rag.build_event_memory as bm
 
-    monkeypatch.setattr(bm, "OpenAIEmbeddings", lambda: FakeEmbeddings())
+    monkeypatch.setattr(bm, "create_embeddings", lambda: FakeEmbeddings())
 
     docs = [
         create_memory_document(
@@ -98,7 +98,7 @@ def test_search_historical_event_impact_filters_by_ticker(
     # Prepare a small mixed NVDA/META store using FakeEmbeddings.
     import app.rag.build_event_memory as bm
 
-    monkeypatch.setattr(bm, "OpenAIEmbeddings", lambda: FakeEmbeddings())
+    monkeypatch.setattr(bm, "create_embeddings", lambda: FakeEmbeddings())
 
     docs = [
         create_memory_document(
@@ -128,15 +128,17 @@ def test_search_historical_event_impact_filters_by_ticker(
 
     init_chroma_db(docs=docs, metadatas=metadatas, persist_directory=str(tmp_chroma_dir))
 
-    # Patch OpenAIEmbeddings used inside rag_tools loader.
+    # Patch embeddings used inside rag_tools loader.
     import app.rag.rag_tools as rt
 
-    monkeypatch.setattr(rt, "OpenAIEmbeddings", lambda: FakeEmbeddings())
+    monkeypatch.setattr(rt, "create_embeddings", lambda: FakeEmbeddings())
 
-    result = search_historical_event_impact("earnings beat", "NVDA")
+    result = search_historical_event_impact.invoke(
+        {"query": "earnings beat", "ticker": "NVDA"}
+    )
     assert "NVDA" in result
     assert "META" not in result
-    assert "T+1" in result or "次日" in result
+    assert "T+1" in result
 
 
 def test_search_historical_event_impact_no_matches(
@@ -148,7 +150,7 @@ def test_search_historical_event_impact_no_matches(
     # Initialize an empty or unrelated store.
     import app.rag.build_event_memory as bm
 
-    monkeypatch.setattr(bm, "OpenAIEmbeddings", lambda: FakeEmbeddings())
+    monkeypatch.setattr(bm, "create_embeddings", lambda: FakeEmbeddings())
 
     docs = [
         create_memory_document(
@@ -165,7 +167,9 @@ def test_search_historical_event_impact_no_matches(
 
     import app.rag.rag_tools as rt
 
-    monkeypatch.setattr(rt, "OpenAIEmbeddings", lambda: FakeEmbeddings())
+    monkeypatch.setattr(rt, "create_embeddings", lambda: FakeEmbeddings())
 
-    result = search_historical_event_impact("earnings beat", "TSLA")
-    assert "未能在历史事件记忆库中找到" in result
+    result = search_historical_event_impact.invoke(
+        {"query": "earnings beat", "ticker": "TSLA"}
+    )
+    assert "No closely matching historical events were found" in result

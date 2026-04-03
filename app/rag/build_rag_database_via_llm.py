@@ -47,7 +47,7 @@ def clean_and_parse_llm_json(text: str) -> dict:
     # 2) Remove markdown code fences (```json, ```).
     text = re.sub(r"```", "", text).strip()
 
-    # 3) Replace Chinese quotes with English quotes.
+    # 3) Replace curly/full-width quotes with plain ASCII quotes.
     text = text.replace(""", '"').replace(""", '"')
 
     # 3) Locate candidate object and array boundaries.
@@ -108,7 +108,7 @@ class HistoricalEvent(BaseModel):
     summary: Optional[str] = Field(
         default=None,
         description=(
-            "Objective 1-3 sentence summary describing what happened, grounded "
+            "Objective 1-3 sentence summary written in English and grounded "
             "strictly in the referenced news article or articles."
         ),
     )
@@ -130,9 +130,9 @@ class HistoricalEvent(BaseModel):
     event_type: Optional[str] = Field(
         default="news",
         description=(
-            "Optional short event category in English or Chinese, such as "
-            "'earnings', 'guidance', 'macro', 'management_change', "
-            "'product_launch'. Defaults to 'news' when omitted."
+            "Optional short event category in English, such as 'earnings', "
+            "'guidance', 'macro', 'management_change', or 'product_launch'. "
+            "Defaults to 'news' when omitted."
         ),
     )
     date: Optional[str] = Field(
@@ -361,7 +361,10 @@ def mine_historical_events(ticker: str, year: int) -> List[ResolvedEvent]:
         "5. For any given news article (identified by its index / URL), you MUST "
         "   output at most one event. Do NOT generate multiple separate events "
         "   that all reference the same article; instead, merge the key aspects "
-        "   into a single concise event.\n\n"
+        "   into a single concise event.\n"
+        "6. All free-text fields in the JSON output, including `summary`, "
+        "   `headline`, `description`, and `event_type`, MUST be written in "
+        "   English.\n\n"
         "OUTPUT FORMAT RULES (STRICT):\n"
         "- Output strictly in valid JSON format that matches the EventList schema.\n"
         "- Do not include markdown formatting such as ```json or any code fences.\n"
@@ -382,8 +385,9 @@ def mine_historical_events(ticker: str, year: int) -> List[ResolvedEvent]:
         f"{context}\n\n"
         "Now select 5-10 of the most important events for this ticker and year. "
         "Return them strictly in the JSON schema provided (EventList) as a "
-        "single JSON object. Do not include <think> blocks, markdown code "
-        "fences, or any additional natural-language explanations."
+        "single JSON object. Write every text field in English. Do not include "
+        "<think> blocks, markdown code fences, or any additional natural-language "
+        "explanations."
     )
 
     try:
@@ -517,10 +521,11 @@ def _build_event_document(
 
     # Append a short source note so future consumers understand provenance.
     source_note = (
-        "数据来源：该事件由基于 DuckDuckGo 的新闻检索与大模型摘要自动挖掘，"
-        "并通过 yfinance 行情计算 T+1/T+5 收益率；仅供研究参考，不构成投资建议。\n"
-        f"代表性新闻标题：{resolved_event.source_title}\n"
-        f"新闻链接：{resolved_event.source_url}\n"
+        "Data source: this event was mined from DuckDuckGo-based news search "
+        "and summarized by an LLM. T+1/T+5 returns were computed from yfinance "
+        "price data. For research use only; not investment advice.\n"
+        f"Representative headline: {resolved_event.source_title}\n"
+        f"Source URL: {resolved_event.source_url}\n"
     )
     full_doc = base_doc + "\n" + source_note
 

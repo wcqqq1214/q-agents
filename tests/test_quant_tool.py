@@ -146,11 +146,11 @@ def test_run_ml_quant_analysis_includes_historical_similarity(monkeypatch):
     assert result["historical_similarity"]["matches"][0]["symbol"] == "MSFT"
     assert result["metrics"]["requested_symbol_auc"] == 0.64
     assert result["ml_policy"] == "primary_signal"
-    assert "历史相似阶段" in result["markdown_report"]
-    assert "单票外样本表现" in result["markdown_report"]
-    assert "最终交易信号" in result["markdown_report"]
-    assert "ML 信号权限" in result["markdown_report"]
-    assert "同股票优先、peer group 次优先、全市场兜底" in result["markdown_report"]
+    assert "Historical Analog Windows" in result["markdown_report"]
+    assert "Single-symbol OOS performance" in result["markdown_report"]
+    assert "Final trading signal" in result["markdown_report"]
+    assert "ML signal authority" in result["markdown_report"]
+    assert "same symbol first, then peer group, then market fallback" in result["markdown_report"]
 
 
 def test_run_ml_quant_analysis_degrades_to_event_driven_only_for_weak_auc(monkeypatch):

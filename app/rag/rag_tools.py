@@ -72,31 +72,33 @@ def search_historical_event_impact(query: str, ticker: str) -> str:
 
     Typical usage examples:
 
-    - \"NVDA 发布财报大超预期，这次市场会怎么走？\" -> use query like
-      ``\"earnings beat\"`` and ticker ``\"NVDA\"``.
-    - \"META 宣布大规模裁员，对股价冲击多大？\" -> query ``\"layoffs\"`` and
-      ticker ``\"META\"``.
-    - \"美联储意外加息时历史上标普的反应\" -> query ``\"rate hike\"`` and
-      ticker ``\"^GSPC\"`` (if such events were stored).
+    - \"NVDA reported a major earnings beat. How did the market usually react?\"
+      -> use query ``\"earnings beat\"`` and ticker ``\"NVDA\"``.
+    - \"META announced large layoffs. How large was the historical stock impact?\"
+      -> use query ``\"layoffs\"`` and ticker ``\"META\"``.
+    - \"How did the S&P 500 react to surprise Fed rate hikes in the past?\"
+      -> use query ``\"rate hike\"`` and ticker ``\"^GSPC\"`` (if such events
+      were stored).
 
     Args:
         query: Short description or keyword capturing the essence of the event,
             such as ``\"earnings miss\"``, ``\"CEO resigns\"`` or
-            ``\"interest rate hike\"``. The text can be in English or Chinese.
+            ``\"interest rate hike\"``.
         ticker: Asset symbol used when building the event memory, for example
             ``\"AAPL\"``, ``\"NVDA\"`` or ``\"META\"``. The tool applies a
             strict metadata filter so that only events for this ticker are
             returned.
 
     Returns:
-        A long-form text in Chinese summarizing up to three historically similar
+        A long-form text in English summarizing up to three historically similar
         events and their realized T+1/T+5 returns. If the underlying vector
         store is empty or no matching events can be found, the function returns
         a short explanatory message instead of raising an exception.
 
     Disclaimer:
-        本工具仅用于研究与教学示例，不构成任何形式的投资建议。历史收益率不代表未来表现，
-        在实际投资决策中请结合风险承受能力与专业意见。
+        This tool is provided for research and educational use only. Historical
+        returns do not guarantee future performance and are not investment
+        advice.
     """
 
     normalized_ticker = (ticker or "").strip().upper()
@@ -104,8 +106,8 @@ def search_historical_event_impact(query: str, ticker: str) -> str:
 
     if not normalized_ticker or not normalized_query:
         return (
-            "search_historical_event_impact: 需要同时提供非空的 query 和 ticker，"
-            "例如 query='earnings beat', ticker='NVDA'。"
+            "search_historical_event_impact requires non-empty query and ticker "
+            "inputs, for example query='earnings beat', ticker='NVDA'."
         )
 
     docs = _retrieve_historical_events(
@@ -115,22 +117,25 @@ def search_historical_event_impact(query: str, ticker: str) -> str:
     )
     if not docs:
         return (
-            "未能在历史事件记忆库中找到与当前描述高度相似且匹配该标的的事件复盘。"
-            "这通常意味着：要么该标的尚未录入足够历史事件，要么这是一个较为新型或罕见的风险情形。"
+            "No closely matching historical events were found in the event "
+            "memory for this ticker. This usually means either the ticker does "
+            "not yet have enough stored events or the current situation is a "
+            "new or relatively rare scenario."
         )
 
     parts: List[str] = []
     for idx, doc in enumerate(docs, start=1):
         meta = doc.metadata or {}
-        event_date = meta.get("date", "未知日期")
-        event_type = meta.get("event_type", "事件")
-        header = f"### 历史事件 {idx}（{normalized_ticker} / {event_type} / {event_date}）"
+        event_date = meta.get("date", "unknown date")
+        event_type = meta.get("event_type", "event")
+        header = f"### Historical Event {idx} ({normalized_ticker} / {event_type} / {event_date})"
         parts.append(header)
         parts.append(doc.page_content.rstrip())
         parts.append("")
 
     parts.append(
-        "以上为历史上若干相似事件的真实市场反应，仅供定性与定量参考，"
-        "请勿将其视为对未来价格走势的保证。"
+        "These examples summarize realized market reactions from similar "
+        "historical events and are provided for qualitative and quantitative "
+        "reference only. Do not treat them as a guarantee of future price action."
     )
     return "\n".join(parts)

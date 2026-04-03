@@ -60,20 +60,22 @@ def _utc_now() -> datetime:
 
 @lru_cache(maxsize=1)
 def _load_ticker_aliases() -> Dict[str, Dict[str, Any]]:
-    """加载 ticker 别名配置（带缓存）。
+    """Load ticker alias configuration with caching.
 
-    使用 lru_cache 确保配置文件只加载一次，避免重复 I/O。
+    The alias file is loaded once and memoized with ``lru_cache`` to avoid
+    repeated filesystem I/O.
 
     Returns:
-        字典，键为 ticker（大写），值为配置对象：
+        Dictionary keyed by uppercase ticker. Each value is a config object
+        such as:
         {
-            "aliases": List[str],  # 别名列表
-            "type": str            # "stock" 或 "crypto"
+            "aliases": List[str],
+            "type": str,
         }
 
     Raises:
-        FileNotFoundError: 配置文件不存在
-        json.JSONDecodeError: 配置文件格式错误
+        FileNotFoundError: Alias config file is missing.
+        json.JSONDecodeError: Alias config file is malformed.
     """
     config_path = Path(__file__).parent / "ticker_aliases.json"
     with open(config_path, "r", encoding="utf-8") as f:
@@ -82,13 +84,13 @@ def _load_ticker_aliases() -> Dict[str, Dict[str, Any]]:
 
 @lru_cache(maxsize=128)
 def _compile_ticker_regex(asset: str) -> Optional[re.Pattern]:
-    """编译并缓存 ticker 的正则表达式。
+    """Compile and cache the ticker regex for an asset.
 
     Args:
-        asset: 资产代码（如 "NVDA"）
+        asset: Asset ticker such as ``"NVDA"``.
 
     Returns:
-        编译后的正则表达式对象，如果别名列表为空则返回 None
+        Compiled regex object, or ``None`` if the alias list is empty.
     """
     asset_upper = asset.upper()
 
@@ -102,12 +104,12 @@ def _compile_ticker_regex(asset: str) -> Optional[re.Pattern]:
         )
         aliases = [asset_upper]
 
-    # 验证别名列表非空
+    # Ensure the alias list is not empty.
     if not aliases:
         logger.warning(f"Empty alias list for {asset_upper}")
         return None
 
-    # 构建正则表达式：\$?\b(NVDA|Nvidia|Nvidia Corp)\b
+    # Build a regex such as \$?\b(NVDA|Nvidia|Nvidia Corp)\b
     escaped_aliases = [re.escape(alias) for alias in aliases]
     pattern = r"\$?\b(" + "|".join(escaped_aliases) + r")\b"
     return re.compile(pattern, re.IGNORECASE)
@@ -128,32 +130,32 @@ def _asset_to_subreddits(asset: str, config: RedditIngestConfig) -> Sequence[str
 
 
 def _filter_posts_by_asset(posts: List[RedditPost], asset: str) -> List[RedditPost]:
-    """使用别名字典和正则词边界过滤帖子。
+    """Filter posts using ticker aliases and word-boundary regex matching.
 
-    匹配规则：
-    1. 通过 _compile_ticker_regex() 获取缓存的正则表达式
-    2. 正则模式：\$?\b(alias1|alias2|...)\b
-       - \$? : 可选的美元符号前缀（支持 $NVDA 格式）
-       - \b  : 词边界，避免误匹配（NVDA 不会匹配 NVDAX）
-       - re.IGNORECASE : 忽略大小写
-    3. 在帖子的 title 和 selftext 中搜索匹配
+    Matching rules:
+    1. Obtain a cached regex from ``_compile_ticker_regex()``.
+    2. Use a pattern like ``\\$?\\b(alias1|alias2|...)\\b`` where:
+       - ``\\$?`` matches optional cashtags such as ``$NVDA``.
+       - ``\\b`` enforces word boundaries to avoid false positives like
+         ``NVDAX``.
+       - ``re.IGNORECASE`` keeps matching case-insensitive.
+    3. Search both the title and selftext fields.
 
-    注意：与旧实现的行为变化
-    - 旧实现：将文本转为大写后匹配（title.upper()）
-    - 新实现：使用 re.IGNORECASE，保持原文本不变
-    - 影响：无功能差异，但正则匹配更高效
+    Compared with the legacy implementation, this keeps the original text
+    unchanged and relies on ``re.IGNORECASE`` instead of uppercasing the
+    corpus first.
 
     Args:
-        posts: Reddit 帖子列表（RedditPost TypedDict 实例）
-        asset: 资产代码（如 "NVDA"）
+        posts: List of Reddit posts.
+        asset: Asset ticker such as ``"NVDA"``.
 
     Returns:
-        匹配的帖子列表
+        Matching posts only.
     """
-    # 获取编译后的正则表达式（带缓存）
+    # Fetch the compiled regex from cache.
     regex = _compile_ticker_regex(asset)
     if regex is None:
-        # 别名列表为空，无法匹配
+        # Empty alias list means nothing can be matched.
         return []
 
     filtered = []

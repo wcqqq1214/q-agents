@@ -77,20 +77,20 @@ def _probability_direction_label(probability: float) -> str:
     """Return a directional label for a probability around the 0.5 boundary."""
 
     if probability > 0.5:
-        return "看涨"
+        return "Bullish"
     if probability < 0.5:
-        return "看跌"
-    return "中性"
+        return "Bearish"
+    return "Neutral"
 
 
 def _ml_policy_label(policy: Any) -> str:
-    """Return a human-readable Chinese label for the ML authority policy."""
+    """Return a human-readable label for the ML authority policy."""
 
     return {
-        "primary_signal": "PRIMARY_SIGNAL（可作为主信号）",
-        "auxiliary_only": "AUXILIARY_ONLY（仅作辅助）",
-        "event_driven_only": "EVENT_DRIVEN_ONLY（停用 ML 方向信号）",
-    }.get(str(policy), "PRIMARY_SIGNAL（可作为主信号）")
+        "primary_signal": "PRIMARY_SIGNAL (usable as a primary signal)",
+        "auxiliary_only": "AUXILIARY_ONLY (supporting signal only)",
+        "event_driven_only": "EVENT_DRIVEN_ONLY (ML directional signal disabled)",
+    }.get(str(policy), "PRIMARY_SIGNAL (usable as a primary signal)")
 
 
 def explain_latest_sample(
@@ -179,10 +179,10 @@ def build_markdown_report(
     historical_similarity: HistoricalSimilaritySummary | None = None,
     signal_filter: SignalFilterSummary | None = None,
     *,
-    target_label: str = "下一交易日上涨",
+    target_label: str = "the next trading day closes higher",
     model_label: str = "LightGBM",
 ) -> str:
-    """Render a human-readable Chinese Markdown report for the latest sample.
+    """Render a human-readable English Markdown report for the latest sample.
 
     The report is designed for consumption by higher-level Agents (Quant/CIO)
     and humans. It intentionally stays concise while still exposing the key
@@ -204,8 +204,8 @@ def build_markdown_report(
         model_label: Display name of the model shown in the report header.
 
     Returns:
-        A Markdown string written in Chinese that explains the model's view on
-        the most recent market state for the given asset.
+        A Markdown string in English that explains the model's view on the
+        most recent market state for the given asset.
     """
 
     probability_pct = prob_up * 100.0
@@ -231,54 +231,63 @@ def build_markdown_report(
     pos_lines: List[str] = []
     for imp in shap_summary.get("top_positive", []) or []:
         pos_lines.append(
-            f"- **{imp['feature']}** 当前值约为 `{_format_feature_value(imp['value'])}`，"
-            f"对预测方向提供正向贡献 (SHAP ≈ +{abs(imp['shap']):.4f})。"
+            f"- **{imp['feature']}** currently reads approximately "
+            f"`{_format_feature_value(imp['value'])}` and provides a positive "
+            f"contribution to the forecast (SHAP ≈ +{abs(imp['shap']):.4f})."
         )
 
     neg_lines: List[str] = []
     for imp in shap_summary.get("top_negative", []) or []:
         neg_lines.append(
-            f"- **{imp['feature']}** 当前值约为 `{_format_feature_value(imp['value'])}`，"
-            f"对预测方向形成压制 (SHAP ≈ -{abs(imp['shap']):.4f})。"
+            f"- **{imp['feature']}** currently reads approximately "
+            f"`{_format_feature_value(imp['value'])}` and acts as a headwind "
+            f"for the forecast (SHAP ≈ -{abs(imp['shap']):.4f})."
         )
 
-    positive_block = "\n".join(pos_lines) if pos_lines else "- 暂无显著正向驱动特征。"
-    negative_block = "\n".join(neg_lines) if neg_lines else "- 暂无显著压制特征。"
+    positive_block = "\n".join(pos_lines) if pos_lines else "- No strong positive drivers identified."
+    negative_block = "\n".join(neg_lines) if neg_lines else "- No strong negative drivers identified."
 
     lines: List[str] = []
-    lines.append(f"【{model_label} 量化预测报告】标的：`{ticker.upper()}`")
+    lines.append(f"# {model_label} Quant Prediction Report for `{ticker.upper()}`")
     lines.append("")
     lines.append(
-        f"- **模型结论**：在最新可用数据下，模型估计 **{target_label} 的概率约为 {probability_pct:.1f}%**。"
+        f"- **Model conclusion**: on the latest available data, the model "
+        f"estimates the probability of **{target_label}** at approximately "
+        f"**{probability_pct:.1f}%**."
     )
     lines.append(
-        f"- **历史表现（{validation_note}）**：平均 Accuracy ≈ {acc_str}，AUC ≈ {auc_str} "
-        "(仅供参考，不构成收益承诺)。"
+        f"- **Historical validation ({validation_note})**: mean Accuracy ≈ "
+        f"{acc_str}, AUC ≈ {auc_str} (reference only; not a return guarantee)."
     )
     alignment_label = {
-        "confirmed": "方向共振",
-        "contradicted": "方向冲突",
-        "neutral": "方向中性",
-        "unavailable": "暂无相似度确认",
-    }.get(signal_filter["alignment"], "暂无相似度确认")
+        "confirmed": "Direction confirmed",
+        "contradicted": "Direction contradicted",
+        "neutral": "Direction neutral",
+        "unavailable": "No similarity confirmation",
+    }.get(signal_filter["alignment"], "No similarity confirmation")
     final_direction = _probability_direction_label(float(signal_filter["adjusted_probability"]))
     lines.append(
-        f"- **最终交易信号**：相似度过滤后概率约 {final_prob_pct:.1f}% ，方向为 **{final_direction}**；"
-        f"当前属于 **{alignment_label}**，建议仓位系数约 **{float(signal_filter['position_multiplier']):.2f}x**。"
+        f"- **Final trading signal**: after similarity filtering, the "
+        f"probability is approximately {final_prob_pct:.1f}%, with a "
+        f"**{final_direction}** direction; the current status is "
+        f"**{alignment_label}**, with a suggested position multiplier of "
+        f"**{float(signal_filter['position_multiplier']):.2f}x**."
     )
     ml_policy = signal_filter.get("ml_policy")
     if ml_policy == "event_driven_only":
         lines.append(
-            f"- **ML 信号权限**：{_ml_policy_label(ml_policy)}，当前单票 OOS AUC 偏弱，"
-            "机器学习方向性信号已停用，应由事件/新闻/基本面模块接管。"
+            f"- **ML signal authority**: {_ml_policy_label(ml_policy)}. The "
+            "single-symbol OOS AUC is weak, so ML-led directionality is "
+            "disabled and event/news/fundamental modules should take over."
         )
     elif ml_policy == "auxiliary_only":
         lines.append(
-            f"- **ML 信号权限**：{_ml_policy_label(ml_policy)}，当前单票 OOS AUC 仅支持辅助使用，"
-            "不能仅凭 ML 概率直接开仓。"
+            f"- **ML signal authority**: {_ml_policy_label(ml_policy)}. The "
+            "single-symbol OOS AUC only supports auxiliary usage, so the ML "
+            "probability should not trigger a trade on its own."
         )
     else:
-        lines.append(f"- **ML 信号权限**：{_ml_policy_label(ml_policy)}。")
+        lines.append(f"- **ML signal authority**: {_ml_policy_label(ml_policy)}.")
     requested_symbol = str(metrics.get("requested_symbol", ticker)).upper()
     requested_symbol_auc = metrics.get("requested_symbol_auc")
     requested_symbol_accuracy = metrics.get("requested_symbol_accuracy")
@@ -292,21 +301,23 @@ def build_markdown_report(
         )
         sample_note = ""
         if isinstance(requested_symbol_eval_rows, (float, int)):
-            sample_note = f"，验证样本数约 {int(requested_symbol_eval_rows)} 条"
+            sample_note = f", evaluation sample size approximately {int(requested_symbol_eval_rows)}"
         lines.append(
-            f"- **单票外样本表现**：`{requested_symbol}` 的 OOS AUC ≈ {ticker_auc_str}，"
-            f"Accuracy ≈ {ticker_acc_str}{sample_note}。"
+            f"- **Single-symbol OOS performance**: `{requested_symbol}` has "
+            f"OOS AUC ≈ {ticker_auc_str}, Accuracy ≈ {ticker_acc_str}{sample_note}."
         )
     elif metrics.get("requested_symbol_auc_unavailable"):
         lines.append(
-            f"- **单票外样本表现**：`{requested_symbol}` 在当前验证窗口中标签过于单边，OOS AUC 暂不可用。"
+            f"- **Single-symbol OOS performance**: `{requested_symbol}` has "
+            "overly one-sided labels in the current validation window, so OOS "
+            "AUC is unavailable."
         )
     lines.append("")
-    lines.append("### 核心看多驱动力（Top 正向特征）")
+    lines.append("### Core Bullish Drivers (Top Positive Features)")
     lines.append("")
     lines.append(positive_block)
     lines.append("")
-    lines.append("### 核心风险与压制因素（Top 负向特征）")
+    lines.append("### Key Risks and Headwinds (Top Negative Features)")
     lines.append("")
     lines.append(negative_block)
 
@@ -319,24 +330,25 @@ def build_markdown_report(
         peer_group_matches = int(historical_similarity.get("peer_group_matches", 0))
         market_matches = int(historical_similarity.get("market_matches", 0))
         lines.append("")
-        lines.append("### 历史相似阶段")
+        lines.append("### Historical Analog Windows")
         lines.append("")
         lines.append(
-            f"- 系统检索到 **{historical_similarity.get('n_matches', 0)} 个** 高相似历史窗口，"
-            f"平均相似度约 **{avg_sim:.1f}%**。"
+            f"- The system found **{historical_similarity.get('n_matches', 0)}** "
+            f"high-similarity historical windows, with average similarity of "
+            f"**{avg_sim:.1f}%**."
         )
         if same_symbol_matches or peer_group_matches or market_matches:
             lines.append(
-                f"- 匹配策略采用 **同股票优先、peer group 次优先、全市场兜底**："
-                f"同股票样本 {same_symbol_matches} 个，"
-                f"peer group 样本 {peer_group_matches} 个，"
-                f"全市场补充样本 {market_matches} 个。"
+                f"- Matching policy is **same symbol first, then peer group, "
+                f"then market fallback**: {same_symbol_matches} same-symbol "
+                f"matches, {peer_group_matches} peer-group matches, and "
+                f"{market_matches} market matches."
             )
         lines.append(
-            f"- 这些相似阶段在随后 {historical_similarity.get('horizon_days', 3)} 个交易日的"
-            f"平均收益约为 **{avg_ret:+.2f}%**，"
-            f"正收益占比约 **{positive_rate:.1f}%**，"
-            f"上涨异动命中率约 **{hit_rate:.1f}%**。"
+            f"- Over the subsequent {historical_similarity.get('horizon_days', 3)} "
+            f"trading days, these analog windows delivered an average return of "
+            f"**{avg_ret:+.2f}%**, a positive-return rate of **{positive_rate:.1f}%**, "
+            f"and a target-hit rate of **{hit_rate:.1f}%**."
         )
 
         top_matches = historical_similarity.get("matches", [])[:3]
@@ -345,16 +357,16 @@ def build_markdown_report(
             for match in top_matches:
                 ret_pct = float(match.get("future_return_3d", 0.0)) * 100.0
                 scope_label = {
-                    "same_symbol": "同股票",
+                    "same_symbol": "same symbol",
                     "peer_group": "peer group",
-                    "market": "全市场",
-                }.get(str(match.get("scope", "market")), "全市场")
+                    "market": "market",
+                }.get(str(match.get("scope", "market")), "market")
                 lines.append(
-                    f"- `{match.get('symbol', '')}` 在 `{match.get('start_date', '')} ~ {match.get('end_date', '')}`"
-                    f" 的窗口与当前最接近"
-                    f"（{scope_label}）"
-                    f"，相似度 **{float(match.get('similarity', 0.0)) * 100.0:.1f}%**，"
-                    f"随后 3 日收益 **{ret_pct:+.2f}%**。"
+                    f"- `{match.get('symbol', '')}` in the window "
+                    f"`{match.get('start_date', '')} ~ {match.get('end_date', '')}` "
+                    f"is one of the closest analogs ({scope_label}), with "
+                    f"similarity **{float(match.get('similarity', 0.0)) * 100.0:.1f}%** "
+                    f"and a subsequent 3-day return of **{ret_pct:+.2f}%**."
                 )
 
     return "\n".join(lines)

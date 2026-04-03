@@ -149,15 +149,15 @@ def create_memory_document(
 ) -> str:
     """Create a fused memory text block for a single historical event.
 
-    The output follows the blueprint's ``【历史事件复盘】`` template so that both
-    humans and LLMs can quickly understand the asset, date, event description
-    and realized post-event returns.
+    The output follows a compact ``Historical Event Review`` template so that
+    both humans and LLMs can quickly understand the asset, date, event
+    description and realized post-event returns.
 
     Args:
         ticker: Asset ticker such as ``\"META\"`` or ``\"NVDA\"``.
         date: Event date as ``\"YYYY-MM-DD\"``.
-        news_summary: Short Chinese or English summary of the event (for
-            example, earnings surprise, management change, macro shock).
+        news_summary: Short English summary of the event (for example,
+            earnings surprise, management change, or a macro shock).
         returns: Dictionary containing at least keys ``\"t1_return\"`` and
             ``\"t5_return\"`` as decimal returns (e.g. ``0.12`` for ``12%``).
 
@@ -171,13 +171,13 @@ def create_memory_document(
     t5 = float(returns.get("t5_return", 0.0))
 
     lines: List[str] = [
-        "【历史事件复盘】",
-        f"标的：{normalized_ticker}",
-        f"日期：{date}",
-        f"事件摘要：{summary}",
-        "市场真实反应：",
-        f"- 次日(T+1)真实收益率：{t1:.2%}",
-        f"- 后续(T+5)累计收益率：{t5:.2%}",
+        "[Historical Event Review]",
+        f"Ticker: {normalized_ticker}",
+        f"Date: {date}",
+        f"Event Summary: {summary}",
+        "Realized Market Reaction:",
+        f"- Next-day (T+1) return: {t1:.2%}",
+        f"- Cumulative (T+5) return: {t5:.2%}",
         "",
     ]
     return "\n".join(lines)
@@ -217,7 +217,7 @@ def init_chroma_db(
         logger.info("init_chroma_db called with empty docs; nothing to store.")
         return
 
-    # 1. 终极清理：过滤掉全空格、空字符串，防止 docs = [\"\", \" \"] 骗过校验
+    # Final cleanup: filter blank strings so docs=["", " "] cannot bypass validation.
     cleaned_docs: List[str] = []
     cleaned_metadatas: List[Dict[str, str]] = []
 
@@ -227,7 +227,7 @@ def init_chroma_db(
                 cleaned_docs.append(doc)
                 cleaned_metadatas.append(meta)
 
-    # 2. 严格拦截：如果清理后没东西了，绝对不再往下走
+    # Hard stop when no usable text remains after cleanup.
     if not cleaned_docs:
         print(
             "init_chroma_db: No valid text content to embed; "

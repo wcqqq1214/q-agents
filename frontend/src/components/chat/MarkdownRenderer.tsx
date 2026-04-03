@@ -4,6 +4,31 @@ interface MarkdownRendererProps {
   content: string;
 }
 
+function getMarkdownTableCells(line: string): string[] | null {
+  const trimmed = line.trim();
+  if (!trimmed.includes("|")) return null;
+
+  const cells = trimmed.split("|").map((cell) => cell.trim());
+
+  if (trimmed.startsWith("|")) {
+    cells.shift();
+  }
+  if (trimmed.endsWith("|")) {
+    cells.pop();
+  }
+
+  if (cells.length < 2 || cells.every((cell) => !cell)) {
+    return null;
+  }
+
+  return cells;
+}
+
+function isMarkdownTableSeparator(line: string): boolean {
+  const cells = getMarkdownTableCells(line);
+  return cells !== null && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
 export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   // Convert markdown to HTML with proper styling
   const renderMarkdown = (text: string): string => {
@@ -55,37 +80,44 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      const cells = getMarkdownTableCells(line);
 
-      if (line.includes("|")) {
-        if (!inTable) {
-          inTable = true;
-          tableHtml =
-            '<table class="w-full border-collapse my-3 text-sm"><tbody>';
-        }
+      if (!inTable && cells && isMarkdownTableSeparator(lines[i + 1] ?? "")) {
+        inTable = true;
+        tableHtml =
+          '<table class="w-full border-collapse my-3 text-sm"><thead><tr>';
+        tableHtml += cells
+          .map(
+            (cell) =>
+              `<th class="border border-border px-3 py-2 text-left font-semibold">${cell}</th>`,
+          )
+          .join("");
+        tableHtml += "</tr></thead><tbody>";
+        i += 1;
+        continue;
+      }
 
-        const cells = line.split("|").filter((cell) => cell.trim());
-
-        // Skip separator lines (e.g., |---|---|)
-        if (cells.every((cell) => /^[-:\s]+$/.test(cell))) {
+      if (inTable) {
+        if (!cells) {
+          tableHtml += "</tbody></table>";
+          processedLines.push(tableHtml);
+          tableHtml = "";
+          inTable = false;
+          processedLines.push(line);
           continue;
         }
 
         const cellsHtml = cells
           .map(
             (cell) =>
-              `<td class="border border-border px-3 py-2">${cell.trim()}</td>`,
+              `<td class="border border-border px-3 py-2">${cell}</td>`,
           )
           .join("");
         tableHtml += `<tr>${cellsHtml}</tr>`;
-      } else {
-        if (inTable) {
-          tableHtml += "</tbody></table>";
-          processedLines.push(tableHtml);
-          tableHtml = "";
-          inTable = false;
-        }
-        processedLines.push(line);
+        continue;
       }
+
+      processedLines.push(line);
     }
 
     if (inTable) {

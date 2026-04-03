@@ -2,10 +2,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Report } from "@/lib/types";
-import { Accordion } from "@/components/ui/accordion";
+import { cn } from "@/lib/utils";
 import { ReportCard } from "@/components/reports/ReportCard";
+import { Button } from "@/components/ui/button";
+import { ReportsListSkeleton } from "@/components/reports/ReportsListSkeleton";
+import { Accordion } from "@/components/ui/accordion";
 
 function safeTimestampMs(timestamp: string): number {
   const ms = Date.parse(timestamp);
@@ -15,9 +19,16 @@ function safeTimestampMs(timestamp: string): number {
 export default function ReportsPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  async function loadReports() {
+  async function loadReports(refresh: boolean) {
     try {
+      if (refresh) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
+
       const data = await api.getReports();
       setReports(() => {
         return data
@@ -36,24 +47,37 @@ export default function ReportsPage() {
       setReports([]);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }
 
   useEffect(() => {
-    void loadReports();
+    void loadReports(false);
   }, []);
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold">Analysis Reports</h1>
-        <p className="mt-2 text-muted-foreground">
-          Browse all generated financial analysis reports
-        </p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Analysis Reports</h1>
+          <p className="mt-2 text-muted-foreground">
+            Browse all generated financial analysis reports
+          </p>
+        </div>
+        <Button
+          onClick={() => void loadReports(true)}
+          disabled={isLoading || isRefreshing}
+        >
+          <RefreshCw
+            data-icon="inline-start"
+            className={cn(isRefreshing && "animate-spin")}
+          />
+          Refresh
+        </Button>
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading reports...</p>
+        <ReportsListSkeleton />
       ) : reports.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <p className="text-muted-foreground">

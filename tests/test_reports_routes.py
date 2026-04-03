@@ -146,3 +146,59 @@ def test_get_reports_normalizes_list_reports_and_null_symbol(tmp_path, monkeypat
     assert body["symbol"] == "UNKNOWN"
     assert body["asset_type"] == "crypto"
     assert body["reports"] == {"cio": None, "quant": None, "news": None, "social": None}
+
+
+def test_get_reports_normalizes_malformed_stored_asset_type(tmp_path, monkeypatch):
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from app.api.main import app
+
+    report_dir = tmp_path / "data" / "reports" / "20260403_120000_BTC"
+    report_dir.mkdir(parents=True)
+    (report_dir / "report.json").write_text(
+        json.dumps(
+            {
+                "symbol": "BTC",
+                "asset_type": "Crypto ",
+                "timestamp": "2026-04-03T04:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("app.api.routes.reports.REPORTS_DIR", report_dir.parent)
+    client = TestClient(app)
+
+    response = client.get("/api/reports")
+    assert response.status_code == 200
+    body = response.json()[0]
+    assert body["asset_type"] == "crypto"
+
+
+def test_get_report_detail_normalizes_malformed_asset_type(tmp_path, monkeypatch):
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from app.api.main import app
+
+    report_dir = tmp_path / "data" / "reports" / "20260403_120000_NVDA"
+    report_dir.mkdir(parents=True)
+    (report_dir / "report.json").write_text(
+        json.dumps(
+            {
+                "symbol": "NVDA",
+                "asset_type": "stock",
+                "timestamp": "2026-04-03T04:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("app.api.routes.reports.REPORTS_DIR", report_dir.parent)
+    client = TestClient(app)
+
+    response = client.get("/api/reports/20260403_120000_NVDA")
+    body = response.json()
+    assert response.status_code == 200
+    assert body["asset_type"] == "stocks"

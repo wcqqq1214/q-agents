@@ -4,7 +4,7 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException
 
-from app.reporting.asset_type import classify_asset_type
+from app.reporting.asset_type import normalize_asset_type
 
 from ..models import Report
 from ..models.schemas import ReportTexts
@@ -22,7 +22,7 @@ def _build_report_response(report_id: str, data: dict) -> Report:
     return Report(
         id=report_id,
         symbol=symbol,
-        asset_type=data.get("asset_type") or classify_asset_type(symbol),
+        asset_type=normalize_asset_type(data.get("asset_type"), symbol),
         timestamp=data.get("timestamp", ""),
         query=data.get("query") or "",
         final_decision=data.get("final_decision"),

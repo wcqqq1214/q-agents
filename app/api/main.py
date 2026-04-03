@@ -99,7 +99,11 @@ async def enqueue_daily_ohlc_job(app: FastAPI) -> None:
 def configure_market_data_jobs(app: FastAPI, scheduler: AsyncIOScheduler) -> None:
     """Register stock and crypto scheduler jobs."""
     # Schedule daily crypto data download at 08:00 UTC.
-    scheduler.add_job(daily_crypto_download, "cron", hour=8, minute=0, id="daily_crypto_download")
+    scheduler.add_job(
+        daily_crypto_download,
+        trigger=CronTrigger(hour=8, minute=0, timezone="UTC"),
+        id="daily_crypto_download",
+    )
     logger.info("✓ Scheduled daily crypto download at 08:00 UTC")
 
     # Run stock post-close finalization at 16:30 ET.

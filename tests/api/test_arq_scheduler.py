@@ -90,6 +90,9 @@ def test_configure_market_data_jobs_registers_5_minute_stock_jobs():
     post_close_call = next(
         call for call in mock_scheduler.add_job.call_args_list if call.kwargs["id"] == "daily_ohlc_update"
     )
+    crypto_call = next(
+        call for call in mock_scheduler.add_job.call_args_list if call.kwargs["id"] == "daily_crypto_download"
+    )
 
     trigger = intraday_call.kwargs["trigger"]
     assert isinstance(trigger, CronTrigger)
@@ -99,3 +102,7 @@ def test_configure_market_data_jobs_registers_5_minute_stock_jobs():
     assert post_close_call.args[1] == "cron"
     assert post_close_call.kwargs["hour"] == 16
     assert post_close_call.kwargs["minute"] == 30
+
+    crypto_trigger = crypto_call.kwargs["trigger"]
+    assert isinstance(crypto_trigger, CronTrigger)
+    assert str(crypto_trigger.timezone) == "UTC"

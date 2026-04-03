@@ -41,6 +41,8 @@ def classify_asset_type(asset: str | None) -> AssetType:
     if normalized in CRYPTO_TICKERS:
         return "crypto"
     return "stocks"
+
+
 def normalize_asset_type(value: str | None, asset: str | None) -> AssetType:
     """Normalize stored asset-type values and fall back to symbol classification.
 

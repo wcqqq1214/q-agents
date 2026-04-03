@@ -7,6 +7,11 @@ import type { Report } from "@/lib/types";
 import { Accordion } from "@/components/ui/accordion";
 import { ReportCard } from "@/components/reports/ReportCard";
 
+function safeTimestampMs(timestamp: string): number {
+  const ms = Date.parse(timestamp);
+  return Number.isFinite(ms) ? ms : 0;
+}
+
 export default function ReportsPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -14,11 +19,18 @@ export default function ReportsPage() {
   async function loadReports() {
     try {
       const data = await api.getReports();
-      setReports(
-        [...data].sort(
-          (a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp),
-        ),
-      );
+      setReports(() => {
+        return data
+          .map((report, index) => ({ report, index }))
+          .sort((a, b) => {
+            const aMs = safeTimestampMs(a.report.timestamp);
+            const bMs = safeTimestampMs(b.report.timestamp);
+
+            if (aMs !== bMs) return bMs - aMs;
+            return a.index - b.index;
+          })
+          .map(({ report }) => report);
+      });
     } catch (error) {
       console.error("Failed to load reports", error);
       setReports([]);

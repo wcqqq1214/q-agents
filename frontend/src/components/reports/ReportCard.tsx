@@ -18,7 +18,11 @@ interface ReportCardProps {
 }
 
 function formatTimestamp(iso: string): string {
+  if (!iso) return "Unknown time";
+
   const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "Unknown time";
+
   const cutoff = subHours(new Date(), 24);
   if (isAfter(date, cutoff)) {
     return formatDistanceToNow(date, { addSuffix: true });
@@ -29,8 +33,13 @@ function formatTimestamp(iso: string): string {
 const TAB_EMPTY = "No report available.";
 
 export function ReportCard({ report }: ReportCardProps) {
+  const cioText = report.reports?.cio ?? null;
+  const quantText = report.reports?.quant ?? null;
+  const newsText = report.reports?.news ?? null;
+  const socialText = report.reports?.social ?? null;
+
   const summary =
-    markdownSummary(report.reports.cio ?? "", 200) ||
+    markdownSummary(report.reports?.cio ?? "", 200) ||
     "No summary available.";
 
   return (
@@ -65,32 +74,32 @@ export function ReportCard({ report }: ReportCardProps) {
           </TabsList>
 
           <TabsContent value="cio">
-            {report.reports.cio ? (
-              <MarkdownRenderer content={report.reports.cio} />
+            {cioText ? (
+              <MarkdownRenderer content={cioText} />
             ) : (
               <p className="text-sm text-muted-foreground">{TAB_EMPTY}</p>
             )}
           </TabsContent>
 
           <TabsContent value="quant">
-            {report.reports.quant ? (
-              <MarkdownRenderer content={report.reports.quant} />
+            {quantText ? (
+              <MarkdownRenderer content={quantText} />
             ) : (
               <p className="text-sm text-muted-foreground">{TAB_EMPTY}</p>
             )}
           </TabsContent>
 
           <TabsContent value="news">
-            {report.reports.news ? (
-              <MarkdownRenderer content={report.reports.news} />
+            {newsText ? (
+              <MarkdownRenderer content={newsText} />
             ) : (
               <p className="text-sm text-muted-foreground">{TAB_EMPTY}</p>
             )}
           </TabsContent>
 
           <TabsContent value="social">
-            {report.reports.social ? (
-              <MarkdownRenderer content={report.reports.social} />
+            {socialText ? (
+              <MarkdownRenderer content={socialText} />
             ) : (
               <p className="text-sm text-muted-foreground">{TAB_EMPTY}</p>
             )}

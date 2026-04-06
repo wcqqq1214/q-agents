@@ -4,8 +4,6 @@ import type {
   AnalyzeResponse,
   MCPStatus,
   HealthResponse,
-  SettingsResponse,
-  SettingsRequest,
   StockQuotesResponse,
   OHLCResponse,
   OHLCRecord,
@@ -90,15 +88,6 @@ export const api = {
     const params = new URLSearchParams({ query });
     return new EventSource(`${API_BASE_URL}/api/analyze/stream?${params}`);
   },
-
-  // Settings
-  getSettings: () => fetchAPI<SettingsResponse>("/api/settings"),
-
-  updateSettings: (data: SettingsRequest) =>
-    fetchAPI<SettingsResponse>("/api/settings", {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
 
   // Get stock quotes for given symbols
   getStockQuotes: (symbols: string[]) =>

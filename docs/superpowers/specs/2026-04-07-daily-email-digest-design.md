@@ -83,6 +83,9 @@ Validation rules:
   - log how many addresses were dropped
   - continue digest generation
   - skip email sending if no valid recipients remain
+- missing `DAILY_DIGEST_FROM`
+  - fall back to `SMTP_USERNAME` when it is present
+  - if neither sender nor `SMTP_USERNAME` is available, generate the digest and mark email delivery as skipped with an error reason
 - `SMTP_USE_STARTTLS=true` and `SMTP_USE_SSL=true`
   - treat as invalid transport configuration
   - generate the digest but mark email delivery as skipped with an error reason
@@ -156,7 +159,7 @@ This avoids relying on `get_local_stock_data`, which is limited to Magnificent S
 For each ticker, the digest should extract:
 
 - ticker
-- asset_type
+- asset_type (`equity` or `crypto`)
 - status
 - trend
 - summary
@@ -253,7 +256,7 @@ class DailyDigestConfig(TypedDict):
 
 class TechnicalSection(TypedDict, total=False):
     ticker: str
-    asset_type: str
+    asset_type: str  # equity | crypto
     status: str  # ok | error
     summary: str
     trend: str
@@ -324,13 +327,24 @@ Required subfields:
 - `technical_sections[*].asset_type`
 - `technical_sections[*].status`
 - `technical_sections[*].summary`
+- `technical_sections[*].error`
 - `macro_news.status`
 - `macro_news.summary_points`
+- `macro_news.error`
 - `cio_summary.status`
 - `cio_summary.text`
+- `cio_summary.error`
 - `email.status`
 - `email.subject`
 - `email.recipients`
+
+Field invariants:
+
+- `technical_sections[*].asset_type` must be exactly `equity` or `crypto`
+- `technical_sections[*].error` must be `null` when `status=ok`
+- `macro_news.summary_points` must be a list and must be `[]` when `macro_news.status=error`
+- `macro_news.error` must be `null` when `macro_news.status=ok`
+- `cio_summary.error` must be `null` when `cio_summary.status=ok`
 
 Example:
 
@@ -347,7 +361,7 @@ Example:
   "technical_sections": [
     {
       "ticker": "AAPL",
-      "asset_type": "stocks",
+      "asset_type": "equity",
       "status": "ok",
       "trend": "bullish",
       "summary": "Short technical sentence.",
@@ -416,6 +430,9 @@ If one ticker fails during technical snapshot generation:
 
 - keep the digest running
 - include a `status=error` record for that ticker
+- set `asset_type` to the routed value used for the ticker
+- set `summary` to a deterministic fallback sentence such as `Technical snapshot unavailable for this run.`
+- set `error` to a short machine-readable or human-readable reason
 - render a short unavailable line in the email for that ticker
 - log the underlying exception
 
@@ -425,6 +442,8 @@ If macro news generation fails:
 
 - keep the digest running
 - record `macro_news.status=error`
+- set `macro_news.summary_points=[]`
+- set `macro_news.error` to a short reason
 - render a short fallback line such as `Macro news unavailable for this run.`
 
 ### CIO Summary Failure
@@ -433,6 +452,8 @@ If digest-level CIO synthesis fails:
 
 - keep the digest running
 - record `cio_summary.status=error`
+- set `cio_summary.text` to a deterministic fallback sentence based on available technical and macro sections
+- set `cio_summary.error` to a short reason
 - render a deterministic fallback sentence based on available technical and macro sections
 
 ### Email Failure

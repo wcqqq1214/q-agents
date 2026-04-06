@@ -142,7 +142,7 @@ The pipeline should return a structured digest object that includes:
 - one CIO summary block
 - file paths for persisted artifacts
 
-Ticker technical snapshot generation should be concurrent. Because each ticker snapshot is independent, the generator should fan out per-ticker work in parallel and preserve configured ticker order in the final payload. The implementation may use `asyncio.gather` over async adapters or thread-offloaded sync adapters, but the contract is concurrent fan-out rather than serial execution. Tasks should be created in configured ticker order and gathered in that same order; the payload must not be sorted by completion time.
+Ticker technical snapshot generation should be concurrent. Because each ticker snapshot is independent, the generator should fan out per-ticker work in parallel and preserve configured ticker order in the final payload. The implementation may use `asyncio.gather` over async adapters or thread-offloaded sync adapters, but the contract is concurrent fan-out rather than serial execution. Tasks should be created in configured ticker order and gathered in that same order; the payload must not be sorted by completion time. Implementations must not use `asyncio.as_completed` for final payload assembly.
 
 ### 3. Technical Snapshot Generation
 
@@ -213,7 +213,7 @@ LLM input and output constraints:
 - feed the digest CIO step a compact normalized representation of technical sections and macro bullets, not full markdown reports
 - prefer a structured string or compact JSON-like prompt payload
 - set model output limits to approximately 300 tokens and 2-4 sentences so the digest footer stays concise and stable
-- if the model still returns an overlong summary, trim deterministically before email rendering and persistence
+- if the model still returns an overlong summary, trim deterministically before email rendering and persistence by keeping the first 4 sentences
 
 ### 6. Email Transport
 
@@ -365,6 +365,7 @@ Field invariants:
 
 - `technical_sections[*].asset_type` must be exactly `equity` or `crypto`
 - `technical_sections[*].error` must be `null` when `status=ok`
+- `macro_news.window_start` and `macro_news.window_end` must be ISO-8601 timestamps with timezone offsets
 - `macro_news.summary_points` must be a list and must be `[]` when `macro_news.status=error`
 - `macro_news.error` must be `null` when `macro_news.status=ok`
 - `cio_summary.error` must be `null` when `cio_summary.status=ok`

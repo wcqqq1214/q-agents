@@ -142,7 +142,7 @@ The pipeline should return a structured digest object that includes:
 - one CIO summary block
 - file paths for persisted artifacts
 
-Ticker technical snapshot generation should be concurrent. Because each ticker snapshot is independent, the generator should fan out per-ticker work in parallel and preserve configured ticker order in the final payload. The implementation may use `asyncio.gather` over async adapters or thread-offloaded sync adapters, but the contract is concurrent fan-out rather than serial execution.
+Ticker technical snapshot generation should be concurrent. Because each ticker snapshot is independent, the generator should fan out per-ticker work in parallel and preserve configured ticker order in the final payload. The implementation may use `asyncio.gather` over async adapters or thread-offloaded sync adapters, but the contract is concurrent fan-out rather than serial execution. Tasks should be created in configured ticker order and gathered in that same order; the payload must not be sorted by completion time.
 
 ### 3. Technical Snapshot Generation
 
@@ -159,7 +159,7 @@ Asset routing rules:
 
 This avoids relying on `get_local_stock_data`, which is limited to Magnificent Seven equities, while keeping the digest output shape consistent across stocks and crypto.
 
-Even though the repository contains other crypto data paths, v1 should keep a single crypto technical adapter for deterministic behavior and reduced integration scope. The adapter boundary should remain narrow enough that a future revision can swap the underlying crypto source without changing the digest contract.
+Even though the repository contains other crypto data paths, v1 should keep a single crypto technical adapter for deterministic behavior and reduced integration scope. The v1 adapter should call a direct Yahoo-compatible technical data entrypoint rather than introduce a multi-provider router into the digest pipeline. The adapter boundary should remain narrow enough that a future revision can swap the underlying crypto source without changing the digest contract.
 
 For each ticker, the digest should extract:
 
@@ -212,7 +212,8 @@ LLM input and output constraints:
 
 - feed the digest CIO step a compact normalized representation of technical sections and macro bullets, not full markdown reports
 - prefer a structured string or compact JSON-like prompt payload
-- cap output to approximately 300 tokens and 2-4 sentences so the digest footer stays concise and stable
+- set model output limits to approximately 300 tokens and 2-4 sentences so the digest footer stays concise and stable
+- if the model still returns an overlong summary, trim deterministically before email rendering and persistence
 
 ### 6. Email Transport
 
@@ -301,6 +302,12 @@ class EmailDelivery(TypedDict, total=False):
     error: str | None
 
 
+class EmailContent(TypedDict):
+    subject: str
+    text_body: str
+    html_body: str
+
+
 def load_daily_digest_config() -> DailyDigestConfig: ...
 def build_technical_section(ticker: str) -> TechnicalSection: ...
 def build_macro_news_section(config: DailyDigestConfig) -> MacroNewsSection: ...
@@ -308,9 +315,11 @@ def build_cio_summary(
     technical_sections: list[TechnicalSection],
     macro_news: MacroNewsSection,
 ) -> CioSummarySection: ...
+def render_digest_email(payload: dict[str, object]) -> EmailContent: ...
 def send_digest_email(
     subject: str,
-    body: str,
+    text_body: str,
+    html_body: str,
     config: DailyDigestConfig,
 ) -> EmailDelivery: ...
 ```
@@ -341,6 +350,8 @@ Required subfields:
 - `technical_sections[*].summary`
 - `technical_sections[*].error`
 - `macro_news.status`
+- `macro_news.window_start`
+- `macro_news.window_end`
 - `macro_news.summary_points`
 - `macro_news.error`
 - `cio_summary.status`
@@ -389,6 +400,8 @@ Example:
   ],
   "macro_news": {
     "status": "ok",
+    "window_start": "2026-04-06T08:00:00+08:00",
+    "window_end": "2026-04-07T08:00:00+08:00",
     "error": null,
     "summary_points": ["Point 1", "Point 2", "Point 3"],
     "sources": []
@@ -526,6 +539,7 @@ Add tests that cover the new flow without relying on real SMTP or live external 
 - defaults for time, timezone, and ticker list
 - recipient parsing from comma-separated env values
 - disabled behavior when the feature flag is false
+- invalid time strings cause digest job registration to be skipped rather than silently falling back to a default clock value
 - invalid timezone strings cause digest job registration to be skipped rather than silently falling back to UTC
 
 ### Digest Aggregation Tests

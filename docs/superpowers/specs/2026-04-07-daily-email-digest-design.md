@@ -69,6 +69,37 @@ Defaults:
 - `DAILY_DIGEST_TICKERS`: `AAPL,MSFT,GOOGL,AMZN,NVDA,META,TSLA,BTC,ETH`
 - `DAILY_DIGEST_MACRO_QUERY`: a built-in market-wide query string if unset
 
+Validation rules:
+
+- invalid `DAILY_DIGEST_TIME` or `DAILY_DIGEST_TIMEZONE`
+  - do not crash API startup
+  - log a configuration error
+  - skip daily digest job registration
+- empty or invalid ticker list after normalization
+  - log a warning
+  - fall back to the built-in default list
+- malformed recipients
+  - drop invalid addresses
+  - log how many addresses were dropped
+  - continue digest generation
+  - skip email sending if no valid recipients remain
+- `SMTP_USE_STARTTLS=true` and `SMTP_USE_SSL=true`
+  - treat as invalid transport configuration
+  - generate the digest but mark email delivery as skipped with an error reason
+
+## Digest Date Semantics
+
+The digest date is defined in `DAILY_DIGEST_TIMEZONE` at the moment the job runs.
+
+This digest date must be used consistently for:
+
+- email subject line
+- `run_id`
+- persisted artifact directory
+- macro news time-window filtering
+
+For the first release, the macro news window means the 24 hours immediately preceding digest generation time in `DAILY_DIGEST_TIMEZONE`.
+
 ## Architecture
 
 ### 1. Digest Configuration Layer
@@ -109,11 +140,24 @@ The pipeline should return a structured digest object that includes:
 
 ### 3. Technical Snapshot Generation
 
-The digest should reuse the existing quant report generation path, but only expose a compact subset suitable for email.
+The digest should use a dedicated technical snapshot adapter interface and route by asset type.
+
+Asset routing rules:
+
+- equities such as `AAPL`, `NVDA`
+  - reuse the existing quant report generation path and adapt its structured output into a digest section
+- crypto assets such as `BTC`, `ETH`
+  - use the Yahoo-compatible technical data path with symbol mapping `BTC -> BTC-USD`, `ETH -> ETH-USD`
+  - compute the same indicator family used in the digest section
+  - do not require ML enrichment in the first release
+
+This avoids relying on `get_local_stock_data`, which is limited to Magnificent Seven equities, while keeping the digest output shape consistent across stocks and crypto.
 
 For each ticker, the digest should extract:
 
 - ticker
+- asset_type
+- status
 - trend
 - summary
 - support
@@ -133,7 +177,9 @@ The digest should generate one global macro and market news section per run inst
 This requires a lightweight macro news step that:
 
 - searches once using the configured macro query
-- extracts a small set of articles
+- filters to articles published within the prior 24-hour digest window
+- deduplicates by canonical URL when available, otherwise by normalized title
+- keeps between 3 and 8 unique source articles when available
 - summarizes them into 3-5 concise bullet points
 - preserves source metadata in the persisted digest payload
 
@@ -178,9 +224,115 @@ Expected behavior:
 - create one cron job with `replace_existing=True` and `max_instances=1`
 - point the job at a dedicated task entrypoint, such as `app/tasks/send_daily_digest.py`
 
+Deployment boundary for the first release:
+
+- the digest scheduler is single-leader only
+- only one running application process or replica may enable `DAILY_DIGEST_ENABLED=true`
+- preventing duplicate sends across multiple replicas is an operational requirement for v1, not a distributed-lock feature implemented in this change
+
+## Interfaces
+
+The implementation plan should use explicit typed interfaces close to the following shape.
+
+```python
+class DailyDigestConfig(TypedDict):
+    enabled: bool
+    time: str
+    timezone: str
+    tickers: list[str]
+    macro_query: str
+    recipients: list[str]
+    sender: str | None
+    smtp_host: str | None
+    smtp_port: int
+    smtp_username: str | None
+    smtp_password: str | None
+    smtp_use_starttls: bool
+    smtp_use_ssl: bool
+
+
+class TechnicalSection(TypedDict, total=False):
+    ticker: str
+    asset_type: str
+    status: str  # ok | error
+    summary: str
+    trend: str
+    levels: dict[str, float | None]
+    indicators: dict[str, float | None]
+    ml_signal: dict[str, object] | None
+    error: str | None
+
+
+class MacroNewsSection(TypedDict, total=False):
+    status: str  # ok | error
+    query: str
+    window_start: str
+    window_end: str
+    summary_points: list[str]
+    sources: list[dict[str, object]]
+    error: str | None
+
+
+class CioSummarySection(TypedDict, total=False):
+    status: str  # ok | error
+    text: str
+    error: str | None
+
+
+class EmailDelivery(TypedDict, total=False):
+    status: str  # sent | skipped | error
+    subject: str
+    recipients: list[str]
+    error: str | None
+
+
+def load_daily_digest_config() -> DailyDigestConfig: ...
+def build_technical_section(ticker: str) -> TechnicalSection: ...
+def build_macro_news_section(config: DailyDigestConfig) -> MacroNewsSection: ...
+def build_cio_summary(
+    technical_sections: list[TechnicalSection],
+    macro_news: MacroNewsSection,
+) -> CioSummarySection: ...
+def send_digest_email(
+    subject: str,
+    body: str,
+    config: DailyDigestConfig,
+) -> EmailDelivery: ...
+```
+
+These names may be adapted to repository conventions during implementation, but the interface boundaries and required fields should stay stable.
+
 ## Data Contract
 
-The digest pipeline should produce a structured JSON payload with stable fields similar to:
+The digest pipeline must produce a structured JSON payload with these required top-level keys:
+
+- `module`
+- `run_id`
+- `meta`
+- `tickers`
+- `technical_sections`
+- `macro_news`
+- `cio_summary`
+- `email`
+
+Required subfields:
+
+- `meta.generated_at_utc`
+- `meta.timezone`
+- `meta.scheduled_time`
+- `technical_sections[*].ticker`
+- `technical_sections[*].asset_type`
+- `technical_sections[*].status`
+- `technical_sections[*].summary`
+- `macro_news.status`
+- `macro_news.summary_points`
+- `cio_summary.status`
+- `cio_summary.text`
+- `email.status`
+- `email.subject`
+- `email.recipients`
+
+Example:
 
 ```json
 {
@@ -195,6 +347,7 @@ The digest pipeline should produce a structured JSON payload with stable fields 
   "technical_sections": [
     {
       "ticker": "AAPL",
+      "asset_type": "stocks",
       "status": "ok",
       "trend": "bullish",
       "summary": "Short technical sentence.",
@@ -219,12 +372,10 @@ The digest pipeline should produce a structured JSON payload with stable fields 
   "email": {
     "subject": "Daily Market Digest | 2026-04-07",
     "recipients": ["alice@example.com"],
-    "sent": true
+    "status": "sent"
   }
 }
 ```
-
-The exact field names may evolve slightly during implementation, but the payload must preserve this separation between technical sections, macro news, CIO summary, and email delivery metadata.
 
 ## Artifact Persistence
 
@@ -234,6 +385,8 @@ Persist each digest run under a dedicated directory, for example:
 - `data/reports/digests/<run_id>/email.txt`
 
 `digest.json` is the source of truth for the run. `email.txt` is the rendered plain-text snapshot that was intended for delivery.
+
+Retention for the first release follows the current reports behavior: keep artifacts until manually cleaned up. No automatic retention or pruning policy is added in this change.
 
 ## Email Rendering
 
@@ -245,6 +398,13 @@ The first release should send a compact plain-text email. The body should contai
 - one CIO summary subsection with 2-4 sentences
 
 The renderer should avoid dumping full markdown reports into email. The digest must be readable in a normal email client without scrolling through long report blocks.
+
+Formatting rules:
+
+- preserve the configured ticker order
+- render each ticker in no more than two compact lines
+- inline unavailable sections at the ticker or section where they occur
+- do not add a separate error appendix in v1
 
 ## Failure Handling
 
@@ -299,6 +459,13 @@ Add structured logging around:
 - SMTP delivery failure
 
 This work should use logging, not `print`.
+
+Logging must not include:
+
+- SMTP passwords or auth secrets
+- full recipient lists
+
+Log recipient counts instead of raw recipient addresses.
 
 ## Integration Points
 

@@ -82,20 +82,6 @@ export interface HealthResponse {
   timestamp: string;
 }
 
-export interface SettingsResponse {
-  claude_api_key?: string;
-  openai_api_key?: string;
-  polygon_api_key?: string;
-  tavily_api_key?: string;
-}
-
-export interface SettingsRequest {
-  claude_api_key?: string;
-  openai_api_key?: string;
-  polygon_api_key?: string;
-  tavily_api_key?: string;
-}
-
 export interface StockInfo {
   symbol: string;
   name: string;

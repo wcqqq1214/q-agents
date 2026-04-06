@@ -29,7 +29,7 @@ description: Use when a request requires implementation work in this repository,
    - Run `scripts/run_scoped_checks.sh --base-sha <BASE_SHA> --diff-target cached|worktree --cmd '<task verification command>' …` to invoke the path-based lint/format/type checks plus any caller-provided commands described in the verification matrix.
    - Run a spec compliance review against the approved plan or spec. Do not commit until the reviewer confirms the task matches the requested scope.
    - Run `$requesting-code-review` for code quality, resolve any blocking issues, and only then call `scripts/complete_task_commit.sh --message '<conventional commit>' --cmd '…'`. The script rejects empty staged diffs and unstaged changes.
-4. **Final gate:** Use `scripts/run_final_gate.sh --base-sha <BASE_SHA>` to run the backend suite (`uv run pytest tests/`, `uv run ruff check .`, `uv run ruff format --check .`) and, when `frontend/` changed since `<BASE_SHA>`, the frontend suite (`pnpm lint`, `pnpm exec prettier --check .`, `pnpm type-check`). Run `$verification-before-completion` on the final gate command output before claiming success.
+4. **Final gate:** Use `scripts/run_final_gate.sh --base-sha <BASE_SHA>` to run the local backend suite (sequential `uv run python -m pytest <each-changed-non-integration-test-file> -q`, then path-scoped `uv run ruff check <changed-python-paths>` and `uv run ruff format --check <changed-python-paths>`). If backend Python changed but no non-integration test file changed with it, the gate fails immediately. When `frontend/` changed since `<BASE_SHA>`, the script also runs `pnpm lint`, `pnpm exec prettier --check .`, and `pnpm type-check`. Run `$verification-before-completion` on the final gate command output before claiming success.
 5. **Merge & clean:** Run `scripts/squash_merge_to_wcq.sh --branch <feature-branch> --base-sha <BASE_SHA> --worktree <path>` to confirm `wcq` has not drifted, build the squash commit in a temporary integration worktree, rerun the final gate on that merged commit, fast-forward `wcq`, and delete the feature branch/worktree locally.
 
 ## Scripts at your disposal
@@ -42,8 +42,10 @@ description: Use when a request requires implementation work in this repository,
 ## References
 - Branch/worktree naming, `skip-workflow` policy, and merge expectations live in `references/workflow-contract.md`.
 - The scoped check and final gate command matrix (including ESLint and Prettier) lives in `references/verification-matrix.md`.
+- Claude Code routing lives in repository `CLAUDE.md` and `references/claude-code-adapter.md`; keep this `SKILL.md` Codex-first.
 - Future gstack adapter expectations are captured in `references/gstack-adapter.md` so the workflow can be mapped later without changing the current scripts.
 
 ## Notes
 - Do not push to remotes; the workflow stays local until the feature is merged into `wcq`.
 - Keep the feature worktree isolated: all editing, testing, spec writing, planning, and committing happen there before `squash_merge_to_wcq.sh` touches `wcq`.
+- If `scripts/run_scoped_checks.sh` fails twice in a row for the same task, stop retrying and ask the human for direction instead of looping.

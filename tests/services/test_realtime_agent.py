@@ -31,12 +31,13 @@ class TestWarmupHotCache:
         ) as mock_fetch:
             mock_fetch.return_value = mock_klines
 
-            with patch("app.services.realtime_agent.append_to_hot_cache") as mock_append:
-                await warmup_hot_cache()
+            with patch("app.services.realtime_agent.get_max_timestamp", return_value=None):
+                with patch("app.services.realtime_agent.append_to_hot_cache") as mock_append:
+                    await warmup_hot_cache()
 
-                # Should call fetch for both symbols and both intervals
-                assert mock_fetch.call_count == 4  # 2 symbols * 2 intervals
-                assert mock_append.call_count == 4
+                    # Should call fetch for both symbols and both intervals
+                    assert mock_fetch.call_count == 4  # 2 symbols * 2 intervals
+                    assert mock_append.call_count == 4
 
     @pytest.mark.asyncio
     async def test_warmup_calculates_correct_time_range(self):
@@ -46,18 +47,19 @@ class TestWarmupHotCache:
         ) as mock_fetch:
             mock_fetch.return_value = []
 
-            with patch("app.services.realtime_agent.append_to_hot_cache"):
-                await warmup_hot_cache()
+            with patch("app.services.realtime_agent.get_max_timestamp", return_value=None):
+                with patch("app.services.realtime_agent.append_to_hot_cache"):
+                    await warmup_hot_cache()
 
-                # Check first call arguments
-                call_args = mock_fetch.call_args_list[0]
-                start_time = call_args[1]["start_time"]
-                end_time = call_args[1]["end_time"]
+                    # Check first call arguments
+                    call_args = mock_fetch.call_args_list[0]
+                    start_time = call_args[1]["start_time"]
+                    end_time = call_args[1]["end_time"]
 
-                # Should be approximately 48 hours
-                time_diff_ms = end_time - start_time
-                time_diff_hours = time_diff_ms / (1000 * 60 * 60)
-                assert 47 <= time_diff_hours <= 49  # Allow some tolerance
+                    # Should be approximately 48 hours
+                    time_diff_ms = end_time - start_time
+                    time_diff_hours = time_diff_ms / (1000 * 60 * 60)
+                    assert 47 <= time_diff_hours <= 49  # Allow some tolerance
 
     @pytest.mark.asyncio
     async def test_warmup_handles_api_errors(self):
@@ -67,8 +69,11 @@ class TestWarmupHotCache:
         ) as mock_fetch:
             mock_fetch.side_effect = Exception("API Error")
 
-            # Should not raise exception
-            await warmup_hot_cache()
+            with patch("app.services.realtime_agent.get_max_timestamp", return_value=None):
+                # Should not raise exception
+                await warmup_hot_cache()
+
+            assert mock_fetch.call_count == 4
 
 
 class TestUpdateHotCache:

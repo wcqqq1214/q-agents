@@ -1,5 +1,7 @@
 # gstack Adapter Notes
 
+This repository now ships a separate Claude Code adapter in `references/claude-code-adapter.md`. Keep the gstack guidance focused on future gstack execution rather than Claude-specific routing.
+
 This skill ships without `gstack` automation. If a future release requires gstack-based execution, map the existing scripts to gstack tasks as follows:
 
 - `create_feature_workspace.sh` → gstack task that verifies `wcq`, sanitizes slugs, and provisions a worktree.

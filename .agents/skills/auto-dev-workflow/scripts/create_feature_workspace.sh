@@ -16,6 +16,10 @@ fatal() {
   exit 1
 }
 
+workspace_status_ignoring_internal_worktrees() {
+  git status --porcelain --untracked-files=all | grep -vE '^\?\? \.worktrees(/|$)' || true
+}
+
 require_value() {
   local flag="$1"
   local value="${2:-}"
@@ -25,7 +29,7 @@ require_value() {
 }
 
 ensure_clean_wc() {
-  if [[ -n "$(git status --porcelain)" ]]; then
+  if [[ -n "$(workspace_status_ignoring_internal_worktrees)" ]]; then
     fatal "Workspace contains uncommitted changes; clean before creating a worktree."
   fi
 }
@@ -51,6 +55,28 @@ normalize_slug() {
     fatal 'Slug must include at least one alphanumeric character (after normalization).'
   fi
   printf '%s' "$normalized"
+}
+
+ensure_orphaned_target_dir_cleared() {
+  local path="$1"
+  local branch_name="$2"
+  local top_level=""
+  local common_dir=""
+
+  [[ -e "$path" ]] || return 0
+
+  top_level="$(git -C "$path" rev-parse --show-toplevel 2>/dev/null || true)"
+  common_dir="$(git -C "$path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+
+  if [[ "$top_level" == "$path" && "$common_dir" == "$repo_root/.git" ]]; then
+    return 0
+  fi
+
+  if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+    return 0
+  fi
+
+  rm -rf "$path"
 }
 
 repo_root=$(git rev-parse --show-toplevel)
@@ -91,6 +117,8 @@ fi
 ensure_clean_wc
 ensure_on_wcq
 
+git worktree prune
+
 base_sha=$(git rev-parse wcq)
 normalized_slug=$(normalize_slug "$slug")
 date_stamp=$(date +%Y%m%d)
@@ -102,10 +130,13 @@ mkdir -p "$worktrees_root"
 worktree_path="$worktrees_root/$worktree_dirname"
 suffix=2
 
+ensure_orphaned_target_dir_cleared "$worktree_path" "$branch_name"
+
 while git show-ref --verify --quiet "refs/heads/$branch_name" || [[ -e "$worktree_path" ]]; do
   branch_name="$base_branch_name-$suffix"
   worktree_dirname=${branch_name//\//-}
   worktree_path="$worktrees_root/$worktree_dirname"
+  ensure_orphaned_target_dir_cleared "$worktree_path" "$branch_name"
   suffix=$((suffix + 1))
 done
 

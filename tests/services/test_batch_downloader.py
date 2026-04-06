@@ -45,11 +45,15 @@ class TestDownloadDailyData:
                 mock_zip_instance.read.return_value = mock_csv_content
                 mock_zip.return_value.__enter__.return_value = mock_zip_instance
 
-                result = await download_daily_data("BTCUSDT", "1m", date(2024, 1, 15))
+                with patch(
+                    "app.services.batch_downloader.upsert_crypto_ohlc", return_value=1
+                ) as mock_upsert:
+                    result = await download_daily_data("BTCUSDT", "1m", date(2024, 1, 15))
 
                 assert len(result) == 1
                 assert result[0]["timestamp"] == 1640995200000
                 assert result[0]["close"] == 46200.00
+                mock_upsert.assert_called_once_with(symbol="BTCUSDT", bar="1m", data=result)
 
     @pytest.mark.asyncio
     async def test_download_handles_404(self):
@@ -84,8 +88,12 @@ class TestDownloadDailyData:
                 mock_zip_instance.read.return_value = mock_csv_content
                 mock_zip.return_value.__enter__.return_value = mock_zip_instance
 
-                result = await download_daily_data("BTCUSDT", "1m", date(2024, 1, 15))
+                with patch(
+                    "app.services.batch_downloader.upsert_crypto_ohlc", return_value=2
+                ) as mock_upsert:
+                    result = await download_daily_data("BTCUSDT", "1m", date(2024, 1, 15))
 
                 assert len(result) == 2
                 assert result[0]["timestamp"] == 1640995200000
                 assert result[1]["timestamp"] == 1640998800000
+                mock_upsert.assert_called_once_with(symbol="BTCUSDT", bar="1m", data=result)

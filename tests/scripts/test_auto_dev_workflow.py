@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 SCRIPT_ROOT = (
@@ -153,6 +154,25 @@ def test_create_feature_workspace_requires_argument_value(tmp_path: Path) -> Non
 
     assert result.returncode != 0
     assert "Missing value for --kind" in result.stderr
+
+
+def test_create_feature_workspace_reuses_orphaned_target_directory(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    script = _script_path("create_feature_workspace.sh")
+    date_stamp = datetime.now().strftime("%Y%m%d")
+    target_path = repo / ".worktrees" / f"feat-{date_stamp}-stale-dir"
+    target_path.mkdir(parents=True)
+    (target_path / "orphaned.txt").write_text("leftover\n", encoding="utf-8")
+
+    result = _run(
+        ["bash", str(script), "--kind", "feat", "--slug", "Stale Dir"],
+        cwd=repo,
+    )
+
+    assert result.returncode == 0, result.stderr
+    values = dict(line.split("=", maxsplit=1) for line in result.stdout.splitlines() if "=" in line)
+    assert values["WORKTREE_PATH"] == str(target_path)
+    assert not (target_path / "orphaned.txt").exists()
 
 
 def test_run_scoped_checks_cached_ignores_unstaged_frontend_changes(tmp_path: Path) -> None:
@@ -351,12 +371,66 @@ def test_run_final_gate_includes_frontend_checks_when_frontend_changed(tmp_path:
 
     assert result.returncode == 0, result.stderr
     log_text = log_path.read_text(encoding="utf-8")
-    assert "uv run pytest tests/" in log_text
-    assert "uv run ruff check ." in log_text
-    assert "uv run ruff format --check ." in log_text
+    assert "uv run python -m pytest" not in log_text
+    assert "uv run ruff check" not in log_text
+    assert "uv run ruff format --check" not in log_text
     assert "pnpm lint" in log_text
     assert "pnpm exec prettier --check ." in log_text
     assert "pnpm type-check" in log_text
+
+
+def test_run_final_gate_scopes_ruff_to_changed_backend_python_paths(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    script = _script_path("run_final_gate.sh")
+    log_path = tmp_path / "final-gate.log"
+    env = _install_command_stubs(repo, log_path)
+    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    (repo / "app" / "module.py").write_text("VALUE = 2\n", encoding="utf-8")
+    (repo / "tests" / "test_smoke.py").write_text(
+        "def test_smoke() -> None:\n    assert 1 + 1 == 2\n",
+        encoding="utf-8",
+    )
+    assert _git(repo, "add", "app/module.py", "tests/test_smoke.py").returncode == 0
+    commit_result = _git(repo, "commit", "-m", "feat(app): update module")
+    assert commit_result.returncode == 0, commit_result.stderr
+
+    result = _run(
+        ["bash", str(script), "--base-sha", base_sha],
+        cwd=repo,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
+    log_text = log_path.read_text(encoding="utf-8")
+    assert "uv run python -m pytest tests/test_smoke.py -q" in log_text
+    assert "uv run ruff check app/module.py tests/test_smoke.py" in log_text
+    assert "uv run ruff format --check app/module.py tests/test_smoke.py" in log_text
+    assert "pnpm lint" not in log_text
+    assert "pnpm exec prettier --check ." not in log_text
+    assert "pnpm type-check" not in log_text
+
+
+def test_run_final_gate_requires_changed_tests_for_backend_python_paths(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    script = _script_path("run_final_gate.sh")
+    log_path = tmp_path / "final-gate.log"
+    env = _install_command_stubs(repo, log_path)
+    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    (repo / "app" / "module.py").write_text("VALUE = 2\n", encoding="utf-8")
+    assert _git(repo, "add", "app/module.py").returncode == 0
+    commit_result = _git(repo, "commit", "-m", "feat(app): update module")
+    assert commit_result.returncode == 0, commit_result.stderr
+
+    result = _run(
+        ["bash", str(script), "--base-sha", base_sha],
+        cwd=repo,
+        env=env,
+    )
+
+    assert result.returncode != 0
+    assert "No changed non-integration test files found" in result.stderr
 
 
 def test_run_final_gate_requires_argument_value(tmp_path: Path) -> None:
@@ -515,3 +589,56 @@ def test_squash_merge_to_wcq_merges_and_cleans_up(tmp_path: Path) -> None:
     head_message = _git(repo, "log", "-1", "--pretty=%s")
     assert head_message.returncode == 0, head_message.stderr
     assert head_message.stdout.strip() == "feat: squash merge demo"
+
+
+def test_squash_merge_to_wcq_uses_explicit_merge_message(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    script = _script_path("squash_merge_to_wcq.sh")
+    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    feature_worktree = repo / ".worktrees" / "feat-20260407-explicit-message"
+
+    add_worktree = _git(
+        repo,
+        "worktree",
+        "add",
+        "-b",
+        "feat/20260407-explicit-message",
+        str(feature_worktree),
+        "wcq",
+    )
+    assert add_worktree.returncode == 0, add_worktree.stderr
+
+    _write_executable(
+        feature_worktree
+        / ".agents"
+        / "skills"
+        / "auto-dev-workflow"
+        / "scripts"
+        / "run_final_gate.sh",
+        "#!/usr/bin/env bash\nexit 0\n",
+    )
+    (feature_worktree / "README.md").write_text("feature branch\n", encoding="utf-8")
+    assert _git(feature_worktree, "add", "README.md", ".agents").returncode == 0
+    commit_result = _git(feature_worktree, "commit", "-m", "feat: branch change")
+    assert commit_result.returncode == 0, commit_result.stderr
+
+    result = _run(
+        [
+            "bash",
+            str(script),
+            "--branch",
+            "feat/20260407-explicit-message",
+            "--base-sha",
+            base_sha,
+            "--worktree",
+            str(feature_worktree),
+            "--message",
+            "feat(skill): integrate claude adapter",
+        ],
+        cwd=repo,
+    )
+
+    assert result.returncode == 0, result.stderr
+    head_message = _git(repo, "log", "-1", "--pretty=%s")
+    assert head_message.returncode == 0, head_message.stderr
+    assert head_message.stdout.strip() == "feat(skill): integrate claude adapter"

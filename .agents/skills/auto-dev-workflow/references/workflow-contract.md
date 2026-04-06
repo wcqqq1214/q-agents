@@ -12,10 +12,11 @@
 
 ## Task Execution Policy
 - After each plan task is done, run the scoped checks, rerun any task verification commands, and call `scripts/complete_task_commit.sh` with a conventional commit message. That script rejects empty staged diffs plus unstaged or untracked files.
+- If `scripts/run_scoped_checks.sh` fails twice in a row for the same task, stop retrying and escalate to the human with a concise failure summary.
 - All automated steps within the feature branch must succeed before proceeding. If any script or review reports blocking issues, stop and report the failure.
 
 ## Merge & Cleanup
-- After the final gate passes, run `scripts/squash_merge_to_wcq.sh --branch <feature-branch> --base-sha <BASE_SHA> --worktree <worktree-path>` to verify `wcq` still matches `BASE_SHA`, build the squashed commit in a temporary integration worktree, rerun the final gate on that merged commit, fast-forward `wcq`, and then delete the feature worktree/branch locally.
+- After the final gate passes, run `scripts/squash_merge_to_wcq.sh --branch <feature-branch> --base-sha <BASE_SHA> --worktree <worktree-path> [--message "<final summary>"]` to verify `wcq` still matches `BASE_SHA`, build the squashed commit in a temporary integration worktree, rerun the final gate on that merged commit, fast-forward `wcq`, and then delete the feature worktree/branch locally.
 - Deletion is local only; `wcq` stays clean and points to the merged commit after the script finishes.
 
 ## Escape Hatch

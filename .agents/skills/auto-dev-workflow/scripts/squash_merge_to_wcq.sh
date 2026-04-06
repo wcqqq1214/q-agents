@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF' >&2
-Usage: $0 --branch <feature-branch> --base-sha <sha> --worktree <path>
+Usage: $0 --branch <feature-branch> --base-sha <sha> --worktree <path> [--message "<summary>"]
 
 Squash merges a verified feature branch back into local wcq, reruns the final
 gate on the merged commit in a temporary integration worktree, fast-forwards
@@ -15,6 +15,14 @@ EOF
 fatal() {
   echo "$1" >&2
   exit 1
+}
+
+require_value() {
+  local flag="$1"
+  local value="${2:-}"
+  if [[ -z "$value" || "$value" == --* ]]; then
+    fatal "Missing value for $flag"
+  fi
 }
 
 derive_commit_message() {
@@ -89,21 +97,30 @@ workspace_status_ignoring_worktrees() {
 branch=""
 base_sha=""
 worktree_arg=""
+message=""
 temp_branch=""
 temp_worktree=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --branch)
+      require_value "$1" "${2:-}"
       branch="${2:-}"
       shift 2
       ;;
     --base-sha)
+      require_value "$1" "${2:-}"
       base_sha="${2:-}"
       shift 2
       ;;
     --worktree)
+      require_value "$1" "${2:-}"
       worktree_arg="${2:-}"
+      shift 2
+      ;;
+    --message)
+      require_value "$1" "${2:-}"
+      message="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -155,7 +172,10 @@ if git -C "$temp_worktree" diff --cached --quiet --ignore-submodules --; then
   fatal "Squash merge produced no staged changes."
 fi
 
-merge_message="$(derive_commit_message "$branch")"
+merge_message="$message"
+if [[ -z "$merge_message" ]]; then
+  merge_message="$(derive_commit_message "$branch")"
+fi
 git -C "$temp_worktree" commit -m "$merge_message" >/dev/null
 
 final_gate_script="$temp_worktree/.agents/skills/auto-dev-workflow/scripts/run_final_gate.sh"

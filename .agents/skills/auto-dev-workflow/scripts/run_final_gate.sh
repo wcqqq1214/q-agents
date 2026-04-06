@@ -18,6 +18,9 @@ fatal() {
   exit 1
 }
 
+failure_tail_lines=50
+progress_interval_seconds="${WF_PROGRESS_INTERVAL_SECONDS:-5}"
+
 require_value() {
   local flag="$1"
   local value="${2:-}"
@@ -26,9 +29,98 @@ require_value() {
   fi
 }
 
+render_cmd() {
+  local rendered=""
+  printf -v rendered '%q ' "$@"
+  printf '%s' "${rendered% }"
+}
+
+replay_output() {
+  local log_path="$1"
+  [[ -s "$log_path" ]] || return 0
+  cat "$log_path"
+}
+
+start_progress_notifier() {
+  local command_pid="$1"
+  local display="$2"
+
+  (
+    local sleeper_pid=""
+    trap '[[ -n "$sleeper_pid" ]] && kill "$sleeper_pid" 2>/dev/null || true; exit 0' TERM INT
+
+    while kill -0 "$command_pid" 2>/dev/null; do
+      sleep "$progress_interval_seconds" &
+      sleeper_pid=$!
+      wait "$sleeper_pid" 2>/dev/null || true
+      sleeper_pid=""
+      if kill -0 "$command_pid" 2>/dev/null; then
+        echo "... still running: $display" >&2
+      fi
+    done
+  ) &
+}
+
+print_failure_summary() {
+  local display="$1"
+  local status="$2"
+  local log_path="$3"
+  local total_lines
+
+  total_lines=$(wc -l < "$log_path")
+  total_lines="${total_lines//[[:space:]]/}"
+
+  echo "Command failed with exit code $status: $display" >&2
+  if [[ "$total_lines" == "0" ]]; then
+    echo "Command produced no output." >&2
+    return 0
+  fi
+
+  if (( total_lines > failure_tail_lines )); then
+    echo "Showing last ${failure_tail_lines} of ${total_lines} log lines." >&2
+  else
+    echo "Showing all ${total_lines} log lines." >&2
+  fi
+
+  tail -n "$failure_tail_lines" "$log_path" >&2
+}
+
+run_logged_cmd() {
+  local display="$1"
+  shift
+
+  local log_path
+  local status
+  local command_pid
+  local notifier_pid=""
+  log_path=$(mktemp)
+
+  set +e
+  "$@" >"$log_path" 2>&1 &
+  command_pid=$!
+  start_progress_notifier "$command_pid" "$display"
+  notifier_pid=$!
+  wait "$command_pid"
+  status=$?
+  kill "$notifier_pid" 2>/dev/null || true
+  wait "$notifier_pid" 2>/dev/null || true
+  set -e
+
+  if (( status != 0 )); then
+    print_failure_summary "$display" "$status" "$log_path"
+    rm -f "$log_path"
+    return "$status"
+  fi
+
+  replay_output "$log_path"
+  rm -f "$log_path"
+}
+
 run_cmd() {
-  echo "+ $*"
-  "$@"
+  local display
+  display=$(render_cmd "$@")
+  echo "+ $display"
+  run_logged_cmd "$display" "$@"
 }
 
 workspace_status_ignoring_worktrees() {

@@ -45,13 +45,39 @@ def _script_path(script_name: str) -> Path:
     return source
 
 
-def _install_command_stubs(repo: Path, log_path: Path) -> dict[str, str]:
+def _install_command_stubs(
+    repo: Path,
+    log_path: Path,
+    *,
+    fail_pattern: str | None = None,
+    fail_lines: int = 0,
+    fail_code: int = 1,
+    success_pattern: str | None = None,
+    success_output: str | None = None,
+    success_sleep: float | None = None,
+) -> dict[str, str]:
     bin_dir = log_path.parent / "test-bin"
     bin_dir.mkdir()
 
     stub = """#!/usr/bin/env bash
 set -euo pipefail
 printf '%s %s\n' "$(basename "$0")" "$*" >> "$WF_LOG"
+if [[ -n "${WF_FAIL_PATTERN:-}" && "$*" == *"${WF_FAIL_PATTERN}"* ]]; then
+  i=1
+  while (( i <= ${WF_FAIL_LINES:-0} )); do
+    printf 'FAIL_LINE_%03d %s\n' "$i" "$*" >&2
+    i=$((i + 1))
+  done
+  exit "${WF_FAIL_CODE:-1}"
+fi
+if [[ -n "${WF_SUCCESS_PATTERN:-}" && "$*" == *"${WF_SUCCESS_PATTERN}"* ]]; then
+  if [[ -n "${WF_SUCCESS_SLEEP:-}" ]]; then
+    sleep "${WF_SUCCESS_SLEEP}"
+  fi
+  if [[ -n "${WF_SUCCESS_OUTPUT:-}" ]]; then
+    printf '%s\n' "${WF_SUCCESS_OUTPUT}"
+  fi
+fi
 """
     _write_executable(bin_dir / "uv", stub)
     _write_executable(bin_dir / "pnpm", stub)
@@ -59,6 +85,16 @@ printf '%s %s\n' "$(basename "$0")" "$*" >> "$WF_LOG"
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["WF_LOG"] = str(log_path)
+    if fail_pattern is not None:
+        env["WF_FAIL_PATTERN"] = fail_pattern
+        env["WF_FAIL_LINES"] = str(fail_lines)
+        env["WF_FAIL_CODE"] = str(fail_code)
+    if success_pattern is not None:
+        env["WF_SUCCESS_PATTERN"] = success_pattern
+    if success_output is not None:
+        env["WF_SUCCESS_OUTPUT"] = success_output
+    if success_sleep is not None:
+        env["WF_SUCCESS_SLEEP"] = str(success_sleep)
     return env
 
 
@@ -225,6 +261,75 @@ def test_run_scoped_checks_requires_argument_value(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert "Missing value for --base-sha" in result.stderr
+
+
+def test_run_scoped_checks_truncates_failing_command_output(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    script = _script_path("run_scoped_checks.sh")
+    log_path = tmp_path / "commands.log"
+    env = _install_command_stubs(
+        repo,
+        log_path,
+        fail_pattern="ruff check",
+        fail_lines=120,
+    )
+    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    (repo / "app" / "module.py").write_text("VALUE = 2\n", encoding="utf-8")
+    assert _git(repo, "add", "app/module.py").returncode == 0
+
+    result = _run(
+        [
+            "bash",
+            str(script),
+            "--base-sha",
+            base_sha,
+            "--diff-target",
+            "cached",
+        ],
+        cwd=repo,
+        env=env,
+    )
+
+    assert result.returncode != 0
+    assert "Showing last 50 of 120 log lines." in result.stderr
+    assert "FAIL_LINE_001" not in result.stderr
+    assert "FAIL_LINE_070" not in result.stderr
+    assert "FAIL_LINE_071" in result.stderr
+    assert "FAIL_LINE_120" in result.stderr
+    assert "uv run ruff check app/module.py" in log_path.read_text(encoding="utf-8")
+
+
+def test_run_scoped_checks_replays_successful_command_output(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    script = _script_path("run_scoped_checks.sh")
+    log_path = tmp_path / "commands.log"
+    env = _install_command_stubs(
+        repo,
+        log_path,
+        success_pattern="ruff check",
+        success_output="SCOPED_OK_1\nSCOPED_OK_2",
+    )
+    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    (repo / "app" / "module.py").write_text("VALUE = 2\n", encoding="utf-8")
+    assert _git(repo, "add", "app/module.py").returncode == 0
+
+    result = _run(
+        [
+            "bash",
+            str(script),
+            "--base-sha",
+            base_sha,
+            "--diff-target",
+            "cached",
+        ],
+        cwd=repo,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "SCOPED_OK_1\nSCOPED_OK_2" in result.stdout
 
 
 def test_run_scoped_checks_worktree_detects_unstaged_frontend_changes(tmp_path: Path) -> None:
@@ -444,6 +549,73 @@ def test_run_final_gate_requires_argument_value(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert "Missing value for --base-sha" in result.stderr
+
+
+def test_run_final_gate_truncates_failing_command_output(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    script = _script_path("run_final_gate.sh")
+    log_path = tmp_path / "final-gate.log"
+    env = _install_command_stubs(
+        repo,
+        log_path,
+        fail_pattern="python -m pytest",
+        fail_lines=120,
+    )
+    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    (repo / "app" / "module.py").write_text("VALUE = 2\n", encoding="utf-8")
+    (repo / "tests" / "test_smoke.py").write_text(
+        "def test_smoke() -> None:\n    assert 1 + 1 == 2\n",
+        encoding="utf-8",
+    )
+    assert _git(repo, "add", "app/module.py", "tests/test_smoke.py").returncode == 0
+    commit_result = _git(repo, "commit", "-m", "feat(app): update module")
+    assert commit_result.returncode == 0, commit_result.stderr
+
+    result = _run(
+        ["bash", str(script), "--base-sha", base_sha],
+        cwd=repo,
+        env=env,
+    )
+
+    assert result.returncode != 0
+    assert "Showing last 50 of 120 log lines." in result.stderr
+    assert "FAIL_LINE_001" not in result.stderr
+    assert "FAIL_LINE_070" not in result.stderr
+    assert "FAIL_LINE_071" in result.stderr
+    assert "FAIL_LINE_120" in result.stderr
+    assert "uv run python -m pytest tests/test_smoke.py -q" in log_path.read_text(encoding="utf-8")
+
+
+def test_run_final_gate_replays_successful_command_output(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    script = _script_path("run_final_gate.sh")
+    log_path = tmp_path / "final-gate.log"
+    env = _install_command_stubs(
+        repo,
+        log_path,
+        success_pattern="python -m pytest",
+        success_output="PYTEST_OK_1\nPYTEST_OK_2",
+    )
+    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    (repo / "app" / "module.py").write_text("VALUE = 2\n", encoding="utf-8")
+    (repo / "tests" / "test_smoke.py").write_text(
+        "def test_smoke() -> None:\n    assert 1 + 1 == 2\n",
+        encoding="utf-8",
+    )
+    assert _git(repo, "add", "app/module.py", "tests/test_smoke.py").returncode == 0
+    commit_result = _git(repo, "commit", "-m", "feat(app): update module")
+    assert commit_result.returncode == 0, commit_result.stderr
+
+    result = _run(
+        ["bash", str(script), "--base-sha", base_sha],
+        cwd=repo,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "PYTEST_OK_1\nPYTEST_OK_2" in result.stdout
 
 
 def test_run_final_gate_refuses_dirty_workspace(tmp_path: Path) -> None:

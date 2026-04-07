@@ -1,4 +1,4 @@
 interface:
   display_name: "Auto Dev Workflow"
   short_description: "Guide isolated repo workflow for task commits and scripted checks"
-  default_prompt: "Use $auto-dev-workflow to start isolated feature work on wcq with task commits and local squash merge."
+  default_prompt: "Use $auto-dev-workflow to start isolated feature work on wcq with task commits and local fast-forward integration."

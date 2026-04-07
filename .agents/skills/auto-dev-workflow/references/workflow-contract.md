@@ -16,8 +16,8 @@
 - All automated steps within the feature branch must succeed before proceeding. If any script or review reports blocking issues, stop and report the failure.
 
 ## Merge & Cleanup
-- After the final gate passes, run `scripts/squash_merge_to_wcq.sh --branch <feature-branch> --base-sha <BASE_SHA> --worktree <worktree-path> [--message "<final summary>"]` to verify `wcq` still matches `BASE_SHA`, build the squashed commit in a temporary integration worktree, rerun the final gate on that merged commit, fast-forward `wcq`, and then delete the feature worktree/branch locally.
-- Deletion is local only; `wcq` stays clean and points to the merged commit after the script finishes.
+- After the final gate passes, run `scripts/ff_merge_to_wcq.sh --branch <feature-branch> --base-sha <BASE_SHA> --worktree <worktree-path>` to verify `wcq` still matches `BASE_SHA`, validate the feature branch tip in a temporary detached integration worktree, rerun the final gate on that exact commit, fast-forward `wcq`, and then delete the feature worktree/branch locally.
+- Deletion is local only; `wcq` stays clean and points to the fast-forwarded feature-branch head after the script finishes.
 
 ## Escape Hatch
 - Explicitly remarking `skip-workflow` in the request bypasses this skill only. The request then continues through the normal repository instructions rather than being reclassified as non-implementation work.

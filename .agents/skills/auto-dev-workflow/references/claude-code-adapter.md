@@ -39,7 +39,7 @@ Treat the workflow as this ordered Bash sequence:
 7. Run `scripts/run_scoped_checks.sh --base-sha <BASE_SHA> --diff-target cached|worktree --cmd '<task check>' ...`.
 8. Stage the finished task and commit it with `scripts/complete_task_commit.sh --message '<conventional commit>' --cmd '...'`.
 9. After all tasks pass, run `scripts/run_final_gate.sh --base-sha <BASE_SHA>`.
-10. Merge with `scripts/squash_merge_to_wcq.sh --branch <BRANCH_NAME> --base-sha <BASE_SHA> --worktree <WORKTREE_PATH> [--message '<final summary>']`.
+10. Merge with `scripts/ff_merge_to_wcq.sh --branch <BRANCH_NAME> --base-sha <BASE_SHA> --worktree <WORKTREE_PATH>`.
 
 ## Script Notes
 
@@ -68,25 +68,18 @@ Treat the workflow as this ordered Bash sequence:
 - Runs Ruff only against backend Python files changed since `BASE_SHA`.
 - Adds frontend lint, Prettier, and type-check only when `frontend/` changed.
 
-### `squash_merge_to_wcq.sh`
+### `ff_merge_to_wcq.sh`
 
 - Must be run from clean `wcq`.
 - Refuses drifted base state.
-- Accepts optional `--message` so Claude Code can provide a high-signal final squash commit message.
+- Refuses feature branches that cannot be fast-forwarded from `wcq`.
+- Runs the final gate in a detached worktree at the feature branch tip before updating `wcq`.
 - Cleans up the feature worktree and feature branch on success.
-
-## Recommended Final Message
-
-When supplying `--message`, summarize the finished feature at the user-facing level. Avoid vague messages like `feat: merge branch`.
-
-Good examples:
-- `feat(skill): add claude code workflow adapter`
-- `fix(api): harden crypto klines interval handling`
 
 ## Escalation Rule
 
 Escalate to the human when:
 - scoped checks fail twice in a row for the same task
 - the final gate fails and the fix is unclear
-- merge conflicts require policy decisions
+- the feature branch cannot be fast-forwarded cleanly and the fix path is unclear
 - the requested behavior contradicts this repository contract

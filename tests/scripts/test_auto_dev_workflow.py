@@ -637,9 +637,9 @@ def test_run_final_gate_refuses_dirty_workspace(tmp_path: Path) -> None:
     assert "Workspace is dirty" in result.stderr
 
 
-def test_squash_merge_to_wcq_refuses_drifted_base(tmp_path: Path) -> None:
+def test_ff_merge_to_wcq_refuses_drifted_base(tmp_path: Path) -> None:
     repo = _init_repo(tmp_path)
-    script = _script_path("squash_merge_to_wcq.sh")
+    script = _script_path("ff_merge_to_wcq.sh")
     base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
 
     assert _git(repo, "checkout", "-b", "feat/20260407-demo").returncode == 0
@@ -670,10 +670,10 @@ def test_squash_merge_to_wcq_refuses_drifted_base(tmp_path: Path) -> None:
     assert "Drift detected" in result.stderr
 
 
-def test_squash_merge_to_wcq_rejects_non_git_worktree_path(tmp_path: Path) -> None:
+def test_ff_merge_to_wcq_rejects_non_git_worktree_path(tmp_path: Path) -> None:
     repo = _init_repo(tmp_path)
     _install_repo_local_final_gate_stub(repo)
-    script = _script_path("squash_merge_to_wcq.sh")
+    script = _script_path("ff_merge_to_wcq.sh")
     assert (
         _git(repo, "add", ".agents/skills/auto-dev-workflow/scripts/run_final_gate.sh").returncode
         == 0
@@ -708,9 +708,9 @@ def test_squash_merge_to_wcq_rejects_non_git_worktree_path(tmp_path: Path) -> No
     assert "does not point to a git worktree" in result.stderr
 
 
-def test_squash_merge_to_wcq_merges_and_cleans_up(tmp_path: Path) -> None:
+def test_ff_merge_to_wcq_fast_forwards_and_cleans_up(tmp_path: Path) -> None:
     repo = _init_repo(tmp_path)
-    script = _script_path("squash_merge_to_wcq.sh")
+    script = _script_path("ff_merge_to_wcq.sh")
     base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
     feature_worktree = repo / ".worktrees" / "feat-20260407-demo"
 
@@ -738,6 +738,8 @@ def test_squash_merge_to_wcq_merges_and_cleans_up(tmp_path: Path) -> None:
     assert _git(feature_worktree, "add", "README.md", ".agents").returncode == 0
     commit_result = _git(feature_worktree, "commit", "-m", "feat: branch change")
     assert commit_result.returncode == 0, commit_result.stderr
+    feature_head = _git(feature_worktree, "rev-parse", "HEAD")
+    assert feature_head.returncode == 0, feature_head.stderr
 
     result = _run(
         [
@@ -758,72 +760,27 @@ def test_squash_merge_to_wcq_merges_and_cleans_up(tmp_path: Path) -> None:
     deleted_branch = _git(repo, "show-ref", "--verify", "refs/heads/feat/20260407-demo")
     assert deleted_branch.returncode != 0
 
+    head_sha = _git(repo, "rev-parse", "HEAD")
+    assert head_sha.returncode == 0, head_sha.stderr
+    assert head_sha.stdout.strip() == feature_head.stdout.strip()
+
     head_message = _git(repo, "log", "-1", "--pretty=%s")
     assert head_message.returncode == 0, head_message.stderr
-    assert head_message.stdout.strip() == "feat: squash merge demo"
+    assert head_message.stdout.strip() == "feat: branch change"
 
 
-def test_squash_merge_to_wcq_reports_conflict_files(tmp_path: Path) -> None:
+def test_ff_merge_to_wcq_refuses_branch_moving_during_final_gate(tmp_path: Path) -> None:
     repo = _init_repo(tmp_path)
-    script = _script_path("squash_merge_to_wcq.sh")
-
-    (repo / "README.md").write_text("wcq base change\n", encoding="utf-8")
-    assert _git(repo, "add", "README.md").returncode == 0
-    base_commit = _git(repo, "commit", "-m", "chore: update wcq base")
-    assert base_commit.returncode == 0, base_commit.stderr
+    script = _script_path("ff_merge_to_wcq.sh")
     base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
-
-    feature_worktree = repo / ".worktrees" / "feat-20260407-conflict"
-    add_worktree = _git(
-        repo,
-        "worktree",
-        "add",
-        "-b",
-        "feat/20260407-conflict",
-        str(feature_worktree),
-        "HEAD~1",
-    )
-    assert add_worktree.returncode == 0, add_worktree.stderr
-
-    (feature_worktree / "README.md").write_text("feature branch change\n", encoding="utf-8")
-    assert _git(feature_worktree, "add", "README.md").returncode == 0
-    commit_result = _git(feature_worktree, "commit", "-m", "feat: branch conflict change")
-    assert commit_result.returncode == 0, commit_result.stderr
-
-    result = _run(
-        [
-            "bash",
-            str(script),
-            "--branch",
-            "feat/20260407-conflict",
-            "--base-sha",
-            base_sha,
-            "--worktree",
-            str(feature_worktree),
-        ],
-        cwd=repo,
-    )
-
-    assert result.returncode != 0
-    assert "Merge conflicts encountered while squashing 'feat/20260407-conflict'" in result.stderr
-    assert "CONFLICT_FILES:" in result.stderr
-    assert "README.md" in result.stderr
-    assert feature_worktree.exists()
-    assert _git(repo, "show-ref", "--verify", "refs/heads/feat/20260407-conflict").returncode == 0
-
-
-def test_squash_merge_to_wcq_uses_explicit_merge_message(tmp_path: Path) -> None:
-    repo = _init_repo(tmp_path)
-    script = _script_path("squash_merge_to_wcq.sh")
-    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
-    feature_worktree = repo / ".worktrees" / "feat-20260407-explicit-message"
+    feature_worktree = repo / ".worktrees" / "feat-20260407-moving-tip"
 
     add_worktree = _git(
         repo,
         "worktree",
         "add",
         "-b",
-        "feat/20260407-explicit-message",
+        "feat/20260407-moving-tip",
         str(feature_worktree),
         "wcq",
     )
@@ -836,11 +793,79 @@ def test_squash_merge_to_wcq_uses_explicit_merge_message(tmp_path: Path) -> None
         / "auto-dev-workflow"
         / "scripts"
         / "run_final_gate.sh",
-        "#!/usr/bin/env bash\nexit 0\n",
+        (
+            "#!/usr/bin/env bash\n"
+            "set -euo pipefail\n"
+            f"feature_worktree={str(feature_worktree)!r}\n"
+            "printf 'post gate move\\n' > \"$feature_worktree/post_gate.txt\"\n"
+            'git -C "$feature_worktree" add post_gate.txt\n'
+            "git -C \"$feature_worktree\" commit -m 'feat: branch moved during gate' >/dev/null\n"
+        ),
     )
     (feature_worktree / "README.md").write_text("feature branch\n", encoding="utf-8")
     assert _git(feature_worktree, "add", "README.md", ".agents").returncode == 0
     commit_result = _git(feature_worktree, "commit", "-m", "feat: branch change")
+    assert commit_result.returncode == 0, commit_result.stderr
+    verified_head = _git(feature_worktree, "rev-parse", "HEAD")
+    assert verified_head.returncode == 0, verified_head.stderr
+
+    result = _run(
+        [
+            "bash",
+            str(script),
+            "--branch",
+            "feat/20260407-moving-tip",
+            "--base-sha",
+            base_sha,
+            "--worktree",
+            str(feature_worktree),
+        ],
+        cwd=repo,
+    )
+
+    assert result.returncode != 0
+    assert "moved during final gate" in result.stderr
+    assert feature_worktree.exists()
+    assert _git(repo, "show-ref", "--verify", "refs/heads/feat/20260407-moving-tip").returncode == 0
+    head_sha = _git(repo, "rev-parse", "HEAD")
+    assert head_sha.returncode == 0, head_sha.stderr
+    assert head_sha.stdout.strip() == base_sha
+
+
+def test_ff_merge_to_wcq_refuses_non_fast_forward_branch(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    script = _script_path("ff_merge_to_wcq.sh")
+
+    (repo / "README.md").write_text("wcq base change\n", encoding="utf-8")
+    assert _git(repo, "add", "README.md").returncode == 0
+    base_commit = _git(repo, "commit", "-m", "chore: update wcq base")
+    assert base_commit.returncode == 0, base_commit.stderr
+    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    feature_worktree = repo / ".worktrees" / "feat-20260407-diverged"
+    add_worktree = _git(
+        repo,
+        "worktree",
+        "add",
+        "-b",
+        "feat/20260407-diverged",
+        str(feature_worktree),
+        "HEAD~1",
+    )
+    assert add_worktree.returncode == 0, add_worktree.stderr
+    _write_executable(
+        feature_worktree
+        / ".agents"
+        / "skills"
+        / "auto-dev-workflow"
+        / "scripts"
+        / "run_final_gate.sh",
+        "#!/usr/bin/env bash\nexit 0\n",
+    )
+
+    (feature_worktree / "README.md").write_text("feature branch change\n", encoding="utf-8")
+    assert _git(feature_worktree, "add", "README.md", ".agents").returncode == 0
+    commit_result = _git(feature_worktree, "commit", "-m", "feat: branch conflict change")
     assert commit_result.returncode == 0, commit_result.stderr
 
     result = _run(
@@ -848,18 +873,29 @@ def test_squash_merge_to_wcq_uses_explicit_merge_message(tmp_path: Path) -> None
             "bash",
             str(script),
             "--branch",
-            "feat/20260407-explicit-message",
+            "feat/20260407-diverged",
             "--base-sha",
             base_sha,
             "--worktree",
             str(feature_worktree),
-            "--message",
-            "feat(skill): integrate claude adapter",
         ],
         cwd=repo,
     )
 
-    assert result.returncode == 0, result.stderr
-    head_message = _git(repo, "log", "-1", "--pretty=%s")
-    assert head_message.returncode == 0, head_message.stderr
-    assert head_message.stdout.strip() == "feat(skill): integrate claude adapter"
+    assert result.returncode != 0
+    assert "Cannot fast-forward wcq to 'feat/20260407-diverged'" in result.stderr
+    assert feature_worktree.exists()
+    assert _git(repo, "show-ref", "--verify", "refs/heads/feat/20260407-diverged").returncode == 0
+
+
+def test_squash_merge_to_wcq_redirects_to_ff_merge_script(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    script = _script_path("squash_merge_to_wcq.sh")
+
+    result = _run(
+        ["bash", str(script)],
+        cwd=repo,
+    )
+
+    assert result.returncode != 0
+    assert "Use ff_merge_to_wcq.sh instead." in result.stderr

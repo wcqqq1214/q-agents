@@ -6,6 +6,6 @@ This skill ships without `gstack` automation. If a future release requires gstac
 
 - `create_feature_workspace.sh` → gstack task that verifies `wcq`, sanitizes slugs, and provisions a worktree.
 - `run_scoped_checks.sh`, `complete_task_commit.sh`, and `run_final_gate.sh` → gstack tasks submit deterministic commands (ruff, pytest, pnpm) so the workflow remains reproducible even when the harness executes inside gstack sandboxes.
-- `squash_merge_to_wcq.sh` → gstack task that pulls outputs from the feature worktree, reruns the final gate, and performs the local squash merge without pushing upstream.
+- `ff_merge_to_wcq.sh` → gstack task that pulls outputs from the feature worktree, reruns the final gate on the feature branch tip, and performs the local fast-forward integration without pushing upstream.
 
 Until gstack is explicitly required, leave the scripts and documentation in this skill untouched; the adapter note ensures anyone porting the workflow knows which scripts compose each gstack task.

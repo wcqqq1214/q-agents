@@ -30,14 +30,14 @@ description: Use when a request requires implementation work in this repository,
    - Run a spec compliance review against the approved plan or spec. Do not commit until the reviewer confirms the task matches the requested scope.
    - Run `$requesting-code-review` for code quality, resolve any blocking issues, and only then call `scripts/complete_task_commit.sh --message '<conventional commit>' --cmd '…'`. The script rejects empty staged diffs and unstaged changes.
 4. **Final gate:** Use `scripts/run_final_gate.sh --base-sha <BASE_SHA>` to run the local backend suite (sequential `uv run python -m pytest <each-changed-non-integration-test-file> -q`, then path-scoped `uv run ruff check <changed-python-paths>` and `uv run ruff format --check <changed-python-paths>`). If backend Python changed but no non-integration test file changed with it, the gate fails immediately. When `frontend/` changed since `<BASE_SHA>`, the script also runs `pnpm lint`, `pnpm exec prettier --check .`, and `pnpm type-check`. Run `$verification-before-completion` on the final gate command output before claiming success.
-5. **Merge & clean:** Run `scripts/squash_merge_to_wcq.sh --branch <feature-branch> --base-sha <BASE_SHA> --worktree <path>` to confirm `wcq` has not drifted, build the squash commit in a temporary integration worktree, rerun the final gate on that merged commit, fast-forward `wcq`, and delete the feature branch/worktree locally.
+5. **Merge & clean:** Run `scripts/ff_merge_to_wcq.sh --branch <feature-branch> --base-sha <BASE_SHA> --worktree <path>` to confirm `wcq` has not drifted, validate the feature branch tip in a temporary detached integration worktree, rerun the final gate on that exact commit, fast-forward `wcq`, and delete the feature branch/worktree locally.
 
 ## Scripts at your disposal
 - `scripts/create_feature_workspace.sh` – validates clean `wcq`, derives branch/worktree names, and prints `BASE_SHA`, `BRANCH_NAME`, and `WORKTREE_PATH`.
 - `scripts/run_scoped_checks.sh` – runs path-based ruff/pnpm lint/prettier/type-check commands plus caller-provided `--cmd`s for each task.
 - `scripts/complete_task_commit.sh` – reruns task-specific commands, enforces staged changes only, and commits with the provided conventional message.
 - `scripts/run_final_gate.sh` – executes backend checks every time and frontend checks only if `frontend/` changed relative to `<BASE_SHA>`.
-- `scripts/squash_merge_to_wcq.sh` – ensures `wcq` still matches `<BASE_SHA>`, validates the squashed merge in a temporary integration worktree, fast-forwards `wcq`, and tears down the feature branch/worktree.
+- `scripts/ff_merge_to_wcq.sh` – ensures `wcq` still matches `<BASE_SHA>`, validates the feature branch tip in a temporary detached integration worktree, fast-forwards `wcq`, and tears down the feature branch/worktree.
 
 ## References
 - Branch/worktree naming, `skip-workflow` policy, and merge expectations live in `references/workflow-contract.md`.
@@ -47,5 +47,5 @@ description: Use when a request requires implementation work in this repository,
 
 ## Notes
 - Do not push to remotes; the workflow stays local until the feature is merged into `wcq`.
-- Keep the feature worktree isolated: all editing, testing, spec writing, planning, and committing happen there before `squash_merge_to_wcq.sh` touches `wcq`.
+- Keep the feature worktree isolated: all editing, testing, spec writing, planning, and committing happen there before `ff_merge_to_wcq.sh` touches `wcq`.
 - If `scripts/run_scoped_checks.sh` fails twice in a row for the same task, stop retrying and ask the human for direction instead of looping.

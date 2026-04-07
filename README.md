@@ -21,6 +21,7 @@ This project references and is inspired by the following open-source projects:
 - **Social Sentiment**: Reddit discussion analysis for retail investor sentiment
 - **ML Predictions**: LightGBM models with SHAP explainability and time-series cross-validation
 - **Event Memory (RAG)**: ChromaDB-powered semantic search over historical market events
+- **Daily Digest Email**: Scheduled 3-part email with technical overview, macro news, and CIO summary
 
 ## Tech Stack
 
@@ -96,6 +97,16 @@ bash scripts/startup/stop_all.sh
 | API Docs (Swagger) | http://localhost:8080/docs |
 
 Submit a stock analysis query through the web UI. Results stream in real time via SSE and are saved to `data/reports/{run_id}_{asset}/`.
+
+### Optional: Daily Digest Email
+
+Set `DAILY_DIGEST_ENABLED=true` in `.env` to enable a scheduled email. The default watchlist is Magnificent Seven + `BTC` + `ETH`, and each run is saved to `data/reports/digests/<run_id>/`.
+You can use [Resend](https://resend.com/) as the email delivery provider and fill its SMTP credentials into the settings below.
+
+Core settings:
+- `DAILY_DIGEST_TIME`, `DAILY_DIGEST_TIMEZONE`
+- `DAILY_DIGEST_RECIPIENTS`, `DAILY_DIGEST_FROM`
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`
 
 ## Scripts Reference
 

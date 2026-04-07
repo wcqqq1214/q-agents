@@ -8,7 +8,9 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from app.database import get_conn
 from app.digest.models import TechnicalSection
+from app.mcp_client.finance_client import call_get_us_stock_quote
 from app.quant.generate_report import generate_report as generate_quant_report
 from app.tools.finance_tools import get_stock_data
 
@@ -94,6 +96,47 @@ def _filtered_indicator_snapshot(indicators: dict[str, Any]) -> dict[str, float 
     }
 
 
+def _daily_change_pct(last_close: float | None, previous_close: float | None) -> float | None:
+    if last_close is None or previous_close in (None, 0):
+        return None
+    return ((last_close - previous_close) / previous_close) * 100
+
+
+def _load_equity_daily_change_pct(ticker: str) -> float | None:
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            """
+            SELECT close
+            FROM ohlc
+            WHERE symbol = ?
+              AND close IS NOT NULL
+            ORDER BY date DESC
+            LIMIT 2
+            """,
+            (ticker,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    if len(rows) < 2:
+        return None
+
+    last_close = _safe_float(rows[0]["close"])
+    previous_close = _safe_float(rows[1]["close"])
+    return _daily_change_pct(last_close, previous_close)
+
+
+def _load_crypto_daily_change_pct(ticker: str) -> float | None:
+    quote = call_get_us_stock_quote(f"{ticker}-USD")
+    quoted_change = _safe_float(quote.get("change_percent"))
+    if quoted_change is not None:
+        return quoted_change
+    last_close = _safe_float(quote.get("price"))
+    previous_close = _safe_float(quote.get("previous_close"))
+    return _daily_change_pct(last_close, previous_close)
+
+
 def _technical_error_section(ticker: str, asset_type: str, exc: Exception) -> TechnicalSection:
     return {
         "ticker": ticker,
@@ -101,6 +144,7 @@ def _technical_error_section(ticker: str, asset_type: str, exc: Exception) -> Te
         "status": "error",
         "summary": "Technical snapshot unavailable for this run.",
         "trend": "neutral",
+        "daily_change_pct": None,
         "levels": {"support": None, "resistance": None},
         "indicators": {
             "last_close": None,
@@ -115,7 +159,9 @@ def _technical_error_section(ticker: str, asset_type: str, exc: Exception) -> Te
     }
 
 
-def _section_from_quant_report(ticker: str, report: dict[str, Any]) -> TechnicalSection:
+def _section_from_quant_report(
+    ticker: str, report: dict[str, Any], daily_change_pct: float | None
+) -> TechnicalSection:
     indicators = report.get("indicators", {}) if isinstance(report.get("indicators"), dict) else {}
     levels = report.get("levels", {}) if isinstance(report.get("levels"), dict) else {}
     ml_quant = report.get("ml_quant", {}) if isinstance(report.get("ml_quant"), dict) else {}
@@ -136,6 +182,7 @@ def _section_from_quant_report(ticker: str, report: dict[str, Any]) -> Technical
         "status": "ok",
         "summary": str(report.get("summary") or f"{ticker} technical view unavailable."),
         "trend": str(report.get("trend") or _trend_from_indicators(indicators)),
+        "daily_change_pct": daily_change_pct,
         "levels": {
             "support": _safe_float(levels.get("support")),
             "resistance": _safe_float(levels.get("resistance")),
@@ -146,7 +193,9 @@ def _section_from_quant_report(ticker: str, report: dict[str, Any]) -> Technical
     }
 
 
-def _section_from_crypto_data(ticker: str, data: dict[str, Any]) -> TechnicalSection:
+def _section_from_crypto_data(
+    ticker: str, data: dict[str, Any], daily_change_pct: float | None
+) -> TechnicalSection:
     if data.get("error"):
         raise ValueError(str(data["error"]))
 
@@ -174,6 +223,7 @@ def _section_from_crypto_data(ticker: str, data: dict[str, Any]) -> TechnicalSec
         "status": "ok",
         "summary": f"{ticker} technical view is {trend}; price {price_relation} SMA20 with {macd_bias}.",
         "trend": trend,
+        "daily_change_pct": daily_change_pct,
         "levels": levels,
         "indicators": indicators,
         "ml_signal": None,
@@ -201,14 +251,16 @@ async def build_technical_section(ticker: str, run_dir: Path) -> TechnicalSectio
             report = await asyncio.to_thread(
                 generate_quant_report, normalized, str(run_dir / normalized)
             )
-            return _section_from_quant_report(normalized, report)
+            daily_change_pct = await asyncio.to_thread(_load_equity_daily_change_pct, normalized)
+            return _section_from_quant_report(normalized, report, daily_change_pct)
 
         raw = await asyncio.to_thread(
             get_stock_data.invoke,
             {"ticker": f"{normalized}-USD", "period": "3mo"},
         )
         data = raw if isinstance(raw, dict) else json.loads(str(raw))
-        return _section_from_crypto_data(normalized, data)
+        daily_change_pct = await asyncio.to_thread(_load_crypto_daily_change_pct, normalized)
+        return _section_from_crypto_data(normalized, data, daily_change_pct)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to build technical section for %s: %s", normalized, exc)
         return _technical_error_section(normalized, asset_type, exc)

@@ -21,6 +21,7 @@
 - **社交情绪**: Reddit 讨论分析，获取散户投资者情绪
 - **机器学习预测**: LightGBM 模型，支持 SHAP 可解释性与时间序列交叉验证
 - **事件记忆（RAG）**: ChromaDB 驱动的历史市场事件语义检索
+- **每日邮件摘要**: 定时发送 3 段式邮件，包含技术概览、宏观新闻与 CIO 总结
 
 ## 技术栈
 
@@ -96,6 +97,16 @@ bash scripts/startup/stop_all.sh
 | API 文档（Swagger）| http://localhost:8080/docs |
 
 通过 Web UI 提交股票分析查询，结果通过 SSE 实时流式返回，并保存至 `data/reports/{run_id}_{asset}/`。
+
+### 可选：每日邮件摘要
+
+在 `.env` 中设置 `DAILY_DIGEST_ENABLED=true` 即可启用定时报送。默认标的是美股七姐妹加 `BTC`、`ETH`，每次运行会落盘到 `data/reports/digests/<run_id>/`。
+邮件投递可以直接使用 [Resend](https://resend.com/)；把它提供的 SMTP 凭据填到下面这些配置里即可。
+
+核心配置：
+- `DAILY_DIGEST_TIME`、`DAILY_DIGEST_TIMEZONE`
+- `DAILY_DIGEST_RECIPIENTS`、`DAILY_DIGEST_FROM`
+- `SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`
 
 ## 脚本参考
 

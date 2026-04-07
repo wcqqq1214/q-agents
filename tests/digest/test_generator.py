@@ -46,12 +46,14 @@ async def fake_out_of_order_section_builder(ticker: str, run_dir) -> dict[str, o
         "status": "ok",
         "summary": f"{ticker} summary",
         "trend": "bullish",
+        "daily_change_pct": 1.25 if ticker != "BTC" else -0.5,
         "levels": {"support": 1.0, "resistance": 2.0},
         "indicators": {
             "last_close": 1.5,
             "sma_20": 1.4,
             "macd_line": 0.2,
             "macd_signal": 0.1,
+            "price_change_pct": 9.9,
         },
         "ml_signal": None,
         "error": None,
@@ -139,6 +141,8 @@ async def test_generate_daily_digest_preserves_configured_ticker_order(
         "MSFT",
         "BTC",
     ]
+    for section in payload["technical_sections"]:
+        assert "daily_change_pct" in section
     assert payload["run_id"].endswith("_daily_digest")
 
 
@@ -212,11 +216,13 @@ async def test_generate_daily_digest_keeps_running_when_one_ticker_fails(
     )
     assert failing["status"] == "error"
     assert failing["summary"] == "Technical snapshot unavailable for this run."
+    assert failing["daily_change_pct"] is None
     assert "crypto timeout" in failing["error"]
     successful = next(
         section for section in payload["technical_sections"] if section["ticker"] == "AAPL"
     )
     assert successful["status"] == "ok"
+    assert successful["daily_change_pct"] == 1.25
     assert successful["error"] is None
 
 
@@ -321,6 +327,7 @@ async def test_generate_daily_digest_payload_matches_required_top_level_contract
     assert datetime.fromisoformat(payload["macro_news"]["window_end"]).tzinfo is not None
     for section in payload["technical_sections"]:
         assert section["asset_type"] in {"equity", "crypto"}
+        assert "daily_change_pct" in section
     if payload["macro_news"]["status"] == "ok":
         assert payload["macro_news"]["error"] is None
     else:

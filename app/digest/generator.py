@@ -88,6 +88,7 @@ def _technical_error_section(ticker: str, exc: Exception) -> TechnicalSection:
         "status": "error",
         "summary": "Technical snapshot unavailable for this run.",
         "trend": "neutral",
+        "daily_change_pct": None,
         "levels": {"support": None, "resistance": None},
         "indicators": {
             "last_close": None,

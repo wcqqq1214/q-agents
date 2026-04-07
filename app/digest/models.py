@@ -29,6 +29,7 @@ class TechnicalSection(TypedDict, total=False):
     status: Literal["ok", "error"]
     summary: str
     trend: str
+    daily_change_pct: float | None
     levels: dict[str, float | None]
     indicators: dict[str, float | None]
     ml_signal: dict[str, object] | None

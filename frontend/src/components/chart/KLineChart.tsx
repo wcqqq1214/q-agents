@@ -136,87 +136,91 @@ export function KLineChart({ selectedStock, assetType }: KLineChartProps) {
   }, [ohlcData]);
 
   // Fetch OHLC data
-  const fetchData = useCallback(async (isAutoRefresh = false) => {
-    if (!selectedStock) {
-      setOhlcData([]);
-      latestOhlcDataRef.current = [];
-      return;
-    }
-
-    lastRequestStartedAtRef.current = Date.now();
-    requestInFlightRef.current = true;
-    setLoading(true);
-    setError(null);
-
-    try {
-      const { start, end } = calculateDateRange(timeRange);
-
-      // Map frontend TimeRange to backend interval parameter
-      // Crypto supports: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w
-      // Stocks support: day, week, month, year
-      const stockIntervalMap: Record<TimeRange, string> = {
-        D: "day",
-        W: "week",
-        M: "month",
-        Y: "year",
-        "15M": "15m",
-        "1H": "1h",
-        "4H": "4h",
-        "1D": "1d",
-        "1W": "1w",
-        "1M": "1m",
-        "1Y": "1y",
-      };
-
-      const cryptoIntervalMap: Record<TimeRange, string> = {
-        D: "1d", // Day view: use daily bars
-        W: "1d", // Week view: use daily bars
-        M: "1d", // Month view: use daily bars
-        Y: "1d", // Year view: use daily bars
-        "15M": "15m", // 15-minute view
-        "1H": "1h", // 1-hour view
-        "4H": "4h", // 4-hour view
-        "1D": "1d", // 1-day view
-        "1W": "1w", // 1-week view
-        "1M": "1M", // 1-month button: use monthly bars
-        "1Y": "1d", // 1-year button: use daily bars
-      };
-
-      const intervalMap =
-        assetType === "crypto" ? cryptoIntervalMap : stockIntervalMap;
-
-      const response =
-        assetType === "crypto"
-          ? await api.getCryptoOHLC(
-              selectedStock,
-              start,
-              end,
-              intervalMap[timeRange],
-            )
-          : await api.getStockOHLC(
-              selectedStock,
-              start,
-              end,
-              intervalMap[timeRange],
-            );
-      setOhlcData(response.data);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to load chart data";
-      setError(message);
-      const shouldToast = !isAutoRefresh || latestOhlcDataRef.current.length === 0;
-      if (shouldToast) {
-        toast({
-          title: "Failed to load chart",
-          description: "Unable to fetch OHLC data",
-          variant: "destructive",
-        });
+  const fetchData = useCallback(
+    async (isAutoRefresh = false) => {
+      if (!selectedStock) {
+        setOhlcData([]);
+        latestOhlcDataRef.current = [];
+        return;
       }
-    } finally {
-      requestInFlightRef.current = false;
-      setLoading(false);
-    }
-  }, [selectedStock, timeRange, assetType, toast]);
+
+      lastRequestStartedAtRef.current = Date.now();
+      requestInFlightRef.current = true;
+      setLoading(true);
+      setError(null);
+
+      try {
+        const { start, end } = calculateDateRange(timeRange);
+
+        // Map frontend TimeRange to backend interval parameter
+        // Crypto supports: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w
+        // Stocks support: day, week, month, year
+        const stockIntervalMap: Record<TimeRange, string> = {
+          D: "day",
+          W: "week",
+          M: "month",
+          Y: "year",
+          "15M": "15m",
+          "1H": "1h",
+          "4H": "4h",
+          "1D": "1d",
+          "1W": "1w",
+          "1M": "1m",
+          "1Y": "1y",
+        };
+
+        const cryptoIntervalMap: Record<TimeRange, string> = {
+          D: "1d", // Day view: use daily bars
+          W: "1d", // Week view: use daily bars
+          M: "1d", // Month view: use daily bars
+          Y: "1d", // Year view: use daily bars
+          "15M": "15m", // 15-minute view
+          "1H": "1h", // 1-hour view
+          "4H": "4h", // 4-hour view
+          "1D": "1d", // 1-day view
+          "1W": "1w", // 1-week view
+          "1M": "1M", // 1-month button: use monthly bars
+          "1Y": "1d", // 1-year button: use daily bars
+        };
+
+        const intervalMap =
+          assetType === "crypto" ? cryptoIntervalMap : stockIntervalMap;
+
+        const response =
+          assetType === "crypto"
+            ? await api.getCryptoOHLC(
+                selectedStock,
+                start,
+                end,
+                intervalMap[timeRange],
+              )
+            : await api.getStockOHLC(
+                selectedStock,
+                start,
+                end,
+                intervalMap[timeRange],
+              );
+        setOhlcData(response.data);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to load chart data";
+        setError(message);
+        const shouldToast =
+          !isAutoRefresh || latestOhlcDataRef.current.length === 0;
+        if (shouldToast) {
+          toast({
+            title: "Failed to load chart",
+            description: "Unable to fetch OHLC data",
+            variant: "destructive",
+          });
+        }
+      } finally {
+        requestInFlightRef.current = false;
+        setLoading(false);
+      }
+    },
+    [selectedStock, timeRange, assetType, toast],
+  );
 
   useEffect(() => {
     void fetchData();

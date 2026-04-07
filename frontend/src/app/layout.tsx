@@ -49,7 +49,9 @@ export default function RootLayout({
         >
           <TrendColorProvider>
             <Navbar />
-            <main className="container mx-auto flex-1 px-4 py-8">{children}</main>
+            <main className="container mx-auto flex-1 px-4 py-8">
+              {children}
+            </main>
             <Toaster />
           </TrendColorProvider>
         </ThemeProvider>

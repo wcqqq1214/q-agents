@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Literal, TypedDict, cast
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from app.analysis import AnalysisRuntime
 from app.llm_config import create_llm
 from app.polymarket.tools import search_polymarket_predictions
 from app.reporting.writer import write_json
@@ -166,7 +167,11 @@ def _build_news_markdown(report: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def generate_report(asset: str, run_dir: str) -> NewsBundle:
+def generate_report(
+    asset: str,
+    run_dir: str,
+    runtime: AnalysisRuntime | None = None,
+) -> NewsBundle:
     """Generate the News report and persist it as `news.json` inside run_dir."""
 
     asset_norm = (asset or "").strip().upper()
@@ -177,6 +182,14 @@ def generate_report(asset: str, run_dir: str) -> NewsBundle:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Fetch sources using realtime search (Tavily first, DuckDuckGo fallback)
+    if runtime is not None:
+        runtime.emit_stage("news", "running", "Calling realtime news search")
+        runtime.emit_tool_call(
+            "news",
+            "search_realtime_news",
+            "Calling realtime news search",
+            {"asset": asset_norm, "limit": 8},
+        )
     search_result = search_realtime_news.invoke({"query": asset_norm, "limit": 8})
     search_data = json.loads(search_result) if isinstance(search_result, str) else search_result
 
@@ -195,12 +208,38 @@ def generate_report(asset: str, run_dir: str) -> NewsBundle:
         for i in search_data.get("articles", [])
         if isinstance(i, dict)
     ]
+    if runtime is not None:
+        provider_label = actual_source.replace("_", " ").title()
+        runtime.emit_tool_result(
+            "news",
+            "search_realtime_news",
+            f"Fetched {len(sources)} news articles from {provider_label}",
+            {"provider": actual_source, "article_count": len(sources)},
+        )
 
     # Fetch Polymarket prediction data
     polymarket_markets = None
     try:
+        if runtime is not None:
+            runtime.emit_tool_call(
+                "news",
+                "search_polymarket_predictions",
+                "Fetching Polymarket signals",
+                {"asset": asset_norm, "limit": 5},
+            )
         polymarket_data = search_polymarket_predictions.invoke({"query": asset_norm, "limit": 5})
         polymarket_markets = json.loads(polymarket_data) if polymarket_data else None
+        if runtime is not None:
+            runtime.emit_tool_result(
+                "news",
+                "search_polymarket_predictions",
+                "Polymarket signals fetched",
+                {
+                    "markets_found": polymarket_markets.get("markets_found", 0)
+                    if polymarket_markets
+                    else 0
+                },
+            )
     except Exception as e:
         from logging import getLogger
 
@@ -234,6 +273,20 @@ def generate_report(asset: str, run_dir: str) -> NewsBundle:
     llm = create_llm()
     resp = llm.invoke([SystemMessage(content=system), HumanMessage(content=prompt)])
     content = cast(str, getattr(resp, "content", "") or "").strip()
+    if runtime is not None:
+        runtime.record_private_reasoning(
+            "news",
+            "news",
+            {
+                "schema_version": 1,
+                "reasoning_kind": "news_sentiment_summary",
+                "model": type(llm).__name__,
+                "prompt": prompt,
+                "raw_completion": content,
+                "parsed_summary": {"asset": asset_norm},
+                "tool_context": {"article_count": len(sources)},
+            },
+        )
 
     # Best-effort parse: require JSON object.
     obj = _extract_json_object(content)
@@ -262,4 +315,11 @@ def generate_report(asset: str, run_dir: str) -> NewsBundle:
     path = out_dir / "news.json"
     write_json(path, report)
     report["report_path"] = str(path)
+    if runtime is not None:
+        runtime.emit_stage(
+            "news",
+            "completed",
+            "News sentiment report completed",
+            {"artifact": "news", "article_count": len(sources), "report_path": str(path)},
+        )
     return cast(NewsBundle, report)

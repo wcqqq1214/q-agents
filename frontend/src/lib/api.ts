@@ -10,6 +10,14 @@ import type {
   DataStatusResponse,
   CryptoQuotesResponse,
 } from "./types";
+import type {
+  AnalysisEventStage,
+  AnalysisEventStatus,
+  AnalysisEventType,
+  AnalysisReportMap,
+  AnalysisStreamEvent,
+  AnalysisStreamResult,
+} from "@/features/analysis-session/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -60,6 +68,84 @@ async function fetchAPI<T>(
   }
 }
 
+const ANALYSIS_EVENT_STAGES = new Set<AnalysisEventStage>([
+  "system",
+  "quant",
+  "news",
+  "social",
+  "cio",
+]);
+
+const ANALYSIS_EVENT_STATUSES = new Set<AnalysisEventStatus>([
+  "pending",
+  "running",
+  "completed",
+  "failed",
+]);
+
+const ANALYSIS_EVENT_TYPES = new Set<AnalysisEventType>([
+  "stage",
+  "tool_call",
+  "tool_result",
+  "result",
+  "error",
+  "heartbeat",
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isAnalysisReportMap(value: unknown): value is AnalysisReportMap {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    (typeof value.cio === "string" || value.cio === null) &&
+    (typeof value.quant === "string" || value.quant === null) &&
+    (typeof value.news === "string" || value.news === null) &&
+    (typeof value.social === "string" || value.social === null)
+  );
+}
+
+function isAnalysisStreamResult(value: unknown): value is AnalysisStreamResult {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.report_id === "string" &&
+    typeof value.status === "string" &&
+    typeof value.final_decision === "string" &&
+    isRecord(value.quant_analysis) &&
+    isRecord(value.news_sentiment) &&
+    isRecord(value.social_sentiment) &&
+    isAnalysisReportMap(value.reports)
+  );
+}
+
+function parseAnalysisEventType(value: unknown): AnalysisEventType | null {
+  return typeof value === "string" &&
+    ANALYSIS_EVENT_TYPES.has(value as AnalysisEventType)
+    ? (value as AnalysisEventType)
+    : null;
+}
+
+function parseAnalysisEventStage(value: unknown): AnalysisEventStage {
+  return typeof value === "string" &&
+    ANALYSIS_EVENT_STAGES.has(value as AnalysisEventStage)
+    ? (value as AnalysisEventStage)
+    : "system";
+}
+
+function parseAnalysisEventStatus(value: unknown): AnalysisEventStatus {
+  return typeof value === "string" &&
+    ANALYSIS_EVENT_STATUSES.has(value as AnalysisEventStatus)
+    ? (value as AnalysisEventStatus)
+    : "running";
+}
+
 export const api = {
   // Health check
   health: () => fetchAPI<HealthResponse>("/api/health"),
@@ -87,6 +173,69 @@ export const api = {
   createAnalyzeStream: (query: string) => {
     const params = new URLSearchParams({ query });
     return new EventSource(`${API_BASE_URL}/api/analyze/stream?${params}`);
+  },
+
+  parseAnalysisStreamEvent: (payload: string): AnalysisStreamEvent | null => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(payload);
+    } catch {
+      return null;
+    }
+
+    if (!isRecord(parsed)) {
+      return null;
+    }
+
+    const type = parseAnalysisEventType(parsed.type);
+    if (!type) {
+      return null;
+    }
+
+    const baseEvent = {
+      event_id:
+        typeof parsed.event_id === "string" ? parsed.event_id : undefined,
+      sequence:
+        typeof parsed.sequence === "number" ? parsed.sequence : undefined,
+      run_id: typeof parsed.run_id === "string" ? parsed.run_id : undefined,
+      timestamp:
+        typeof parsed.timestamp === "string" ? parsed.timestamp : undefined,
+      type,
+      stage: parseAnalysisEventStage(parsed.stage),
+      status: parseAnalysisEventStatus(parsed.status),
+      message: typeof parsed.message === "string" ? parsed.message : "",
+    };
+
+    if (type === "result") {
+      const resultData = isAnalysisStreamResult(parsed.data)
+        ? parsed.data
+        : {
+            report_id: baseEvent.run_id ?? "unknown_run",
+            status: "completed",
+            final_decision: "",
+            quant_analysis: {},
+            news_sentiment: {},
+            social_sentiment: {},
+            reports: {
+              cio: null,
+              quant: null,
+              news: null,
+              social: null,
+            },
+          };
+
+      return {
+        ...baseEvent,
+        type,
+        data: resultData,
+      };
+    }
+
+    return {
+      ...baseEvent,
+      type,
+      data: isRecord(parsed.data) ? parsed.data : {},
+    };
   },
 
   // Get stock quotes for given symbols

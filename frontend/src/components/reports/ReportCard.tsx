@@ -40,8 +40,7 @@ export function ReportCard({ report }: ReportCardProps) {
   const socialText = report.reports?.social ?? null;
 
   const summary =
-    markdownSummary(report.reports?.cio ?? "", 200) ||
-    "No summary available.";
+    markdownSummary(report.reports?.cio ?? "", 200) || "No summary available.";
   const displayQuery = getReportQueryDisplay(report.query, report.symbol);
 
   return (

@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const source = readFileSync(new URL("./KLineChart.tsx", import.meta.url), "utf8");
+const source = readFileSync(
+  new URL("./KLineChart.tsx", import.meta.url),
+  "utf8",
+);
 
 test("k line chart registers stock polling with 5 minute interval", () => {
   assert.match(source, /STOCK_POLL_INTERVAL_MS/);
@@ -11,7 +14,10 @@ test("k line chart registers stock polling with 5 minute interval", () => {
 });
 
 test("k line chart polling is explicitly guarded to stocks only", () => {
-  assert.match(source, /if\s*\(assetType\s*!==\s*"stocks"\s*\|\|\s*!selectedStock\)\s*\{/);
+  assert.match(
+    source,
+    /if\s*\(assetType\s*!==\s*"stocks"\s*\|\|\s*!selectedStock\)\s*\{/,
+  );
 });
 
 test("k line chart gates visibility refresh with cooldown helper", () => {
@@ -42,11 +48,17 @@ test("k line chart only shows blocking error state when no data exists", () => {
 
 test("k line chart auto-refresh skips when a request is already in flight", () => {
   assert.match(source, /requestInFlightRef\.current/);
-  assert.match(source, /if\s*\(requestInFlightRef\.current\)\s*\{\s*return;\s*\}/);
+  assert.match(
+    source,
+    /if\s*\(requestInFlightRef\.current\)\s*\{\s*return;\s*\}/,
+  );
 });
 
 test("k line chart suppresses auto-refresh toast noise once data exists", () => {
-  assert.match(source, /const\s+shouldToast\s*=\s*!isAutoRefresh\s*\|\|\s*latestOhlcDataRef\.current\.length\s*===\s*0/);
+  assert.match(
+    source,
+    /const\s+shouldToast\s*=\s*!isAutoRefresh\s*\|\|\s*latestOhlcDataRef\.current\.length\s*===\s*0/,
+  );
   assert.match(source, /if\s*\(shouldToast\)\s*\{\s*toast\(/);
   assert.match(source, /void fetchData\(true\)/);
 });

@@ -79,6 +79,51 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> None:
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tool_name ON tool_calls(tool_name)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tool_status ON tool_calls(status)")
 
+    # Create analysis_progress_events table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS analysis_progress_events (
+            event_id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL,
+            sequence INTEGER NOT NULL,
+            stage TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            status TEXT NOT NULL,
+            message TEXT NOT NULL,
+            data_json TEXT,
+            timestamp DATETIME NOT NULL,
+            FOREIGN KEY (run_id) REFERENCES analysis_runs(run_id)
+        )
+    """)
+
+    # Create indexes for analysis_progress_events
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_progress_run_sequence
+        ON analysis_progress_events(run_id, sequence)
+        """
+    )
+
+    # Create analysis_private_reasoning table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS analysis_private_reasoning (
+            reasoning_id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL,
+            stage TEXT NOT NULL,
+            agent_type TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            created_at DATETIME NOT NULL,
+            FOREIGN KEY (run_id) REFERENCES analysis_runs(run_id)
+        )
+    """)
+
+    # Create indexes for analysis_private_reasoning
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_reasoning_run_stage
+        ON analysis_private_reasoning(run_id, stage)
+        """
+    )
+
     # Create decision_outcomes table (reserved for future use)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS decision_outcomes (
@@ -198,6 +243,82 @@ def save_tool_call(
             status,
             error_message,
             timestamp.isoformat(),
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def save_analysis_progress_event(
+    event_id: str,
+    run_id: str,
+    sequence: int,
+    stage: str,
+    event_type: str,
+    status: str,
+    message: str,
+    timestamp: datetime,
+    data: Optional[Dict[str, Any]] = None,
+    db_path: str = DEFAULT_DB_PATH,
+) -> None:
+    """Save a normalized public progress event to the history database."""
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+
+    data_json = json.dumps(data, ensure_ascii=False) if data is not None else None
+
+    cursor.execute(
+        """
+        INSERT INTO analysis_progress_events
+        (event_id, run_id, sequence, stage, event_type, status, message, data_json, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            event_id,
+            run_id,
+            sequence,
+            stage,
+            event_type,
+            status,
+            message,
+            data_json,
+            timestamp.isoformat(),
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def save_private_reasoning(
+    reasoning_id: str,
+    run_id: str,
+    stage: str,
+    agent_type: str,
+    payload: Dict[str, Any],
+    created_at: datetime,
+    db_path: str = DEFAULT_DB_PATH,
+) -> None:
+    """Save a private LLM reasoning payload for internal-only use."""
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+
+    payload_json = json.dumps(payload, ensure_ascii=False)
+
+    cursor.execute(
+        """
+        INSERT INTO analysis_private_reasoning
+        (reasoning_id, run_id, stage, agent_type, payload_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            reasoning_id,
+            run_id,
+            stage,
+            agent_type,
+            payload_json,
+            created_at.isoformat(),
         ),
     )
 

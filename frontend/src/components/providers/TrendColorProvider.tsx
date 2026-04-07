@@ -1,7 +1,18 @@
 "use client";
 
-import { createContext, useContext, useCallback, useLayoutEffect, useState, useTransition } from "react";
-import { TREND_COLOR_KEY, TREND_COLOR_CN_CLASS, type TrendMode } from "@/lib/trend-color-constants";
+import {
+  createContext,
+  useContext,
+  useCallback,
+  useLayoutEffect,
+  useState,
+  useTransition,
+} from "react";
+import {
+  TREND_COLOR_KEY,
+  TREND_COLOR_CN_CLASS,
+  type TrendMode,
+} from "@/lib/trend-color-constants";
 
 interface TrendColorContextValue {
   trendMode: TrendMode;
@@ -15,7 +26,11 @@ const TrendColorContext = createContext<TrendColorContextValue>({
   isMounted: false,
 });
 
-export function TrendColorProvider({ children }: { children: React.ReactNode }) {
+export function TrendColorProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [trendMode, setTrendModeState] = useState<TrendMode>("western");
   const [isMounted, setIsMountedState] = useState(false);
   const [, startTransition] = useTransition();
@@ -32,7 +47,8 @@ export function TrendColorProvider({ children }: { children: React.ReactNode }) 
 
   useLayoutEffect(() => {
     const stored = localStorage.getItem(TREND_COLOR_KEY) as TrendMode | null;
-    const mode = stored === "chinese" || stored === "western" ? stored : "western";
+    const mode =
+      stored === "chinese" || stored === "western" ? stored : "western";
 
     if (mode === "chinese") {
       document.documentElement.classList.add(TREND_COLOR_CN_CLASS);

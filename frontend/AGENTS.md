@@ -1,4 +1,5 @@
 <!-- BEGIN:nextjs-agent-rules -->
+
 # Frontend Agent Rules
 
 This file applies to all work under `frontend/` and is the canonical agent instruction file for frontend changes.

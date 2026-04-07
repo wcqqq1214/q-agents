@@ -1,16 +1,58 @@
 import asyncio
 import json
 from datetime import datetime
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
+from app.analysis import AnalysisRuntime
 from app.graph_multi import run_once
 
 from ..models import AnalyzeRequest, AnalyzeResponse
 
 router = APIRouter()
+
+
+HEARTBEAT_INTERVAL_SECONDS = 1.0
+
+
+def _format_sse(payload: dict[str, Any]) -> str:
+    """Serialize a normalized event payload into SSE format."""
+
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+def _build_response_data(result: dict[str, Any], query: str) -> dict[str, Any]:
+    """Build the final frontend payload from a completed analysis result."""
+
+    report_id = result.get("run_id", f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{query.upper()}")
+    return {
+        "report_id": report_id,
+        "status": "completed",
+        "final_decision": result.get("final_decision", ""),
+        "quant_analysis": result.get("quant_report_obj", {}),
+        "news_sentiment": result.get("news_report_obj", {}),
+        "social_sentiment": result.get("social_report_obj", {}),
+        "reports": {
+            "cio": result.get("final_decision", ""),
+            "quant": (
+                result.get("quant_report_obj", {}).get("markdown_report")
+                if isinstance(result.get("quant_report_obj"), dict)
+                else None
+            ),
+            "news": (
+                result.get("news_report_obj", {}).get("markdown_report")
+                if isinstance(result.get("news_report_obj"), dict)
+                else None
+            ),
+            "social": (
+                result.get("social_report_obj", {}).get("markdown_report")
+                if isinstance(result.get("social_report_obj"), dict)
+                else None
+            ),
+        },
+    }
 
 
 async def run_analysis_stream(query: str) -> AsyncGenerator[str, None]:
@@ -20,48 +62,49 @@ async def run_analysis_stream(query: str) -> AsyncGenerator[str, None]:
     Calls app.graph_multi.run_once() in a background thread and streams
     progress updates as SSE events.
     """
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    runtime = AnalysisRuntime(
+        run_id=f"stream_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+        loop=loop,
+        public_queue=queue,
+        db_path=None,
+    )
+    analysis_task = asyncio.create_task(asyncio.to_thread(run_once, query, runtime=runtime))
+
     try:
-        # Actually call the agent system
-        result = await asyncio.to_thread(run_once, query)
+        while True:
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=HEARTBEAT_INTERVAL_SECONDS)
+                yield _format_sse(event)
+                if event.get("type") in {"result", "error"}:
+                    break
+                continue
+            except asyncio.TimeoutError:
+                if not analysis_task.done():
+                    heartbeat = {
+                        "type": "heartbeat",
+                        "stage": "system",
+                        "status": "running",
+                        "message": "Analysis still running",
+                    }
+                    yield _format_sse(heartbeat)
+                    continue
 
-        # Extract report ID from result
-        report_id = result.get(
-            "run_id", f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{query.upper()}"
-        )
-
-        # Build response with full report content
-        response_data = {
-            "report_id": report_id,
-            "status": "completed",
-            "final_decision": result.get("final_decision", ""),
-            "quant_analysis": result.get("quant_report_obj", {}),
-            "news_sentiment": result.get("news_report_obj", {}),
-            "social_sentiment": result.get("social_report_obj", {}),
-            "reports": {
-                "cio": result.get("final_decision", ""),
-                "quant": (
-                    result.get("quant_report_obj", {}).get("markdown_report")
-                    if isinstance(result.get("quant_report_obj"), dict)
-                    else None
-                ),
-                "news": (
-                    result.get("news_report_obj", {}).get("markdown_report")
-                    if isinstance(result.get("news_report_obj"), dict)
-                    else None
-                ),
-                "social": (
-                    result.get("social_report_obj", {}).get("markdown_report")
-                    if isinstance(result.get("social_report_obj"), dict)
-                    else None
-                ),
-            },
-        }
-
-        # Send completion event
-        yield f"data: {json.dumps({'type': 'result', 'data': response_data})}\n\n"
-
-    except Exception as e:
-        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            if analysis_task.done():
+                try:
+                    result = analysis_task.result()
+                except Exception as exc:  # noqa: BLE001
+                    runtime.emit_error("system", str(exc))
+                else:
+                    response_data = _build_response_data(result, query)
+                    runtime.bind_run_id(response_data["report_id"])
+                    runtime.emit_result(response_data)
+                continue
+    finally:
+        runtime.close_public_stream()
+        if not analysis_task.done():
+            analysis_task.cancel()
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)

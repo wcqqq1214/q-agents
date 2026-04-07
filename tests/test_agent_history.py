@@ -4,9 +4,11 @@ import json
 import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
+import app.database.agent_history as agent_history
 from app.database.agent_history import (
     get_connection,
     init_db,
@@ -44,6 +46,18 @@ def test_init_db_creates_tables(tmp_path):
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='decision_outcomes'")
     assert cursor.fetchone() is not None
 
+    # Check analysis_progress_events table exists
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='analysis_progress_events'"
+    )
+    assert cursor.fetchone() is not None
+
+    # Check analysis_private_reasoning table exists
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='analysis_private_reasoning'"
+    )
+    assert cursor.fetchone() is not None
+
     conn.close()
 
 
@@ -67,9 +81,119 @@ def test_init_db_creates_indexes(tmp_path):
         "idx_tool_exec",
         "idx_tool_name",
         "idx_tool_status",
+        "idx_progress_run_sequence",
+        "idx_reasoning_run_stage",
     }
 
     assert expected_indexes.issubset(indexes)
+    conn.close()
+
+
+def test_save_analysis_progress_event_round_trips_json_payload(tmp_path: Path) -> None:
+    """Progress events should persist sanitized payloads for a run."""
+    db_path = tmp_path / "test.db"
+    init_db(str(db_path))
+
+    save_event = getattr(agent_history, "save_analysis_progress_event", None)
+    assert callable(save_event)
+
+    run_id = "20260321_143052"
+    save_analysis_run(
+        run_id=run_id,
+        asset="AAPL",
+        query="test",
+        timestamp=datetime.now(timezone(timedelta(hours=8))),
+        db_path=str(db_path),
+    )
+
+    save_event(
+        event_id="evt_000001",
+        run_id=run_id,
+        sequence=1,
+        stage="news",
+        event_type="tool_result",
+        status="completed",
+        message="Fetched 8 news articles from Tavily",
+        timestamp=datetime.now(timezone.utc),
+        data={"tool": "search_realtime_news", "provider": "tavily", "article_count": 8},
+        db_path=str(db_path),
+    )
+
+    conn = get_connection(str(db_path))
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT event_id, run_id, sequence, stage, event_type, status, message, data_json
+        FROM analysis_progress_events
+        WHERE event_id = ?
+        """,
+        ("evt_000001",),
+    )
+    row = cursor.fetchone()
+    assert row is not None
+    assert row["run_id"] == run_id
+    assert row["sequence"] == 1
+    assert row["stage"] == "news"
+    assert row["event_type"] == "tool_result"
+    assert row["status"] == "completed"
+    payload = json.loads(row["data_json"])
+    assert payload["provider"] == "tavily"
+    assert payload["article_count"] == 8
+    conn.close()
+
+
+def test_save_private_reasoning_persists_versioned_payload(tmp_path: Path) -> None:
+    """Private reasoning should be stored as versioned JSON envelopes."""
+    db_path = tmp_path / "test.db"
+    init_db(str(db_path))
+
+    save_reasoning = getattr(agent_history, "save_private_reasoning", None)
+    assert callable(save_reasoning)
+
+    run_id = "20260321_143052"
+    save_analysis_run(
+        run_id=run_id,
+        asset="AAPL",
+        query="test",
+        timestamp=datetime.now(timezone(timedelta(hours=8))),
+        db_path=str(db_path),
+    )
+
+    save_reasoning(
+        reasoning_id="rsn_000001",
+        run_id=run_id,
+        stage="cio",
+        agent_type="cio",
+        payload={
+            "schema_version": 1,
+            "reasoning_kind": "cio_synthesis",
+            "prompt": "Summarize all reports",
+            "raw_completion": "Bullish with caveats",
+            "parsed_summary": {"decision": "bullish"},
+            "tool_context": {"quant_available": True},
+        },
+        created_at=datetime.now(timezone.utc),
+        db_path=str(db_path),
+    )
+
+    conn = get_connection(str(db_path))
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT reasoning_id, run_id, stage, agent_type, payload_json
+        FROM analysis_private_reasoning
+        WHERE reasoning_id = ?
+        """,
+        ("rsn_000001",),
+    )
+    row = cursor.fetchone()
+    assert row is not None
+    assert row["run_id"] == run_id
+    assert row["stage"] == "cio"
+    payload = json.loads(row["payload_json"])
+    assert payload["schema_version"] == 1
+    assert payload["reasoning_kind"] == "cio_synthesis"
+    assert payload["parsed_summary"]["decision"] == "bullish"
     conn.close()
 
 

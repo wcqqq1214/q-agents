@@ -17,6 +17,7 @@ from typing import Any, Dict, Literal, TypedDict, cast
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from app.analysis import AnalysisRuntime
 from app.llm_config import create_llm
 from app.reporting.writer import write_json
 from app.tools.local_tools import get_local_stock_data
@@ -308,7 +309,11 @@ def _summarize_quant_snapshot(
     return trend, levels, summary
 
 
-def generate_report(asset: str, run_dir: str) -> QuantBundle:
+def generate_report(
+    asset: str,
+    run_dir: str,
+    runtime: AnalysisRuntime | None = None,
+) -> QuantBundle:
     """Generate the Quant report and persist it as `quant.json` inside run_dir."""
 
     asset_norm = (asset or "").strip().upper()
@@ -319,6 +324,14 @@ def generate_report(asset: str, run_dir: str) -> QuantBundle:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Tool provides compact JSON string of indicators from local database
+    if runtime is not None:
+        runtime.emit_stage("quant", "running", "Loading 90-day local technical snapshot")
+        runtime.emit_tool_call(
+            "quant",
+            "get_local_stock_data",
+            "Loading 90-day local technical snapshot",
+            {"days": 90, "asset": asset_norm},
+        )
     indicators_json = cast(str, get_local_stock_data.invoke({"ticker": asset_norm, "days": 90}))
     try:
         indicators = cast(Dict[str, Any], json.loads(indicators_json))
@@ -327,11 +340,27 @@ def generate_report(asset: str, run_dir: str) -> QuantBundle:
 
     # Determine actual data source
     actual_source = "local_database" if "error" not in indicators else "unknown"
+    if runtime is not None:
+        runtime.emit_tool_result(
+            "quant",
+            "get_local_stock_data",
+            "Loaded technical snapshot from local database"
+            if actual_source == "local_database"
+            else "Technical snapshot source unavailable",
+            {"source": actual_source, "asset": asset_norm},
+        )
 
     trend, levels, summary_str = _summarize_quant_snapshot(asset_norm, indicators)
 
     # Run the ML quant analysis tool to enrich the bundle with an ml_quant block.
     try:
+        if runtime is not None:
+            runtime.emit_tool_call(
+                "quant",
+                "run_ml_quant_analysis",
+                "Running ML quant analysis",
+                {"asset": asset_norm},
+            )
         ml_quant_raw = run_ml_quant_analysis.invoke({"ticker": asset_norm})
         ml_quant = cast(Dict[str, Any], ml_quant_raw if isinstance(ml_quant_raw, dict) else {})
     except Exception as exc:
@@ -341,6 +370,16 @@ def generate_report(asset: str, run_dir: str) -> QuantBundle:
             "data_source": "sqlite_panel_db",
             "error": f"Failed to run ML quant analysis: {type(exc).__name__}: {exc}",
         }
+    if runtime is not None:
+        runtime.emit_tool_result(
+            "quant",
+            "run_ml_quant_analysis",
+            "ML quant analysis completed",
+            {
+                "model": ml_quant.get("model"),
+                "prediction_available": "error" not in ml_quant,
+            },
+        )
 
     report: Dict[str, Any] = {
         "asset": asset_norm,
@@ -363,4 +402,11 @@ def generate_report(asset: str, run_dir: str) -> QuantBundle:
     path = out_dir / "quant.json"
     write_json(path, report)
     report["report_path"] = str(path)
+    if runtime is not None:
+        runtime.emit_stage(
+            "quant",
+            "completed",
+            "Quant report completed",
+            {"artifact": "quant", "report_path": str(path)},
+        )
     return cast(QuantBundle, report)

@@ -10,7 +10,10 @@ export function getReportQueryDisplay(query: string, symbol: string): string {
     return normalizedQuery;
   }
 
-  const symbolPattern = new RegExp(`\\b${escapeRegExp(normalizedSymbol)}\\b`, "gi");
+  const symbolPattern = new RegExp(
+    `\\b${escapeRegExp(normalizedSymbol)}\\b`,
+    "gi",
+  );
   const withoutSymbol = normalizedQuery.replace(symbolPattern, " ");
 
   return withoutSymbol

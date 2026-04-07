@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const source = readFileSync(new URL("./AssetSelector.tsx", import.meta.url), "utf8");
+const source = readFileSync(
+  new URL("./AssetSelector.tsx", import.meta.url),
+  "utf8",
+);
 
 test("asset selector polls every 300000 ms via shared constant", () => {
   assert.match(source, /STOCK_POLL_INTERVAL_MS/);
@@ -24,5 +27,8 @@ test("asset selector cleans up interval and visibility listener", () => {
 
 test("asset selector interval refresh skips when a request is already in flight", () => {
   assert.match(source, /requestInFlightRef\.current/);
-  assert.match(source, /if\s*\(requestInFlightRef\.current\)\s*\{\s*return;\s*\}/);
+  assert.match(
+    source,
+    /if\s*\(requestInFlightRef\.current\)\s*\{\s*return;\s*\}/,
+  );
 });

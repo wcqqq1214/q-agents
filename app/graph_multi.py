@@ -25,6 +25,7 @@ from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 
+from app.analysis import AnalysisRuntime
 from app.database.agent_history import (
     init_db,
     save_agent_execution,
@@ -510,12 +511,19 @@ def _extract_asset_from_query(query: str) -> str:
     return tokens[-1]
 
 
-def _parallel_runner(state: AgentState) -> Dict[str, Any]:
+def _parallel_runner(
+    state: AgentState,
+    *,
+    runtime: AnalysisRuntime | None = None,
+) -> Dict[str, Any]:
     """Run Quant, News, and Social agents in parallel; fill reports in state."""
 
     query = state.get("query") or ""
     asset = _extract_asset_from_query(query)
     ctx = make_run_dir(asset)
+    if runtime is not None:
+        runtime.bind_run_id(ctx.run_id)
+        runtime.emit_stage("system", "running", "Parallel analysis started", {"asset": ctx.asset})
 
     # Save analysis run to database
     try:
@@ -536,13 +544,20 @@ def _parallel_runner(state: AgentState) -> Dict[str, Any]:
             generate_quant_report,
             ctx.asset,
             str(ctx.run_dir),
+            runtime,
         )
         fut_news = executor.submit(
             generate_news_report,
             ctx.asset,
             str(ctx.run_dir),
+            runtime,
         )
-        fut_social = executor.submit(generate_social_report, ctx.asset, str(ctx.run_dir))
+        fut_social = executor.submit(
+            generate_social_report,
+            ctx.asset,
+            str(ctx.run_dir),
+            runtime,
+        )
         quant_obj = cast(Dict[str, Any], fut_quant.result())
         news_obj = cast(Dict[str, Any], fut_news.result())
         social_obj = cast(Dict[str, Any], fut_social.result())
@@ -573,7 +588,12 @@ def _parallel_runner(state: AgentState) -> Dict[str, Any]:
     return out
 
 
-def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> Dict[str, str]:
+def _cio_node(
+    state: AgentState,
+    *,
+    config: Optional[RunnableConfig] = None,
+    runtime: AnalysisRuntime | None = None,
+) -> Dict[str, str]:
     """CIO synthesizes quant/news/social reports; no tools."""
     query = state.get("query", "")
     quant_obj = state.get("quant_report_obj", {})
@@ -597,6 +617,13 @@ def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> 
     asset = _extract_asset_from_query(query)
     run_id = state.get("run_id")
     run_dir = state.get("run_dir")
+    if runtime is not None:
+        runtime.emit_stage(
+            "cio",
+            "running",
+            "CIO synthesis started",
+            {"asset": (asset or "").strip().upper()},
+        )
 
     user_block = (
         f"User question:\n{query}\n\n"
@@ -612,6 +639,27 @@ def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> 
     response = llm.invoke(messages, config=config)
     content = getattr(response, "content", None) or ""
     generated_at_utc = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    if runtime is not None:
+        runtime.record_private_reasoning(
+            "cio",
+            "cio",
+            {
+                "schema_version": 1,
+                "reasoning_kind": "cio_synthesis",
+                "model": type(llm).__name__,
+                "prompt": user_block,
+                "raw_completion": str(content),
+                "parsed_summary": {
+                    "asset": (asset or "").strip().upper(),
+                    "query": query,
+                },
+                "tool_context": {
+                    "quant_available": bool(quant_obj),
+                    "news_available": bool(news_obj),
+                    "social_available": bool(social_obj),
+                },
+            },
+        )
 
     cio_obj: Dict[str, Any] = {
         "asset": (asset or "").strip().upper(),
@@ -661,6 +709,16 @@ def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> 
                 f"Failed to update final_decision in history database: {e}",
                 exc_info=True,
             )
+    if runtime is not None:
+        runtime.emit_stage(
+            "cio",
+            "completed",
+            "CIO synthesis completed",
+            {
+                "artifact": "cio",
+                "report_path": cio_path or "",
+            },
+        )
 
     return {
         "final_decision": str(content),
@@ -669,20 +727,31 @@ def _cio_node(state: AgentState, *, config: Optional[RunnableConfig] = None) -> 
     }
 
 
-def build_multi_agent_graph():
+def build_multi_agent_graph(runtime: AnalysisRuntime | None = None):
     """Build compiled graph: START -> parallel_runner -> cio -> END."""
     graph = StateGraph(AgentState)
-    graph.add_node("parallel_runner", _parallel_runner)
-    graph.add_node("cio", _cio_node)
+
+    def parallel_runner_node(state: AgentState) -> Dict[str, Any]:
+        return _parallel_runner(state, runtime=runtime)
+
+    def cio_node(
+        state: AgentState,
+        *,
+        config: Optional[RunnableConfig] = None,
+    ) -> Dict[str, str]:
+        return _cio_node(state, config=config, runtime=runtime)
+
+    graph.add_node("parallel_runner", parallel_runner_node)
+    graph.add_node("cio", cio_node)
     graph.add_edge(START, "parallel_runner")
     graph.add_edge("parallel_runner", "cio")
     graph.add_edge("cio", END)
     return graph.compile()
 
 
-def run_once(user_input: str) -> AgentState:
+def run_once(user_input: str, runtime: Any | None = None) -> AgentState:
     """Invoke the multi-agent graph once; returns final state including final_decision."""
-    compiled = build_multi_agent_graph()
+    compiled = build_multi_agent_graph(runtime=cast(AnalysisRuntime | None, runtime))
     initial: AgentState = {"query": user_input.strip()}
     return cast(AgentState, compiled.invoke(initial))
 

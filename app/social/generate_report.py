@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, TypedDict, cast
 
+from app.analysis import AnalysisRuntime
 from app.reporting.writer import write_json
 from app.social.export_tools import build_social_report
 from app.social.ingest_meta import extract_ingest_meta_from_text
@@ -44,7 +45,9 @@ def _build_social_markdown(report: Dict[str, Any]) -> str:
     asset = str(report.get("asset", "UNKNOWN")).upper()
     sentiment = _format_markdown_value(report.get("sentiment"))
     summary = str(report.get("summary") or "No social summary available.")
-    signal_available = bool(report.get("signal_available", report.get("sentiment") != "unavailable"))
+    signal_available = bool(
+        report.get("signal_available", report.get("sentiment") != "unavailable")
+    )
     coverage_status = str(
         report.get("coverage_status") or ("available" if signal_available else "unavailable")
     )
@@ -132,7 +135,11 @@ def _coerce_social_signal(
     return out
 
 
-def generate_report(asset: str, run_dir: str) -> SocialBundle:
+def generate_report(
+    asset: str,
+    run_dir: str,
+    runtime: AnalysisRuntime | None = None,
+) -> SocialBundle:
     """Generate the Social report and persist it as `social.json` inside run_dir."""
 
     asset_norm = (asset or "").strip().upper()
@@ -142,15 +149,54 @@ def generate_report(asset: str, run_dir: str) -> SocialBundle:
     out_dir = Path(run_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    if runtime is not None:
+        runtime.emit_stage("social", "running", "Fetching Reddit discussion")
+        runtime.emit_tool_call(
+            "social",
+            "get_reddit_discussion",
+            "Fetching Reddit discussion",
+            {"asset": asset_norm},
+        )
     corpus = cast(str, get_reddit_discussion.invoke({"asset": asset_norm}))
     ingest_meta = extract_ingest_meta_from_text(corpus)
     ingest_meta["generated_at_utc"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    if runtime is not None:
+        runtime.emit_tool_result(
+            "social",
+            "get_reddit_discussion",
+            (
+                f"Fetched {ingest_meta.get('post_count', 0)} Reddit posts and "
+                f"{ingest_meta.get('comment_count', 0)} comments"
+            ),
+            {
+                "post_count": ingest_meta.get("post_count", 0),
+                "comment_count": ingest_meta.get("comment_count", 0),
+                "source": ingest_meta.get("source"),
+            },
+        )
 
+    if runtime is not None:
+        runtime.emit_tool_call(
+            "social",
+            "analyze_reddit_text",
+            "Running social sentiment analysis",
+            {"asset": asset_norm},
+        )
     nlp_result = cast(
         Dict[str, Any],
         analyze_reddit_text.invoke({"asset": asset_norm, "text": corpus}),
     )
     nlp_result = _coerce_social_signal(nlp_result, ingest_meta)
+    if runtime is not None:
+        runtime.emit_tool_result(
+            "social",
+            "analyze_reddit_text",
+            "Social sentiment analysis completed",
+            {
+                "sentiment": nlp_result.get("sentiment"),
+                "signal_available": nlp_result.get("signal_available"),
+            },
+        )
     report_obj = cast(
         Dict[str, Any],
         build_social_report.invoke(
@@ -163,4 +209,11 @@ def generate_report(asset: str, run_dir: str) -> SocialBundle:
     path = out_dir / "social.json"
     write_json(path, report_obj)
     report_obj["report_path"] = str(path)
+    if runtime is not None:
+        runtime.emit_stage(
+            "social",
+            "completed",
+            "Social report completed",
+            {"artifact": "social", "report_path": str(path)},
+        )
     return cast(SocialBundle, report_obj)

@@ -1,5 +1,6 @@
 """FastAPI models package."""
 
+from .analysis_events import AnalysisStreamEvent, AnalysisStreamResult
 from .schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -17,6 +18,8 @@ from .schemas import (
 __all__ = [
     "AnalyzeRequest",
     "AnalyzeResponse",
+    "AnalysisStreamEvent",
+    "AnalysisStreamResult",
     "Report",
     "ServiceStatus",
     "MCPStatus",

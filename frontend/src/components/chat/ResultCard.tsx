@@ -1,68 +1,82 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MarkdownRenderer } from "./MarkdownRenderer";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import type {
+  AnalysisConnectionState,
+  AnalysisStageCard,
+  AnalysisStreamEvent,
+} from "@/features/analysis-session/types";
+import { AnalysisEventFeed } from "./AnalysisEventFeed";
+import { AnalysisFinalReport } from "./AnalysisFinalReport";
+import { AnalysisStageCards } from "./AnalysisStageCards";
 
 interface ResultCardProps {
-  symbol: string;
-  query: string;
-  progress: string[];
-  result: { final_decision?: string } | null;
+  connection: AnalysisConnectionState;
+  error: string | null;
+  events: AnalysisStreamEvent[];
+  finalReport: string | null;
   isAnalyzing: boolean;
+  query: string;
+  stages: AnalysisStageCard[];
+  symbol: string;
 }
 
 export function ResultCard({
-  symbol,
-  query,
-  progress,
-  result,
+  connection,
+  error,
+  events,
+  finalReport,
   isAnalyzing,
+  query,
+  stages,
+  symbol,
 }: ResultCardProps) {
   return (
     <Card className="flex flex-1 flex-col overflow-hidden">
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
+      <CardHeader className="gap-3 pb-2">
+        <div className="flex flex-wrap items-center gap-2">
           <CardTitle className="text-base">{symbol}</CardTitle>
-          {isAnalyzing && (
-            <Badge variant="secondary" className="animate-pulse text-xs">
-              Analyzing...
+          {isAnalyzing ? (
+            <Badge className="text-xs" variant="secondary">
+              Streaming
             </Badge>
-          )}
+          ) : null}
+          {connection === "completed" ? (
+            <Badge className="text-xs" variant="default">
+              Completed
+            </Badge>
+          ) : null}
+          {connection === "failed" ? (
+            <Badge className="text-xs" variant="destructive">
+              Failed
+            </Badge>
+          ) : null}
         </div>
-        <p className="truncate text-xs text-muted-foreground">{query}</p>
+        <CardDescription className="truncate">{query}</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col space-y-2 overflow-y-auto">
-        {/* Progress */}
-        {progress.length > 0 && (
-          <div className="space-y-1">
-            {progress.map((msg, i) => (
-              <p
-                key={i}
-                className="flex items-start gap-1 text-xs text-muted-foreground"
-              >
-                <span className="mt-0.5 text-primary">•</span>
-                <span>{msg}</span>
-              </p>
-            ))}
-          </div>
-        )}
+      <CardContent className="flex flex-1 flex-col gap-4 overflow-y-auto">
+        <AnalysisStageCards stages={stages} />
+        <AnalysisEventFeed events={events} />
+        <AnalysisFinalReport
+          content={finalReport}
+          error={error}
+          isComplete={connection === "completed"}
+        />
 
-        {/* Final Decision - Markdown formatted */}
-        {result?.final_decision && (
-          <div className="pt-1">
-            <MarkdownRenderer content={String(result.final_decision)} />
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!isAnalyzing && !result?.final_decision && progress.length === 0 && (
-          <div className="flex h-full flex-col items-center justify-center py-8 text-center">
+        {!isAnalyzing && !finalReport && !error && events.length === 0 ? (
+          <div className="flex h-full items-center justify-center rounded-lg border border-dashed p-6 text-center">
             <p className="text-sm text-muted-foreground">
-              Analysis results will appear here.
+              Analysis results will appear here after the first streamed event.
             </p>
           </div>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );

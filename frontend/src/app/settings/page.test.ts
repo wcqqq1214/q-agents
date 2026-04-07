@@ -2,9 +2,18 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const settingsPageSource = readFileSync(new URL("./page.tsx", import.meta.url), "utf8");
-const apiSource = readFileSync(new URL("../../lib/api.ts", import.meta.url), "utf8");
-const typesSource = readFileSync(new URL("../../lib/types.ts", import.meta.url), "utf8");
+const settingsPageSource = readFileSync(
+  new URL("./page.tsx", import.meta.url),
+  "utf8",
+);
+const apiSource = readFileSync(
+  new URL("../../lib/api.ts", import.meta.url),
+  "utf8",
+);
+const typesSource = readFileSync(
+  new URL("../../lib/types.ts", import.meta.url),
+  "utf8",
+);
 
 test("settings page keeps display preferences but removes api key management copy", () => {
   assert.match(settingsPageSource, /Display Preferences/);

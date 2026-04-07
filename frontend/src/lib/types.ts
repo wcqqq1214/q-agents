@@ -53,14 +53,6 @@ export interface AnalyzeResponse {
   status: string;
 }
 
-export interface SSEEvent {
-  type: "progress" | "result" | "error";
-  message?: string;
-  step?: string;
-  done?: boolean;
-  data?: unknown;
-}
-
 export interface MCPStatus {
   market_data?: ServiceStatus;
   news_search?: ServiceStatus;
@@ -149,3 +141,8 @@ export interface CryptoQuote {
 export interface CryptoQuotesResponse {
   quotes: CryptoQuote[];
 }
+
+export type {
+  AnalysisStreamEvent,
+  AnalysisStreamResult,
+} from "../features/analysis-session/types";

@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const reportCardSource = readFileSync(new URL("./ReportCard.tsx", import.meta.url), "utf8");
+const reportCardSource = readFileSync(
+  new URL("./ReportCard.tsx", import.meta.url),
+  "utf8",
+);
 
 test("report card tabs use english copy", () => {
   assert.match(

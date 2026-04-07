@@ -101,13 +101,18 @@ const markdownComponents: Components = {
     return <li {...props} className={cn("my-1", className)} />;
   },
   ol({ className, ...props }) {
-    return <ol {...props} className={cn("my-2 ml-4 list-decimal", className)} />;
+    return (
+      <ol {...props} className={cn("my-2 ml-4 list-decimal", className)} />
+    );
   },
   p({ className, ...props }) {
     return (
       <p
         {...props}
-        className={cn("my-2 text-sm leading-relaxed text-foreground", className)}
+        className={cn(
+          "my-2 text-sm leading-relaxed text-foreground",
+          className,
+        )}
       />
     );
   },

@@ -103,7 +103,9 @@ def load_daily_digest_config() -> DailyDigestConfig:
 
     tickers = _normalize_tickers(os.getenv("DAILY_DIGEST_TICKERS"))
     if not tickers:
-        logger.warning("Daily digest ticker list is empty after normalization; falling back to default tickers")
+        logger.warning(
+            "Daily digest ticker list is empty after normalization; falling back to default tickers"
+        )
         tickers = list(DEFAULT_TICKERS)
 
     recipients, dropped_recipient_count = _filter_recipients_with_count(

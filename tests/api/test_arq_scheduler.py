@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 from app.api.main import (
     close_arq_pool,
+    configure_daily_digest_job,
     configure_market_data_jobs,
     create_arq_pool,
     enqueue_daily_ohlc_job,
@@ -87,13 +88,19 @@ def test_configure_market_data_jobs_registers_5_minute_stock_jobs():
     configure_market_data_jobs(app, mock_scheduler)
 
     intraday_call = next(
-        call for call in mock_scheduler.add_job.call_args_list if call.kwargs["id"] == "intraday_stock_update"
+        call
+        for call in mock_scheduler.add_job.call_args_list
+        if call.kwargs["id"] == "intraday_stock_update"
     )
     post_close_call = next(
-        call for call in mock_scheduler.add_job.call_args_list if call.kwargs["id"] == "daily_ohlc_update"
+        call
+        for call in mock_scheduler.add_job.call_args_list
+        if call.kwargs["id"] == "daily_ohlc_update"
     )
     crypto_call = next(
-        call for call in mock_scheduler.add_job.call_args_list if call.kwargs["id"] == "daily_crypto_download"
+        call
+        for call in mock_scheduler.add_job.call_args_list
+        if call.kwargs["id"] == "daily_crypto_download"
     )
 
     trigger = intraday_call.kwargs["trigger"]
@@ -108,3 +115,43 @@ def test_configure_market_data_jobs_registers_5_minute_stock_jobs():
     crypto_trigger = crypto_call.kwargs["trigger"]
     assert isinstance(crypto_trigger, CronTrigger)
     assert str(crypto_trigger.timezone) == "UTC"
+
+
+def test_configure_daily_digest_job_registers_cron_job(monkeypatch):
+    """Daily digest scheduler should register a single cron job when enabled."""
+    monkeypatch.setenv("DAILY_DIGEST_ENABLED", "true")
+    monkeypatch.setenv("DAILY_DIGEST_TIME", "08:00")
+    monkeypatch.setenv("DAILY_DIGEST_TIMEZONE", "Asia/Shanghai")
+    app = FastAPI()
+    scheduler = Mock()
+
+    configure_daily_digest_job(app, scheduler)
+
+    digest_call = next(
+        call
+        for call in scheduler.add_job.call_args_list
+        if call.kwargs["id"] == "daily_email_digest"
+    )
+    assert digest_call.args[0].__name__ == "send_daily_digest"
+    assert isinstance(digest_call.kwargs["trigger"], CronTrigger)
+    assert str(digest_call.kwargs["trigger"].timezone) == "Asia/Shanghai"
+    assert digest_call.kwargs["replace_existing"] is True
+    assert digest_call.kwargs["max_instances"] == 1
+
+
+def test_configure_daily_digest_job_skips_invalid_schedule(monkeypatch, caplog):
+    """Daily digest scheduler should log and skip invalid schedule config."""
+    monkeypatch.setenv("DAILY_DIGEST_ENABLED", "true")
+    monkeypatch.setenv("DAILY_DIGEST_TIME", "99:99")
+    app = FastAPI()
+    scheduler = Mock()
+
+    configure_daily_digest_job(app, scheduler)
+
+    assert all(
+        call.kwargs.get("id") != "daily_email_digest" for call in scheduler.add_job.call_args_list
+    )
+    assert (
+        "Skipping daily digest registration because digest schedule config is invalid"
+        in caplog.text
+    )

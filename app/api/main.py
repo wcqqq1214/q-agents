@@ -16,10 +16,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config_manager import config_manager
 from app.database.agent_history import init_db as init_agent_history_db
 from app.database.crypto_ohlc import get_max_date
+from app.digest.config import build_daily_digest_trigger, load_daily_digest_config
 from app.mcp_client.connection_manager import get_mcp_connection_manager
 from app.services.batch_downloader import download_daily_data
 from app.services.realtime_agent import update_hot_cache_loop, warmup_hot_cache
 from app.services.stock_updater import update_stocks_intraday
+from app.tasks.send_daily_digest import send_daily_digest
 from app.tasks.update_ohlc import update_daily_ohlc
 
 from .models import HealthResponse
@@ -129,6 +131,28 @@ def configure_market_data_jobs(app: FastAPI, scheduler: AsyncIOScheduler) -> Non
         max_instances=1,
     )
     logger.info("✓ Intraday stock update configured: updates every 5 minutes (ET)")
+
+
+def configure_daily_digest_job(app: FastAPI, scheduler: AsyncIOScheduler) -> None:
+    """Register the daily digest scheduler job when config is valid."""
+
+    del app
+    config = load_daily_digest_config()
+    if not config["enabled"]:
+        return
+
+    trigger = build_daily_digest_trigger(config)
+    if trigger is None:
+        logger.error("Skipping daily digest registration because digest schedule config is invalid")
+        return
+
+    scheduler.add_job(
+        send_daily_digest,
+        trigger=trigger,
+        id="daily_email_digest",
+        replace_existing=True,
+        max_instances=1,
+    )
 
 
 def daily_crypto_download():
@@ -276,6 +300,7 @@ async def lifespan(app: FastAPI):
     logger.info("✓ Stock catchup started in background (non-blocking)")
 
     configure_market_data_jobs(app, scheduler)
+    configure_daily_digest_job(app, scheduler)
 
     scheduler.start()
     logger.info("✓ APScheduler started")

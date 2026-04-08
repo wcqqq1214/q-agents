@@ -169,9 +169,9 @@ The containerized stack is intended to be production-like, not development-live-
 Add a shared Python container strategy for `api`, `market-data-mcp`, and `news-search-mcp`:
 
 - base image: slim Python 3.13 image
-- install `uv` inside the image
+- copy `uv` into the image from the official Astral `uv` container image instead of installing it with ad-hoc curl logic
 - copy dependency manifests first for build cache efficiency
-- install backend dependencies from project metadata
+- install backend dependencies from project metadata with frozen `uv` resolution during image build
 - copy the repository source
 - set a stable working directory inside the container
 
@@ -194,6 +194,7 @@ Use the official Redis image with:
 - a named volume for data
 - an explicit health check
 - no fallback mode in compose
+- no bind mount for the Redis data directory, to avoid host permission drift on Linux
 
 ## Compose Design
 
@@ -234,6 +235,21 @@ Important examples:
 
 The frontend variable remains `localhost` because it is consumed by the browser, not by container-to-container traffic.
 
+### Frontend networking contract
+
+The current frontend codebase consumes `@/lib/api` from client components and client pages, so a browser-facing `NEXT_PUBLIC_API_URL=http://localhost:8080` is correct for the current deployment behavior.
+
+However, this must not become an undocumented assumption for future frontend changes. If the implementation work discovers existing server-side fetches, or if the containerization work introduces SSR/RSC/API-route fetches as part of the deployment path, the frontend runtime must also support an internal server-side API target such as:
+
+- `INTERNAL_API_URL=http://api:8080`
+
+The implementation plan should choose one consistent strategy for server-side access if it becomes necessary:
+
+- add a dedicated internal server-side API base URL
+- or add a deliberate Next.js rewrite/proxy layer
+
+The initial container deployment work should not broaden into a frontend proxy refactor unless server-side API access is actually required by the current codepath.
+
 ## Wrapper Script Design
 
 Provide thin repository-owned wrappers around compose rather than host-mutating bootstrap logic.
@@ -257,6 +273,7 @@ Wrappers may:
 
 - check that Docker is installed
 - check that `docker compose` is available
+- fail fast when `.env` is missing, with an explicit message to copy `.env.example` and fill required keys
 - check that required env files exist
 - call `docker compose up -d --build`
 - wait for service health
@@ -294,6 +311,7 @@ Update repository documentation so deployment and development are clearly separa
 ### Deployment docs must cover
 
 - prerequisites: Docker and Docker Compose only
+- Docker Desktop / OrbStack resource guidance for macOS and Windows, including a concrete memory recommendation such as 4 GB minimum and 8 GB preferred because the five-service stack can fail with opaque OOM symptoms under low VM memory
 - how to create `.env`
 - how to start via raw compose
 - how to start via wrapper script
@@ -305,6 +323,7 @@ Update repository documentation so deployment and development are clearly separa
   - missing API keys
   - port conflicts
   - Docker daemon unavailable
+  - Docker Desktop / OrbStack memory too low for image build or startup
   - failed health checks
 
 ### Native development docs must remain
@@ -389,6 +408,12 @@ This design intentionally does not require full application integration tests in
 
 - Risk: Windows support is nominal only
   - Mitigation: provide native PowerShell wrappers and include Windows in CI matrix verification
+
+- Risk: macOS or Windows users hit opaque Docker Desktop / OrbStack OOM failures during build or startup
+  - Mitigation: document minimum VM memory expectations prominently in deployment instructions and troubleshooting guidance
+
+- Risk: a future frontend SSR/RSC path tries to call `http://localhost:8080` from inside the frontend container
+  - Mitigation: treat browser-facing and server-side frontend API targets as separate concerns, and add an internal API URL or explicit rewrite strategy if server-side access is introduced
 
 - Risk: documentation drifts from real commands
   - Mitigation: verify wrapper paths and compose commands in automated checks where possible

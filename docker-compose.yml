@@ -14,6 +14,116 @@ services:
       retries: 3
     restart: unless-stopped
 
+  market-data-mcp:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+      target: market-data-mcp
+    container_name: q-agents-market-data-mcp
+    environment:
+      MCP_MARKET_DATA_HOST: 0.0.0.0
+      MCP_MARKET_DATA_PORT: "8000"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  news-search-mcp:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+      target: news-search-mcp
+    container_name: q-agents-news-search-mcp
+    environment:
+      MCP_NEWS_SEARCH_HOST: 0.0.0.0
+      MCP_NEWS_SEARCH_PORT: "8001"
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+      target: api
+    container_name: q-agents-api
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      REDIS_ENABLED: "true"
+      MCP_MARKET_DATA_URL: http://market-data-mcp:8000/mcp
+      MCP_NEWS_SEARCH_URL: http://news-search-mcp:8001/mcp
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      market-data-mcp:
+        condition: service_healthy
+      news-search-mcp:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    container_name: q-agents-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
 volumes:
   redis_data:
     driver: local

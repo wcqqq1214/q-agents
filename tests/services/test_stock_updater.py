@@ -205,3 +205,51 @@ def test_update_stocks_intraday_sync_prefers_mcp_history_over_yfinance():
     mock_download.assert_not_called()
     mock_upsert.assert_called_once_with("AAPL", mcp_rows)
     mock_update_metadata.assert_called_once_with("AAPL", "2026-04-08", "2026-04-08")
+
+
+def test_update_stocks_intraday_sync_synthesizes_market_day_row_from_quote():
+    """When MCP history lags, intraday refresh should append a quote-derived market-day candle."""
+    stale_history_rows = [
+        {
+            "date": "2026-04-07",
+            "open": 256.16,
+            "high": 256.2,
+            "low": 245.7,
+            "close": 253.5,
+            "volume": 61377300,
+        }
+    ]
+
+    with patch("app.services.stock_updater.should_update_stocks", return_value=True):
+        with patch("app.services.stock_updater.SYMBOLS", ["AAPL"]):
+            with patch(
+                "app.services.stock_updater.get_current_market_date",
+                return_value=pd.Timestamp("2026-04-08").date(),
+            ):
+                with patch("app.database.upsert_ohlc_overwrite") as mock_upsert:
+                    with patch("app.database.update_metadata") as mock_update_metadata:
+                        with patch(
+                            "app.mcp_client.finance_client.call_get_stock_history",
+                            return_value=stale_history_rows,
+                        ):
+                            with patch(
+                                "app.mcp_client.finance_client.call_get_us_stock_quote",
+                                return_value={
+                                    "price": 257.79,
+                                    "previous_close": 253.5,
+                                    "open": 258.51,
+                                    "day_high": 259.75,
+                                    "day_low": 256.53,
+                                    "volume": 18546365,
+                                },
+                            ):
+                                update_stocks_intraday_sync()
+
+    written_rows = mock_upsert.call_args.args[1]
+    assert written_rows[-1]["date"] == "2026-04-08"
+    assert written_rows[-1]["close"] == 257.79
+    assert written_rows[-1]["open"] == 258.51
+    assert written_rows[-1]["high"] == 259.75
+    assert written_rows[-1]["low"] == 256.53
+    assert written_rows[-1]["volume"] == 18546365
+    mock_update_metadata.assert_called_once_with("AAPL", "2026-04-07", "2026-04-08")

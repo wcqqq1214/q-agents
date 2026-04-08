@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from app.database import get_metadata, get_ohlc_aggregated
 from app.services.market_calendar import is_nyse_trading_day
+from app.services.stock_updater import ensure_market_day_quote_row
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -100,7 +101,18 @@ def _refresh_stock_rows_if_stale(
             fetch_start_date.isoformat(),
             market_date.isoformat(),
         )
+        fresh_rows = ensure_market_day_quote_row(symbol.upper(), fresh_rows, market_date)
         if not fresh_rows:
+            return False
+
+        fresh_dates = [
+            _parse_record_date(str(row["date"]))
+            for row in fresh_rows
+            if isinstance(row, dict) and row.get("date")
+        ]
+        if not fresh_dates:
+            return False
+        if latest_persisted_date is not None and max(fresh_dates) <= latest_persisted_date:
             return False
 
         upsert_ohlc_overwrite(symbol.upper(), fresh_rows)

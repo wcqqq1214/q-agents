@@ -137,6 +137,61 @@ def get_current_market_date(now: datetime | None = None) -> date:
     return current.date()
 
 
+def _parse_row_date(value: str) -> date:
+    """Parse a stock OHLC row date into a ``date`` instance."""
+    return datetime.fromisoformat(value).date()
+
+
+def _build_market_day_row_from_quote(
+    market_date: date, quote: Dict[str, float | int | None]
+) -> Dict | None:
+    """Build a synthetic daily OHLC row for the current market day from a quote payload."""
+    close_price = quote.get("price")
+    if close_price is None:
+        return None
+
+    open_price = quote.get("open")
+    if open_price is None:
+        open_price = quote.get("previous_close", close_price)
+
+    high_price = quote.get("day_high")
+    low_price = quote.get("day_low")
+
+    open_value = float(open_price) if open_price is not None else float(close_price)
+    close_value = float(close_price)
+    high_value = float(high_price) if high_price is not None else max(open_value, close_value)
+    low_value = float(low_price) if low_price is not None else min(open_value, close_value)
+    volume_value = int(quote.get("volume") or 0)
+
+    return {
+        "date": market_date.isoformat(),
+        "open": open_value,
+        "high": high_value,
+        "low": low_value,
+        "close": close_value,
+        "volume": volume_value,
+    }
+
+
+def ensure_market_day_quote_row(symbol: str, records: List[Dict], market_date: date) -> List[Dict]:
+    """Append a quote-derived market-day row when history data still lags behind ``market_date``."""
+    latest_record_date = max((_parse_row_date(str(row["date"])) for row in records), default=None)
+    if latest_record_date is not None and latest_record_date >= market_date:
+        return records
+
+    from app.mcp_client.finance_client import call_get_us_stock_quote
+
+    quote = call_get_us_stock_quote(symbol)
+    synthetic_row = _build_market_day_row_from_quote(market_date, quote)
+    if synthetic_row is None:
+        return records
+
+    filtered_rows = [row for row in records if str(row.get("date")) != synthetic_row["date"]]
+    filtered_rows.append(synthetic_row)
+    filtered_rows.sort(key=lambda row: str(row["date"]))
+    return filtered_rows
+
+
 def fetch_recent_ohlc_from_mcp(
     symbols: List[str],
     days: int = 5,
@@ -168,6 +223,8 @@ def fetch_recent_ohlc_from_mcp(
                         "volume": int(row["volume"]),
                     }
                 )
+
+            records = ensure_market_day_quote_row(symbol, records, end_date)
 
             if not records:
                 logger.warning(f"No MCP stock history returned for {symbol}")

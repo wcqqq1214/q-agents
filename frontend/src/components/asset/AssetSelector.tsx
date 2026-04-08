@@ -109,6 +109,22 @@ export function AssetSelector({
     [assetType, fetchCryptoQuotes, fetchStockQuotes],
   );
 
+  const handleStockSelect = useCallback(
+    (stock: StockInfo) => {
+      onSelectedStockQuoteChange(stock);
+      onAssetSelect(stock.symbol);
+    },
+    [onAssetSelect, onSelectedStockQuoteChange],
+  );
+
+  const handleCryptoSelect = useCallback(
+    (symbol: string) => {
+      onSelectedStockQuoteChange(null);
+      onAssetSelect(symbol);
+    },
+    [onAssetSelect, onSelectedStockQuoteChange],
+  );
+
   useEffect(() => {
     void fetchQuotes();
 
@@ -206,7 +222,7 @@ export function AssetSelector({
                     changePercent: crypto.changePercent,
                   }}
                   selected={selectedAsset === crypto.symbol}
-                  onClick={() => onAssetSelect(crypto.symbol)}
+                  onClick={() => handleCryptoSelect(crypto.symbol)}
                 />
               ))
             : stocks.map((stock) => (
@@ -214,7 +230,7 @@ export function AssetSelector({
                   key={stock.symbol}
                   stock={stock}
                   selected={selectedAsset === stock.symbol}
-                  onClick={() => onAssetSelect(stock.symbol)}
+                  onClick={() => handleStockSelect(stock)}
                 />
               ))}
       </div>

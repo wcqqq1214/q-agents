@@ -40,3 +40,8 @@ test("asset selector reports the currently selected stock quote upward", () => {
     /stocks\.find\(\(stock\) => stock\.symbol === selectedAsset\)/,
   );
 });
+
+test("asset selector sends the clicked stock quote upward immediately on selection", () => {
+  assert.match(source, /onSelectedStockQuoteChange\(stock\)/);
+  assert.match(source, /onClick=\{\(\) => handleStockSelect\(stock\)\}/);
+});

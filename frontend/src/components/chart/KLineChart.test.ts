@@ -68,3 +68,12 @@ test("k line chart can overlay the selected stock live quote onto the latest bar
   assert.match(source, /mergeLiveQuoteIntoLatestStockBar/);
   assert.match(source, /liveQuote\.price/);
 });
+
+test("k line chart ignores stale OHLC responses after a newer request starts", () => {
+  assert.match(source, /createLatestOnlyRequestGate/);
+  assert.match(source, /const requestId = requestGateRef\.current\.begin\(\)/);
+  assert.match(
+    source,
+    /if\s*\(!requestGateRef\.current\.isCurrent\(requestId\)\)\s*\{\s*return;\s*\}/,
+  );
+});

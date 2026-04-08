@@ -14,6 +14,7 @@ import {
 import { useTheme } from "next-themes";
 import { TimeRangeSelector } from "./TimeRangeSelector";
 import { api } from "@/lib/api";
+import { createLatestOnlyRequestGate } from "@/lib/latest-only-request";
 import { useToast } from "@/hooks/use-toast";
 import {
   STOCK_POLL_INTERVAL_MS,
@@ -165,6 +166,7 @@ export function KLineChart({
   const lastRequestStartedAtRef = useRef<number | null>(null);
   const requestInFlightRef = useRef(false);
   const latestOhlcDataRef = useRef<OHLCRecord[]>([]);
+  const requestGateRef = useRef(createLatestOnlyRequestGate());
   const { toast } = useToast();
   const [timezoneInfo] = useState(getTimezoneInfo());
   const { resolvedTheme } = useTheme();
@@ -180,15 +182,27 @@ export function KLineChart({
     latestOhlcDataRef.current = ohlcData;
   }, [ohlcData]);
 
+  useEffect(() => {
+    requestGateRef.current.invalidate();
+    setOhlcData([]);
+    latestOhlcDataRef.current = [];
+    setError(null);
+  }, [assetType, selectedStock]);
+
   // Fetch OHLC data
   const fetchData = useCallback(
     async (isAutoRefresh = false) => {
       if (!selectedStock) {
+        requestGateRef.current.invalidate();
+        requestInFlightRef.current = false;
+        setLoading(false);
+        setError(null);
         setOhlcData([]);
         latestOhlcDataRef.current = [];
         return;
       }
 
+      const requestId = requestGateRef.current.begin();
       lastRequestStartedAtRef.current = Date.now();
       requestInFlightRef.current = true;
       setLoading(true);
@@ -245,8 +259,14 @@ export function KLineChart({
                 end,
                 intervalMap[timeRange],
               );
+        if (!requestGateRef.current.isCurrent(requestId)) {
+          return;
+        }
         setOhlcData(response.data);
       } catch (err) {
+        if (!requestGateRef.current.isCurrent(requestId)) {
+          return;
+        }
         const message =
           err instanceof Error ? err.message : "Failed to load chart data";
         setError(message);
@@ -260,6 +280,9 @@ export function KLineChart({
           });
         }
       } finally {
+        if (!requestGateRef.current.isCurrent(requestId)) {
+          return;
+        }
         requestInFlightRef.current = false;
         setLoading(false);
       }

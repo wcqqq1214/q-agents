@@ -17,6 +17,7 @@ import { api } from "@/lib/api";
 import { createLatestOnlyRequestGate } from "@/lib/latest-only-request";
 import { resolveLegendChangeMetrics } from "@/lib/stock-chart-legend";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import {
   STOCK_POLL_INTERVAL_MS,
   canRefreshOnVisibility,
@@ -121,16 +122,22 @@ function getCurrentUsMarketDateString(now: Date = new Date()): string {
   return formatter.format(now);
 }
 
+function getChartTimeKey(time: Time | null | undefined): string | null {
+  if (time == null) {
+    return null;
+  }
+  if (typeof time === "string" || typeof time === "number") {
+    return String(time);
+  }
+  return `${time.year}-${String(time.month).padStart(2, "0")}-${String(time.day).padStart(2, "0")}`;
+}
+
 function mergeLiveQuoteIntoLatestStockBar(
   data: OHLCRecord[],
   assetType: "crypto" | "stocks",
   liveQuote?: StockInfo | null,
 ): OHLCRecord[] {
-  if (
-    assetType !== "stocks" ||
-    liveQuote?.price === undefined ||
-    data.length === 0
-  ) {
+  if (assetType !== "stocks" || liveQuote?.price == null || data.length === 0) {
     return data;
   }
 
@@ -159,6 +166,7 @@ export function KLineChart({
   const defaultTimeRange: TimeRange = assetType === "crypto" ? "15M" : "D";
   const [timeRange, setTimeRange] = useState<TimeRange>(defaultTimeRange);
   const [ohlcData, setOhlcData] = useState<OHLCRecord[]>([]);
+  const [ohlcSymbol, setOhlcSymbol] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -172,6 +180,13 @@ export function KLineChart({
   const [timezoneInfo] = useState(getTimezoneInfo());
   const { resolvedTheme } = useTheme();
   const { trendMode } = useTrendColor();
+  const hasCurrentOhlcData =
+    selectedStock !== null && ohlcSymbol === selectedStock;
+  const visibleOhlcData = hasCurrentOhlcData ? ohlcData : [];
+  const isChartLoading =
+    selectedStock !== null &&
+    (!hasCurrentOhlcData || (loading && visibleOhlcData.length === 0));
+  const shouldHideChartSurface = isChartLoading || visibleOhlcData.length === 0;
 
   // Reset timeRange when assetType changes
   useEffect(() => {
@@ -180,12 +195,25 @@ export function KLineChart({
   }, [assetType]);
 
   useEffect(() => {
-    latestOhlcDataRef.current = ohlcData;
-  }, [ohlcData]);
+    latestOhlcDataRef.current = hasCurrentOhlcData ? ohlcData : [];
+  }, [hasCurrentOhlcData, ohlcData]);
+
+  useEffect(() => {
+    if (shouldHideChartSurface) {
+      const legend = legendRef.current;
+      if (!legend) {
+        return;
+      }
+
+      legend.style.display = "none";
+      legend.innerHTML = "";
+    }
+  }, [shouldHideChartSurface]);
 
   useEffect(() => {
     requestGateRef.current.invalidate();
     setOhlcData([]);
+    setOhlcSymbol(null);
     latestOhlcDataRef.current = [];
     setError(null);
   }, [assetType, selectedStock]);
@@ -199,6 +227,7 @@ export function KLineChart({
         setLoading(false);
         setError(null);
         setOhlcData([]);
+        setOhlcSymbol(null);
         latestOhlcDataRef.current = [];
         return;
       }
@@ -208,6 +237,7 @@ export function KLineChart({
       requestInFlightRef.current = true;
       setLoading(true);
       setError(null);
+      setOhlcSymbol(selectedStock);
 
       try {
         const { start, end } = calculateDateRange(timeRange);
@@ -264,6 +294,7 @@ export function KLineChart({
           return;
         }
         setOhlcData(response.data);
+        setOhlcSymbol(selectedStock);
       } catch (err) {
         if (!requestGateRef.current.isCurrent(requestId)) {
           return;
@@ -339,7 +370,17 @@ export function KLineChart({
 
   // Create and update chart
   useEffect(() => {
-    if (!chartContainerRef.current || ohlcData.length === 0) {
+    const currentOhlcData = hasCurrentOhlcData ? ohlcData : [];
+
+    if (!chartContainerRef.current) {
+      return;
+    }
+
+    if (currentOhlcData.length === 0) {
+      if (chartRef.current) {
+        chartRef.current.remove();
+        chartRef.current = null;
+      }
       return;
     }
 
@@ -469,7 +510,7 @@ export function KLineChart({
     // For daily+ data, use YYYY-MM-DD format
     const isIntradayData = ["15M", "1H", "4H"].includes(timeRange);
     const displayData = mergeLiveQuoteIntoLatestStockBar(
-      ohlcData,
+      currentOhlcData,
       assetType,
       liveQuote,
     );
@@ -512,6 +553,23 @@ export function KLineChart({
       formattedData.length > 0
         ? formattedData[formattedData.length - 1]?.time
         : null;
+    const latestDateString =
+      displayData.length > 0
+        ? displayData[displayData.length - 1]?.date.split("T")[0]
+        : null;
+    const previousCloseByTime = new Map<string, number>();
+    formattedData.forEach((entry, index) => {
+      if (index === 0) {
+        return;
+      }
+
+      const timeKey = getChartTimeKey(entry.time);
+      if (!timeKey) {
+        return;
+      }
+
+      previousCloseByTime.set(timeKey, formattedData[index - 1]!.close);
+    });
 
     series.setData(formattedData);
     volumeSeries.setData(volumeData);
@@ -538,20 +596,23 @@ export function KLineChart({
         | undefined;
 
       if (ohlc && volData) {
+        const hoveredTimeKey = getChartTimeKey(param.time);
         const legendMetrics = resolveLegendChangeMetrics({
           assetType,
           hoveredTime: param.time,
           latestTime: latestFormattedTime,
+          latestDateString,
           ohlc,
+          previousClose:
+            hoveredTimeKey == null
+              ? undefined
+              : previousCloseByTime.get(hoveredTimeKey),
           liveQuote,
           currentUsMarketDate,
         });
         const isUp = legendMetrics.isUp;
         const color = isUp ? upColor : downColor;
         const sign = isUp ? "+" : "";
-        const legendLabel = legendMetrics.label
-          ? `${legendMetrics.label} `
-          : "";
 
         legend.style.display = "block";
         legend.innerHTML =
@@ -559,7 +620,7 @@ export function KLineChart({
           `&nbsp;&nbsp;<span style="color:${textColor}">H&nbsp;$${ohlc.high.toFixed(2)}</span>` +
           `&nbsp;&nbsp;<span style="color:${textColor}">L&nbsp;$${ohlc.low.toFixed(2)}</span>` +
           `&nbsp;&nbsp;<span style="color:${textColor}">C&nbsp;$${ohlc.close.toFixed(2)}</span>` +
-          `&nbsp;&nbsp;<span style="color:${color}">${legendLabel}${sign}${legendMetrics.percent.toFixed(2)}%</span>` +
+          `&nbsp;&nbsp;<span style="color:${color}">${sign}${legendMetrics.percent.toFixed(2)}%</span>` +
           `&nbsp;&nbsp;<span style="color:${borderColor}">Vol&nbsp;${formatVolume(volData.value)}</span>`;
       } else {
         legend.style.display = "none";
@@ -643,7 +704,15 @@ export function KLineChart({
         chartRef.current = null;
       }
     };
-  }, [assetType, liveQuote, ohlcData, resolvedTheme, trendMode, timeRange]);
+  }, [
+    assetType,
+    hasCurrentOhlcData,
+    liveQuote,
+    ohlcData,
+    resolvedTheme,
+    trendMode,
+    timeRange,
+  ]);
 
   // Render
   if (!selectedStock) {
@@ -656,7 +725,7 @@ export function KLineChart({
     );
   }
 
-  if (error && ohlcData.length === 0) {
+  if (error && visibleOhlcData.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border bg-card">
         <p className="text-sm text-destructive">{error}</p>
@@ -697,17 +766,24 @@ export function KLineChart({
 
       {/* Chart */}
       <div className="relative flex-1">
-        <div ref={chartContainerRef} className="absolute inset-0" />
+        <div
+          ref={chartContainerRef}
+          className={cn(
+            "absolute inset-0",
+            shouldHideChartSurface && "invisible",
+          )}
+        />
         <div
           ref={legendRef}
           className="pointer-events-none absolute top-2 left-2 z-10 hidden rounded bg-background/80 px-1.5 py-0.5 font-mono text-xs"
+          style={shouldHideChartSurface ? { display: "none" } : undefined}
         />
-        {loading && (
+        {isChartLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60">
             <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
           </div>
         )}
-        {!loading && ohlcData.length === 0 && (
+        {!isChartLoading && visibleOhlcData.length === 0 && (
           <div className="absolute inset-0 z-20 flex items-center justify-center">
             <p className="text-sm text-muted-foreground">No data available</p>
           </div>

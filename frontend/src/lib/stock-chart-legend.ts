@@ -11,7 +11,9 @@ interface ResolveLegendChangeMetricsParams {
   assetType: "crypto" | "stocks";
   hoveredTime: ChartTime;
   latestTime: ChartTime;
+  latestDateString?: string | null;
   ohlc: Pick<OHLCRecord, "open" | "close">;
+  previousClose?: number | null;
   liveQuote?: StockInfo | null;
   currentUsMarketDate: string;
 }
@@ -52,37 +54,48 @@ export function resolveLegendChangeMetrics({
   assetType,
   hoveredTime,
   latestTime,
+  latestDateString,
   ohlc,
+  previousClose,
   liveQuote,
   currentUsMarketDate,
 }: ResolveLegendChangeMetricsParams): LegendChangeMetrics {
   const candleChange = ohlc.close - ohlc.open;
   const candlePercent = ohlc.open === 0 ? 0 : (candleChange / ohlc.open) * 100;
-  const candleMetrics: LegendChangeMetrics = {
+  const fallbackMetrics: LegendChangeMetrics = {
     label: null,
     percent: candlePercent,
     isUp: candleChange >= 0,
   };
+  const previousCloseMetrics =
+    previousClose == null || previousClose === 0
+      ? null
+      : {
+          label: null,
+          percent: ((ohlc.close - previousClose) / previousClose) * 100,
+          isUp: ohlc.close >= previousClose,
+        };
 
-  const latestDateString =
-    typeof latestTime === "string"
+  const resolvedLatestDateString =
+    latestDateString ??
+    (typeof latestTime === "string"
       ? latestTime.split("T")[0]
       : isBusinessDay(latestTime)
         ? `${latestTime.year}-${String(latestTime.month).padStart(2, "0")}-${String(latestTime.day).padStart(2, "0")}`
-        : null;
+        : null);
 
   if (
     assetType !== "stocks" ||
     !areTimesEqual(hoveredTime, latestTime) ||
-    latestDateString !== currentUsMarketDate ||
-    liveQuote?.changePercent === undefined
+    resolvedLatestDateString !== currentUsMarketDate ||
+    liveQuote?.changePercent == null
   ) {
-    return candleMetrics;
+    return previousCloseMetrics ?? fallbackMetrics;
   }
 
   const quoteDirection = liveQuote.change ?? liveQuote.changePercent;
   return {
-    label: "Day",
+    label: null,
     percent: liveQuote.changePercent,
     isUp: quoteDirection >= 0,
   };

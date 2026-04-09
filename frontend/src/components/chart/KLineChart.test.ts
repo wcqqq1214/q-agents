@@ -33,17 +33,19 @@ test("k line chart cleans up interval and visibility listener", () => {
   );
 });
 
-test("k line chart chart-update effect tracks timeRange in dependencies", () => {
-  // ESLint warning in repo indicates the chart-update effect reads timeRange; ensure deps include it.
+test("k line chart chart-update effect tracks timeRange and current-data ownership in dependencies", () => {
   assert.match(
     source,
-    /\},\s*\[assetType,\s*liveQuote,\s*ohlcData,\s*resolvedTheme,\s*trendMode,\s*timeRange\]\s*\);/,
+    /\},\s*\[\s*assetType,\s*hasCurrentOhlcData,\s*liveQuote,\s*ohlcData,\s*resolvedTheme,\s*trendMode,\s*timeRange,\s*\]\s*\);/,
   );
 });
 
 test("k line chart only shows blocking error state when no data exists", () => {
   assert.doesNotMatch(source, /if\s*\(error\)\s*\{/);
-  assert.match(source, /if\s*\(error\s*&&\s*ohlcData\.length\s*===\s*0\)\s*\{/);
+  assert.match(
+    source,
+    /if\s*\(error\s*&&\s*visibleOhlcData\.length\s*===\s*0\)\s*\{/,
+  );
 });
 
 test("k line chart auto-refresh skips when a request is already in flight", () => {
@@ -66,7 +68,7 @@ test("k line chart suppresses auto-refresh toast noise once data exists", () => 
 test("k line chart can overlay the selected stock live quote onto the latest bar", () => {
   assert.match(source, /liveQuote\?: StockInfo \| null/);
   assert.match(source, /mergeLiveQuoteIntoLatestStockBar/);
-  assert.match(source, /liveQuote\.price/);
+  assert.match(source, /liveQuote\?\.price == null/);
 });
 
 test("k line chart ignores stale OHLC responses after a newer request starts", () => {
@@ -81,6 +83,45 @@ test("k line chart ignores stale OHLC responses after a newer request starts", (
 test("k line chart delegates latest stock legend percent to quote-aware legend metrics", () => {
   assert.match(source, /resolveLegendChangeMetrics/);
   assert.match(source, /hoveredTime:\s*param\.time/);
+  assert.match(source, /latestDateString,/);
+  assert.match(source, /previousClose:/);
   assert.match(source, /liveQuote,\s*currentUsMarketDate/);
-  assert.match(source, /legendLabel\s*=\s*legendMetrics\.label/);
+  assert.doesNotMatch(source, /legendLabel/);
+});
+
+test("k line chart clears stale legend content while loading or when no data is available", () => {
+  assert.match(
+    source,
+    /const\s+shouldHideChartSurface\s*=\s*isChartLoading\s*\|\|\s*visibleOhlcData\.length\s*===\s*0/,
+  );
+  assert.match(source, /if\s*\(shouldHideChartSurface\)\s*\{/);
+  assert.match(source, /legend\.style\.display\s*=\s*"none"/);
+  assert.match(source, /legend\.innerHTML\s*=\s*""/);
+  assert.match(
+    source,
+    /style=\{\s*shouldHideChartSurface\s*\?\s*\{\s*display:\s*"none"\s*\}\s*:\s*undefined\s*\}/,
+  );
+});
+
+test("k line chart only treats OHLC data as current when it matches the selected stock", () => {
+  assert.match(
+    source,
+    /const\s+\[ohlcSymbol,\s*setOhlcSymbol\]\s*=\s*useState<string \| null>\(null\)/,
+  );
+  assert.match(
+    source,
+    /const\s+hasCurrentOhlcData\s*=\s*selectedStock\s*!==\s*null\s*&&\s*ohlcSymbol\s*===\s*selectedStock/,
+  );
+  assert.match(
+    source,
+    /const\s+visibleOhlcData\s*=\s*hasCurrentOhlcData\s*\?\s*ohlcData\s*:\s*\[\]/,
+  );
+});
+
+test("k line chart hides the stale chart canvas until current symbol data is ready", () => {
+  assert.match(source, /import\s+\{\s*cn\s*\}\s+from\s+"@\/lib\/utils"/);
+  assert.match(
+    source,
+    /className=\{cn\(\s*"absolute inset-0",\s*shouldHideChartSurface\s*&&\s*"invisible",?\s*\)\}/,
+  );
 });

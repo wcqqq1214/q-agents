@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config_manager import config_manager
+from app.database import init_db as init_finance_db
 from app.database.agent_history import init_db as init_agent_history_db
 from app.database.crypto_ohlc import get_max_date
 from app.digest.config import build_daily_digest_trigger, load_daily_digest_config
@@ -281,6 +282,9 @@ async def lifespan(app: FastAPI):
         logger.info("✓ MCP servers loaded from %s", mcp_manager.config_path)
     except Exception as exc:
         logger.warning("MCP bootstrap failed, lazy reconnect will be used: %s", exc)
+
+    init_finance_db()
+    logger.info("✓ Finance database schema initialized")
 
     # Initialize agent history database
     db_path = os.getenv("AGENT_HISTORY_DB_PATH", "data/agent_history.db")
